@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 乱序执行
+  - Out-of-Order Execution_乱序执行
   - OoO
   - 动态调度
   - Dynamic Scheduling
@@ -60,6 +60,16 @@ Load 指令在乱序执行中面临与 Store 指令的依赖不确定性。前�
 
 另一种限制是分支误预测——每次误预测清空窗口中的所有投机指令，相当于窗口的有效利用率下降。如果误预测率为 3% 且分支频率为 20%，平均每执行 100 条指令就产生约 3 × 0.2 = 0.6 次误预测。如果每次误预测清空平均 100 条指令，那么约 60% 的指令是"无效投机"——虽然硬件在执行它们，但结果永远不会被提交。这揭示了分支预测对乱序执行性能的决定性作用：提高预测精度不仅是减少暂停，更是增加前端向后端输送有效指令的效率。
 
+### 乱序执行流水线的典型阶段划分
+
+现代高性能乱序执行处理器的流水线按功能可划分为前端（Front-End）、中端（Mid-End / Issue）和后端（Back-End）三大阶段。前端负责将指令流入流水线：取指（IF）从 L1 I-Cache 取 16-32 字节的指令块，预译码（Pre-Decode）标记分支和指令边界，译码（Decode）将 ISA 指令分解为微操作（Micro-Operation, uOp），分支预测和 BTB/RAS 也在前端完成。中端是乱序执行的核心：寄存器重命名（Rename）通过 RAT 将架构寄存器映射到物理寄存器并分配 ROB 条目，分派（Dispatch）将 uOp 存入发射队列，发射（Issue / Wakeup-Select）在操作数就绪时将 uOp 送入功能单元。后端负责执行和提交：执行（Execute）由功能单元完成计算和访存，提交（Commit / Retire）从 ROB 头部按序将完成 uOp 的结果写入架构寄存器文件和内存。
+
+流水线的深度与实际物理实现密切相关。在 Intel Golden Cove 微架构中，流水线深度约 14-16 级（从取指到执行），加上提交约 3-4 级，总计约 20 级。Apple Firestorm（M1 性能核）以更大的 ROB（约 630 条目）和更宽的发射宽度（8-wide）但更短的流水线（约 13 级）实现了极高的单线程性能和高能效比。这种"宽而浅"的设计哲学依赖于敏锐的预测器和充足的前端带宽来抵消浅流水线对预测精度的更高要求。
+
+### Load-Hit-Store 与内存依赖性验证的硬件机制
+
+当 Load 指令被投机发射而其前序 Store 的地址尚未确定时，Load 存在读错误数据的风险——如果 Store 的地址后来确定为与该 Load 相同且其数据已被更新。内存依赖性验证在 Store 地址确定后执行：将 Store 地址与所有在 ROB 中位于该 Store 之后但已被投机执行的 Load 的地址进行 CAM 比较。如果匹配（即 Load 错误地绕过了一个地址相同的 Store），则 Load 及其所有依赖指令必须从 ROB 中该 Load 点开始重放（Replay）。重放的代价不仅是 Load 本身的重新执行——所有消耗该 Load 结果的 ALU 指令也必须重新执行。大规模重放（Replay Storm）是性能杀手——一次 Load 重放可能触发连锁的数十条指令重放，当重放率超过 0.1% 时就开始出现可测量的性能退化。
+
 ## 关键要点
 
 - Tomasulo 算法的核心创新是用标签传递代替寄存器号静态绑定，使 WAR 和 WAW 在硬件层面完全消除
@@ -71,10 +81,20 @@ Load 指令在乱序执行中面临与 Store 指令的依赖不确定性。前�
 - 分支误预测恢复涉及 RAT 回滚：带检查点维护最多 N 个分支时刻的快照（64-128 条），超过容量时较新分支暂停发射
 - 物理寄存器文件端口数限制是乱序执行宽度的瓶颈：N-wide 提交需要 N 个写端口，M-wide 发射至少需要 2M 个读端口
 - 获取更宽 ILP 的代价是面积和功耗的平方到立方增长——发射队列越大 CAM 功耗越高
+- 乱序执行的"宽而浅"（Apple M1, 13 级 8-wide）与"窄而深"（Intel NetBurst, 31 级 3-wide）代表两种设计哲学：前者靠大窗口提取 ILP，后者靠高频弥补窄发射
+- Load-Hit-Store 地址匹配检测是 LSQ 的关键时序路径：Store 地址 CAM 与投机 Load 地址的比较逻辑决定了负载的最大投机激进程度
+- ROB 提交速率 = Commit Width × Clock Frequency，是程序的最终可见 IPC 的上限——任何大于 ROB 提交速率的投机的 ILP 提取都是浪费
+- 物理寄存器文件的分簇（Clustering）将 PRF 分成 2-4 个体，跨簇传输通过簇间通信总线降低单个体的端口数和功耗
+- 分支检查点（Branch Checkpoint）是 RAT 回滚的关键设施：每遇到分支时保存 RAT 快照，误预测后恢复对应检查点的映射状态，典型实现维护 64-128 个检查点
+- 唤醒-选择时序优化的三种方案：分簇发射队列（每簇独立 CAM）、并行 CAM 组（减少扇入扇出）和预测唤醒（推测操作数就绪，误预测时单周期气泡填充）
+- 发射宽度 W 决定了后端功能单元的并行度要求：W-wide 发射需要至少 W 个 ALU、W/2 个 AGU（Load/Store 地址生成）、W/4 个分支执行单元和 W/4 个浮点/向量单元
+- Load-Store Queue（LSQ）的物理实现通常分裂为 Load Queue（LQ）和 Store Queue（SQ）两部分——LQ 按 Load 的 ROB 顺序维护已投机执行的 Load 结果，SQ 按 Store 的 ROB 顺序维护提交前 Store 的数据和地址
+- uOp 融合（uOp Fusion / Macro-Op Fusion）是前端将两条相邻指令合并为单个 uOp 的硬件优化——如 x86 的比较和跳转指令对融合为 Compare-and-Branch uOp，减少 ROB 和发射队列的占用
+- 乱序执行的面积占比：在 5nm 高性能核心中，ROB + 发射队列 + PRF + LSQ 的总面积可达核心总面积的 40-50%，其中发射队列因 CAM 结构占据最大份额
 
 ## 与其他概念的关系
 
 - [[architecture/concepts/pipelining|流水线（Pipelining）]] — 乱序执行是顺序流水线的进化版本，通过动态调度消除独立指令间阻塞，是 ILP 利用的高级阶段
 - [[architecture/concepts/branch-prediction|分支预测（Branch Prediction）]] — 分支预测为乱序执行提供持续的投机指令流，预测精度直接决定 ROB 中有效工作量的比例
-- [[architecture/concepts/memory-hierarchy|存储层次（Memory Hierarchy）]] — 缓存未命中延迟通过 MLP 被部分掩盖，但缓存缺失仍是首要性能限制因素
-- [[architecture/concepts/cache-coherence|缓存一致性（Cache Coherence）]] — 多核乱序执行中，各核心的 Load/Store 提交顺序必须与内存一致性模型匹配
+- [[architecture/concepts/memory-hierarchy|存储层次（Memory Hierarchy）]] — 非阻塞缓存和 MSHR 提供的 MLP 是乱序执行掩盖存储延迟的核心机制，MSHR 数量直接决定了 Load 缺失的并行容忍度
+- [[architecture/concepts/cache-coherence|缓存一致性（Cache Coherence）]] — 多核乱序执行中，各核心的 Load/Store 提交顺序必须与内存一致性模型（TSO/Weak Ordering）匹配，ROB 提交顺序决定了向一致性协议暴露 Store 的时序

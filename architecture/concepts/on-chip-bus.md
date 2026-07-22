@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 片上总线
+  - On-Chip Bus_片上总线
   - On-Chip Bus
   - AXI
   - AMBA
@@ -54,6 +54,16 @@ AXI Interconnect（也称 AXI Fabric）是连接多个主从设备的核心基�
 
 服务质量通过 AxQOS 信号实现：每个主设备事务携带 QoS 标签（通常 4 位，16 个优先级），互连内部按优先级仲裁——高优先级实时事务优先于低优先级批量事务。为防止饿死，低优先级事务等待时间增长时其优先级逐渐提升（Aging 机制）。AXI Interconnect 还需处理数据宽度转换：当主设备数据宽度（256-bit）与从设备（64-bit）不匹配时，需将宽 beat 拆分为多个窄 beat（Downsizing），或将窄 beat 合并为宽 beat（Upsizing）。长突发的拆分与合并是互连时序的关键路径。
 
+### AMBA 协议演进与 QoS 增强
+
+AMBA（Advanced Microcontroller Bus Architecture）协议族随 SoC 复杂度增长经历了多代演进。APB（v1.0, 1996）是最简外设总线，用于连接低速外围设备如 GPIO、UART 和 I2C。AHB（v2.0, 1999）支持流水线传输和突发操作，首次引入多主设备仲裁和 Split 传输机制以解除长期总线占用。AXI3（v3.0, 2003）引入了完整的五通道模型和 Outstanding Transaction 支持，成为高性能 SoC 的标准互连协议。AXI4（v4.0, 2010）在 AXI3 基础上标准化了 QoS 信号和区域标识符。ACE（AXI Coherency Extensions, v4.0）增加了两条 Snoop 通道（ACSNOOP / CDSNOOP），在 AXI 五通道框架内实现缓存一致性。CHI（v5.0, 2013 起）完全重新设计为基于报文的三层协议，取代 ACE 成为 64 核以上系统的标准一致性互连。
+
+QoS（Quality of Service）在 AXI4/AXI5 中通过 AxQOS 信号（4 位，16 优先级）实现。高优先级事务（如实时显示控制器读取）在 AXI Interconnect 的仲裁器中优先于低优先级事务（如批量 DMA 传输）。为防止低优先级事务被无限期饿死，仲裁器采用 Aging 机制——随着等待时间增长，事务的仲裁优先级逐步提升，确保所有事务最终得到服务。AXI5 进一步引入了增强 QoS 扩展：AxQOS 值可动态重新映射，支持每个主设备的独立优先级映射表。NoC 路由器利用 QoS 标签执行虚通道级别的优先级调度，区分实时流（等时性传输）和尽力而为流。
+
+### 互连的性能建模
+
+片上互连的性能可以通过延迟-带宽乘积来评估。互连的零负载延迟（Zero-Load Latency）由通道延迟和流水线寄存器级数决定：理想 Crossbar 为 1 个周期（地址解码 + 仲裁），NoC 每跳增加 1-3 个周期。有效带宽利用率受多种因素影响：流水线深度不足导致带宽空隙（Bubble），地址冲突在低相联度从设备（如单 Bank DRAM）上产生排队延迟。实际测得的带宽利用率通常在 60-85% 之间——优秀设计通过多 Bank 交叉存取和事务调度优化趋近上限。
+
 ## 关键要点
 
 - AXI 五通道独立使读写完全并行，单个主设备可达接近理论峰值的总线带宽利用率
@@ -65,10 +75,26 @@ AXI Interconnect（也称 AXI Fabric）是连接多个主从设备的核心基�
 - 虫洞路由缓冲需求 = 链路深度 * VC 数 * Flit 位宽（而非整包大小 * 跳数）
 - 虚通道隔离：控制类消息（Snoop、Response）用高优先级 VC，不被数据流量阻塞
 - NoC 死锁避免：转弯禁止算法（Turn-Prohibition）或按序分配虚网络（Escaping VCs）
+- AMBA 协议族从 APB 到 CHI 的演进反映了 SoC 复杂度从单主 MCU 到百核异构系统的跨越：接口从简单并行总线进化为分层的基于报文的分组交换网络
+- QoS Aging 机制：低优先级事务等待时间超过可编程阈值后优先级自动提升，防止实时事务持续占用总线导致批量事务饿死
+- NoC 零负载延迟 = 路由器流水线级数 × 跳数：3 级流水线 × 5 跳 = 15 个周期的纯粹互连延迟，加上链路延迟和缓冲延迟
+- 互连功耗在 SoC 总功耗中占比可达 15-25%——NoC 的数据路径宽度（256-512 bit）和链路切换活跃度是功耗的主导因子
+- 带宽利用率公式：有效带宽 = 峰值带宽 × (1 - 仲裁损失率 - 地址冲突损失率)，典型利用率 60-85%
+- AXI Interconnect 的时序关键路径包括：地址解码逻辑（最小 1 级）、仲裁器选择（1 级）和数据路径 MUX（1 级），总计 2-3 个周期互连延迟
+- 地址映射表是可编程的：不同主设备看到不同的地址空间，Interconnect 根据 AxADDR 查表将事务路由至目标从设备，映射粒度通常 4KB-1MB
+- NoC 虚拟通道的流控避免死锁：将物理链路切分为多个虚通道（VC），通过有序虚网络分配保证数据流在有向图形中不形成循环等待——该理论源于 Dally 的虚通道死锁避免理论
+- AXI4 Stream 协议是 AXI 协议族的无地址简化变体，仅保留 TVALID/TREADY 握手和 TDATA/TKEEP/TLAST 信号，用于流式数据（如视频像素流、ADC 采样流）的单向高速传输
+- NoC 功耗的主要来源是链路翻转功耗和路由器交叉开关功耗：链路采用低摆幅差分信号（LVS / SLVS）可将摆幅降至约 200mV，功耗降低 3-5 倍
+- AXI 的乱序完成可导致写数据的到达顺序与写地址的发出顺序不一致——写数据交织（Write Data Interleaving）由 WID 信号管理，同一 WID 的数据严格保序
+- 总线宽度转换（Data Width Conversion）是 Interconnect 的必备功能：256-bit 主设备访问 32-bit 从设备时需将宽传输拆分为 8 次 32-bit 窄传输，顺序性和原子性由事务 ID 和突发类型保证
+- NoC 的设计空间探索（Design Space Exploration, DSE）通常使用 SystemC TLM 或专用仿真工具：通过分析目标应用的通信模式（流量矩阵、延迟敏感性）确定最优拓扑和虚通道数
+- AXI 的低功耗接口扩展（Q-Channel）通过独立的请求/接受信号实现时钟门控和电源门控的握手，允许从设备在空闲时动态开关时钟或电源，是 ARM 低功耗接口标准（Q-Channel/P-Channel）在 AXI 互连中的具体绑定
+- AXI 事务的独占访问（Exclusive Access）通过 AxLOCK 信号和原子操作支持实现：主设备发出 Exclusive Read 获取数据，随后发出 Exclusive Write 写入新值，若互连保证其间无其他写事务则写入成功，否则失败需软件重试——这是 LDREX/STREX 指令和 atomics 的硬件基础
+- AXI User 信号（AxUSER/xUSER）是用户定义的边带信号，宽度和含义由具体实现决定——通常用于传递安全状态（TrustZone NS 位）、数据共享属性或虚拟机标识符等信息
 
 ## 与其他概念的关系
 
 - [[architecture/concepts/cache-coherence|缓存一致性（Cache Coherence）]] — 目录式协议的四类消息通过 CHI Request/Response/Snoop/Data 通道承载，CHI 序列化点对应归属节点目录查找
 - [[architecture/concepts/memory-hierarchy|存储层次（Memory Hierarchy）]] — 缓存缺失产生的访存请求通过 AXI/CHI 逐级传递至 DRAM 控制器，总线延迟直接贡献 miss_penalty
 - [[architecture/concepts/soc-architecture|SoC 架构（SoC Architecture）]] — 互连拓扑和协议选择是 SoC 架构设计的核心决策，直接影响带宽分配和 IP 集成方案
-- [[cross-domain/concepts/clock-domain-crossing|跨时钟域（CDC）]] — NoC 中不同电压/频率域之间的路由器链路需要异步 FIFO 桥接
+- [[cross-domain/concepts/clock-domain-crossing|跨时钟域（CDC）]] — NoC 中不同电压/频率域之间的路由器链路需要异步 FIFO 桥接，CDC 同步器的延迟和面积直接影响 NoC 拓扑规划

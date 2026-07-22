@@ -1,7 +1,7 @@
 ---
 type: moc
 aliases:
-  - 体系结构总览
+  - Architecture MOC_体系结构总览
   - Computer Architecture Map of Content
 tags:
   - asic

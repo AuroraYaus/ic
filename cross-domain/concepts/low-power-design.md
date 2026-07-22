@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 低功耗设计
+  - Low Power Design_低功耗设计
   - UPF
   - Power Intent
   - Power Gating

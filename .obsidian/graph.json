@@ -9,67 +9,115 @@
   "colorGroups": [
     {
       "query": "tag:#index",
-      "color": {"a": 1, "rgb": 16753920}
+      "color": {
+        "a": 1,
+        "rgb": 16753920
+      }
     },
     {
       "query": "tag:#moc",
-      "color": {"a": 1, "rgb": 6749952}
+      "color": {
+        "a": 1,
+        "rgb": 6749952
+      }
     },
     {
       "query": "tag:#rtl",
-      "color": {"a": 1, "rgb": 43775}
+      "color": {
+        "a": 1,
+        "rgb": 43775
+      }
     },
     {
       "query": "tag:#verification",
-      "color": {"a": 1, "rgb": 16711935}
+      "color": {
+        "a": 1,
+        "rgb": 16711935
+      }
     },
     {
       "query": "tag:#architecture",
-      "color": {"a": 1, "rgb": 16744448}
+      "color": {
+        "a": 1,
+        "rgb": 16744448
+      }
     },
     {
       "query": "tag:#asic-flow",
-      "color": {"a": 1, "rgb": 255}
+      "color": {
+        "a": 1,
+        "rgb": 255
+      }
     },
     {
       "query": "tag:#cross-domain",
-      "color": {"a": 1, "rgb": 16776960}
+      "color": {
+        "a": 1,
+        "rgb": 16776960
+      }
     },
     {
       "query": "tag:#basics",
-      "color": {"a": 1, "rgb": 8421504}
+      "color": {
+        "a": 1,
+        "rgb": 8421504
+      }
     },
     {
       "query": "tag:#cmos",
-      "color": {"a": 1, "rgb": 32896}
+      "color": {
+        "a": 1,
+        "rgb": 32896
+      }
     },
     {
       "query": "tag:#eda",
-      "color": {"a": 1, "rgb": 8388736}
+      "color": {
+        "a": 1,
+        "rgb": 8388736
+      }
     },
     {
       "query": "tag:#claude",
-      "color": {"a": 1, "rgb": 12632256}
+      "color": {
+        "a": 1,
+        "rgb": 12632256
+      }
     },
     {
       "query": "tag:#policy",
-      "color": {"a": 1, "rgb": 12632256}
+      "color": {
+        "a": 1,
+        "rgb": 12632256
+      }
     },
     {
       "query": "[type:index]",
-      "color": {"a": 1, "rgb": 16753920}
+      "color": {
+        "a": 1,
+        "rgb": 16753920
+      }
     },
     {
       "query": "[type:moc]",
-      "color": {"a": 1, "rgb": 6749952}
+      "color": {
+        "a": 1,
+        "rgb": 6749952
+      }
     },
     {
       "query": "[type:concept]",
-      "color": {"a": 1, "rgb": 5592575}
+      "color": {
+        "a": 1,
+        "rgb": 5592575
+      }
     },
     {
       "query": "[type:spec]",
-      "color": {"a": 1, "rgb": 12632256}
+      "color": {
+        "a": 1,
+        "rgb": 12632256
+      }
     }
   ],
   "collapse-display": false,
@@ -82,6 +130,6 @@
   "repelStrength": 10,
   "linkStrength": 1,
   "linkDistance": 250,
-  "scale": 0.5,
+  "scale": 1.125,
   "close": true
 }

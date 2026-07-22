@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - SystemVerilog
+  - SystemVerilog_系统Verilog
   - SV
   - IEEE 1800
   - 系统Verilog

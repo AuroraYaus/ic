@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 跨时钟域设计
+  - Clock Domain Crossing_跨时钟域设计
   - CDC
   - Clock Domain Crossing
   - 亚稳态与同步器
@@ -27,7 +27,7 @@ source_spec: "Cummings, 'Clock Domain Crossing Design & Verification Techniques'
 
 同步器（Synchronizer）通过在跨时钟域边界插入等待时间来解决亚稳态。两级 DFF 同步器（2-FF Synchronizer）是最基本、最广泛使用的单比特同步方案：信号在发送域产生后通过两级串联的 DFF（采样时钟为目标域时钟），第一级 DFF 承担亚稳态风险（允许解析时间 Tsync），第二级 DFF 采样第一级已稳定（或大概率已稳定）的输出。两级同步器的 MTBF 与第一级的 Tres 指数相关——增大 Tres（即第一级和第二级之间的组合逻辑延迟，或使用专用同步器单元）可指数提升 MTBF。关键设计约束：两级 DFF 之间不得有任何组合逻辑（Cloud），因为任何组合延迟都会消耗 Tres 预算从而降低 MTBF。
 
-多级同步器在极高频率（GHz 级）或极高可靠性要求（汽车/航空 ASIL）时使用三级甚至四级 DFF 进一步降低亚稳态传播概率。但每增加一级 DFF 就增加一个目标时钟周期的延迟。同步器单元在标准库中通常特殊标注（如 `SYNC_DFF`），其内部反相器对被设计为更快解析（小 τ），版图上被靠近放置以最小化走线延迟。同步器还需防止综合工具对两级 DFF 做"冗余寄存器优化"——如果综合工具认为两级串联 DFF 是冗余的而合并为一级，同步器就完全失效了。使用 `(* DONT_TOUCH = "TRUE" *)` 属性或 `set_dont_touch` 约束来保护。
+多级同步器在极高频率（GHz 级）或极高可靠性要求（汽车/航空 ASIL）时使用三级甚至四级 DFF 进一步降低亚稳态传播概率。但每增加一级 DFF 就增加一个目标时钟周期的延迟。同步器单元在标准库中通常特殊标注（如 `SYNC_DFF`），其内部反相器对被设计为更快解析（小 τ），版图上被靠近放置以最小化走线延迟。同步器还需防止综合工具对两级 DFF 做"冗余寄存器优化"——如果综合工具认为两级串联 DFF 是冗余的而合并为一级，同步器就完全失效了。使用 `(* DONT_TOUCH = "TRUE" *)` 属性或 `set_dont_touch` 约束来保护。在物理设计中，同步器的两级 DFF 还需放置在同一标准单元行内、间距控制在 50-100um 以内，且禁止在两个 DFF 之间的信号路径上插入缓冲器——任何插入的缓冲器都会消耗解析时间 Tres 的预算。部分工艺库专门提供"同步器单元"（Sync Cell），内置双 DFF 硬连接、优化物理布局、标注 `dont_touch` 属性，将同步器设计的物理风险降到最低。
 
 ### Gray-coded 异步 FIFO
 
@@ -55,7 +55,19 @@ Gray 码（Gray Code）每步仅一位改变，彻底解决了多比特指针同
 
 CDC 验证是数字 IC Signoff 流程中的关键步骤。主流商用工具：SpyGlass CDC（Synopsys）、Questa CDC（Siemens EDA）、Jasper CDC（Cadence）。CDC 工具通过静态分析设计网表识别所有跨时钟域路径，检查每条路径是否有正确类型的同步器，标记未同步的路径（Unsynchronized CDC Violation）。关键检查项：（1）跨时钟域信号的同步器存在性与类型正确性（单比特 2-FF、多比特 FIFO/Handshake）；（2）异步 FIFO 的 Gray 码指针同步和满空逻辑是否正确；（3）总线聚合一致性——多比特信号是否由同一同步器机制保障，不存在部分同步部分 not 的情况；（4）亚稳态扇出路径——第一级同步器的输出去向不扇出到多个非相关的同步逻辑路径；（5）Reconvergence——两个独立同步的同一源信号在后续逻辑中重新汇聚（CDC 再收敛），可能因不同延迟而导致汇聚前后功能不一致。
 
-CDC 工具通常生成 waiver 机制——设计者通过手动验证确认某些 CDC 信号是安全的（如准静态信号、互斥使能的数据总线等），工具将合理标注为"已审核"（Reviewed/Waived）逐步收敛到零违规状态。这一审核过程是 CDC Signoff 中最依赖人工工程判断的环节。
+CDC 工具通常生成 waiver 机制——设计者通过手动验证确认某些 CDC 信号是安全的（如准静态信号、互斥使能的数据总线等），工具将合理标注为"已审核"（Reviewed/Waived）逐步收敛到零违规状态。这一审核过程是 CDC Signoff 中最依赖人工工程判断的环节。除静态结构检查外，形式 CDC 验证（Formal CDC Verification）——如 Jasper CDC 的形式引擎——通过 SAT/SMT 求解器穷举证明跨域路径在所有可达状态下不存在亚稳态传播，消除了静态分析中因 waiver 审核引入的主观误判风险。形式验证与静态分析互补使用是零缺陷 CDC Signoff 的推荐流程。
+
+### CDC 路径的 SDC 约束
+
+CDC 同步器路径在 STA 中需要特殊约束处理。对于 2-FF 同步器的第一级 DFF 输出到第二级 DFF 输入路径（即同步器的内部路径），使用 `set_false_path` 将第一级设置为时序例外——因为在第一级 DFF 输出可能处于亚稳态的时间段内（解析时间窗口内），第二级 DFF 的建立/保持检查本身没有意义。如果该路径存在且未约束为 false path，STA 工具将报告大量虚假建立时间违规。
+
+对于多比特 CDC 路径（如握手方案的 REQ/ACK 路径），使用 `set_max_delay` 约束替代 false path：要求跨域信号的延迟不超过一个数据稳定窗口（通常为一个目标时钟周期减去同步 DFF 的建立时间），以确保数据到达时仍在接收端的有效采样窗口内。DMUX 方案的使能信号通过 2-FF 同步后，其输出到数据采样 DFF 的延迟也需 `set_max_delay` 约束。CDC 约束的质量直接决定 STA Signoff 的准确性——误标 false path 可能掩盖真正的时序违规，漏标则导致虚假违规淹没真实问题。此外，所有异步时钟域之间必须通过 `set_clock_groups -asynchronous` 声明为异步时钟组——该命令告知 STA 工具不同时钟域之间无确定相位关系、不应在内部分析跨域路径，否则 STA 将在每一对异步时钟上产生巨量虚假违规，使时序报告完全不可读。正确的 `set_clock_groups` 声明与每一条 CDC 路径的 false_path/max_delay 约束配合，共同构成完整的 CDC STA 约束集。
+
+### 准静态信号与 CDC 豁免
+
+并非所有跨时钟域信号都需要完整的同步器链路。准静态信号（Quasi-Static Signal）——在目标时钟域采样时已稳定且至少在多个目标时钟周期内不变——可通过设计保证（而非硬件同步器）安全跨越。典型场景包括：上电后仅写入一次的配置寄存器、由复位控制器在复位期间更新的模式选择信号、由 JTAG 接口在系统空闲时写入的控制字段。申请 CDC waiver 的准静态信号需附带约束证明：使用 `set_data_check` 或等效文档证明信号在 PVT（工艺-电压-温度）变异下不与时钟沿重合——这是 SpyGlass CDC 和 Questa CDC 中最常见的 waiver 类别，正确分类可大幅减少需人工审核的 CDC 违规数量。
+
+准静态信号的 CDC 安全并非绝对——设计必须证明信号在所有系统状态下的稳定时间窗口长于目标域的检测窗口，且该约束在最高工作温度和最低工作电压条件下依然成立（因 PVT 变异会影响信号传播延迟和建立保持窗口）。违反此约束的典型反例：通过 APB 总线写入的配置寄存器——如果 CPU 在配置写入后立即通过中断通知外设读取，中断信号可能先于数据到达稳定状态，导致外设采样到脏数据。此类场景必须在设计规格中明确定义等待周期数。
 
 ## 关键要点
 
@@ -68,10 +80,21 @@ CDC 工具通常生成 waiver 机制——设计者通过手动验证确认某�
 - 亚稳态扇出规则：第一级同步器输出不应直接驱动多条非相关同步逻辑路径
 - 高可靠性应用（车规 ISO 26262 / 航空 DO-254）通常要求 3-4 级同步器加更高 MTBF 目标
 - CDC 再收敛（Reconvergence）是跨域设计中隐性错误的主要来源——两个独立同步的同源信号汇聚时可能失配
+- CDC 的 SDC 约束策略因同步器类型而异：2-FF 内部用 `set_false_path`，多比特握手路径用 `set_max_delay` 约束
+- 快速源域 → 慢速目标域的 CDC 信号可能因重采样（采样间隔大于信号持续时间）而丢失——需电平拉伸器（Pulse Stretcher）或握手协议保证至少 2 个目标时钟周期的数据有效窗口
+- 跨时钟域的复位信号必须经复位同步器处理——未经同步的复位跨越是 CDC 违规的最高危场景之一，可能导致芯片死锁或不定态传播
+- 准静态信号（配置寄存器、模式选择等）可通过设计保证而非硬件同步器安全跨越——需附带 PVT 证明方可申请 CDC waiver，是 CDC Signoff 中最常见的豁免类型
+- CDC 设计中常见的综合陷阱：将同步器两级 DFF 分配在不同模块导致走线过长消耗解析时间预算（应约束在同一模块内相邻放置）、忘设 DONT_TOUCH 导致综合优化掉同步器第一级
+- 形式 CDC 验证（Jasper CDC Formal）与静态 CDC 验证互补——形式上穷举证明可消除静态 waiver 审核的主观误判，是车规/航空零缺陷 Signoff 的标准流程
+- 异步 FIFO 的格雷码指针位宽由 FIFO 深度决定：深度为 2^k 时需 k+1 位格雷码（额外最高位用于区分满和空状态），设计时需同步计算读写指针同步后的延迟影响
+- 总线频闪（Bus Strobing）CDC 方案通过单独数据有效信号（Data Valid）同步来保证多比特数据的一致性——数据必须在 valid 信号同步期间保持稳定，是 DMUX 方案的一个变体
+- 设计规范（如 ARM IHI 0033，即 GIC 规范）明确定义了跨域信号的 CDC 要求——任何违反规范 CDC 定义的路径必须在架构评估阶段识别并修正
+- CDC 验证覆盖率以未同步路径数归零为门限——验证应在 RTL 冻结时启动而非 Signoff 前夕，确保回修改的成本可控
 
 ## 与其他概念的关系
 
-- [[concepts/metastability|亚稳态（Metastability）]] — CDC 的物理根源，亚稳态的 MTBF 公式和解析时间理论是同步器设计的基础
-- [[cross-domain/concepts/reset-methodology|复位方法学（Reset Methodology）]] — 复位域跨越是 CDC 的特殊子问题，复位同步器遵循与 CDC 同步器相同的设计原则
-- [[rtl-design/concepts/cdc-cross-domain|RTL CDC 跨时钟域设计]] — RTL 编码层面的 CDC 实施指南，涵盖同步器实例化、FIFO 封装、lint 规则等
-- [[asic-flow/concepts/static-timing-analysis|静态时序分析（STA）]] — CDC 同步器的时序例外（False Path / set_max_delay / set_min_delay）在 STA 中需要特殊的 SDC 约束
+- [[concepts/metastability|亚稳态（Metastability）]] — CDC 的物理根源，亚稳态的 MTBF 公式和解析时间理论是同步器设计的基础；τ（解析时间常数）在 7nm 工艺约 5-10ps，40nm 约 20-50ps，工艺越先进同步器所需级数越少
+- [[cross-domain/concepts/reset-methodology|复位方法学（Reset Methodology）]] — 复位域跨越是 CDC 的特殊子问题，复位同步器遵循与 CDC 同步器相同的两级 DFF 设计原则；复位释放时序的恢复/移除检查与 CDC 的 MTBF 分析在数学上对偶
+- [[rtl-design/concepts/cdc-cross-domain|RTL CDC 跨时钟域设计]] — RTL 编码层面的 CDC 实施指南，涵盖同步器实例化、FIFO 封装、综合属性（DONT_TOUCH）等编码规范；SpyGlass CDC 等的结构检查规则直接对应 RTL 编码模式
+- [[asic-flow/concepts/static-timing-analysis|静态时序分析（STA）]] — CDC 同步器的时序例外（False Path / set_max_delay / set_min_delay）在 STA 中需要特殊的 SDC 约束；CDC 路径的错误约束是 STA Signoff 中最常见的设计者引入的误导性违规来源
+- [[cross-domain/concepts/low-power-design|低功耗设计（Low-Power Design）]] — 多电压域（Multi-Voltage Domain）和电源关断（Power Gating）引入了额外的 CDC 边界：不同电压域之间的信号跨越需要电平转换器（Level Shifter）和隔离单元（Isolation Cell），其同步策略需与电压域状态机协同设计

@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - SoC 架构
+  - SoC Architecture_SoC 架构
   - 片上系统架构
   - SoC Architecture
   - 系统级芯片
@@ -21,6 +21,14 @@ source_spec: "Wolf, Modern VLSI Design: IP-Based Design, 4th Ed; ARM AMBA CHI Sp
 ### 异构多核架构
 
 现代 SoC 采用异构多核（Heterogeneous Multi-Core）架构，将不同类型的处理单元集成在同一芯片上以针对不同工作负载优化。通用 CPU（ARM Cortex-A/X 系列）处理操作系统、应用软件和复杂控制流；GPU 通过 SIMT 模型提供大规模数据并行的图形渲染和通用计算（GPGPU）；NPU（神经网络处理器 / AI 加速器）通过脉动阵列（Systolic Array）实现高效矩阵乘加（MAC）操作；DSP（数字信号处理器）面向音频/视频编解码和通信基带的定点/浮点信号处理；ISP（图像信号处理器）处理 RAW 图像到 RGB/YUV 的转换和 3A 算法（AE/AWB/AF）。任务调度是异构架构的核心——将合适的负载分配到最合适的处理单元；统一内存架构（UMA）减少跨处理器的显式数据拷贝。
+
+### Flynn 分类法与并行模型
+
+Flynn 分类法（Flynn's Taxonomy）根据指令流和数据流的并行性将计算架构分为四类。SISD（单指令单数据流，Single Instruction Single Data）对应传统标量处理器，一时钟周期处理一条指令的一个数据元素。SIMD（单指令多数据流，Single Instruction Multiple Data）对应向量处理器和 GPU 的 Warp/Wavefront 执行模型——一条指令同时操作多个数据元素，数据级并行的经典实现。MISD（多指令单数据流，Multiple Instruction Single Data）在实际中很少出现，流式处理管道（如脉动阵列的逐级处理）可视为其近似。MIMD（多指令多数据流，Multiple Instruction Multiple Data）对应多核处理器和分布式系统，是现代 SoC 最主流的并行计算模式。
+
+现代 SoC 综合利用多种 Flynn 类别：CPU 核心是 SISD 或带 SIMD 扩展（ARM NEON / SVE），GPU 是 SIMT（Single Instruction Multiple Thread，SIMD 的一线程一车道变体），NPU 是 SIMD 面向矩阵运算的专用形式。Flynn 分类法为理解和选择并行计算架构提供了基础理论框架，指导 SoC 架构师根据工作负载特征选择合适的处理单元组合。
+
+并行效率由 Amdahl 定律（Amdahl's Law）严格约束：程序的加速比受限于不可并行部分的占比。若程序串行部分占比为 f，则即使有无限多处理器，加速比上限仅为 1/f。在 SoC 设计中，Amdahl 定律直接指导异构架构的"大核 + 小核"（big.LITTLE 或 DynamIQ）策略——单线程性能（串行部分）由高性能大核（Cortex-X 系列）提供，多线程吞吐量（可并行部分）由能效小核（Cortex-A7xx）或专用加速器提供。Gustafson 定律（Gustafson's Law）进一步指出，当问题规模随处理器数增长而扩展时，可获得更高的有效加速比——这对数据中心和高性能计算 SoC 的规模扩展策略具有重要意义。
 
 ### 互连选择
 
@@ -64,10 +72,32 @@ PPA 预算分配遵循"自顶向下"方法论：首先确定总功耗封套（�
 - Chiplet 通过 UCIe/BoW 使多 Die 封装表现为单一 SoC，掩模尺寸不再是单芯片上限
 - TrustZone + Secure Boot + 内存加密是嵌入式 SoC 安全三件套；车规额外需 ASIL 功能安全
 - CXL 桥接 PCIe 和一致性总线——在 I/O 物理层上实现 CPU-Cache-Coherent 协议
+- Flynn 分类法的 SISD / SIMD / MIMD 框架指导 SoC 中 CPU、GPU、NPU 的组合选择；Amdahl 定律解释了大核 + 小核异构策略的必然性
+- 复杂 SoC 通常包含 10-30 个独立电压域和 20-50 个不同频率的时钟域，跨域通信的 CDC 同步器面积可达总逻辑面积的 3-5%
+- Chiplet 架构的 Die-to-Die 带宽受限于 PHY 传输速率：UCIe 标准封装模式每链路 8-16 GT/s，先进封装模式（硅中介层）可达 24-32 GT/s
+- SoC 设计的一次性工程费用（NRE）在 5nm 节点可达 2-4 亿美元，Chiplet 复用可摊薄后续产品的 NRE
+- 系统级缓存的分配策略在 SoC 架构中至关重要：SLC 容量分配给 CPU、GPU 和 NPU 的独占/共享比例直接影响各子体性能
+- 中断控制器（GICv3/v4）在 SoC 架构中的拓扑集成涉及 ITS（Interrupt Translation Service）、MSI 和亲和性路由，是异构多核系统的核心调度基础设施
+- SoC 验证的复杂性随 IP 数量超线性增长：连接性检查、协议检查、性能验证和死锁检查在 100+ IP 的 SoC 中需要数月的验证周期
+
+### SoC 存储系统的层次化设计
+
+SoC 的存储层次不仅包含传统 CPU 的 L1/L2/L3 缓存，还包含系统级缓存（System Level Cache, SLC / L4）和多级内存控制器。SLC 位于 SoC 互连的骨干网与 DRAM 控制器之间，为 CPU、GPU、NPU 和 DMA 引擎共享。SLC 的分配策略直接影响各子系统的性能——可将 SLC 划分为多个分区，每个分区专属于某一类主设备（如 CPU 专属 50%、GPU 专属 30%、共享 20%）；也可采用完全共享模式，通过 QoS 标记优先保证实时主设备的命中率。SLC 通常采用 16-20 路组相联，容量在 2-16 MB 之间，访问延迟约为 L3 的 1.5-2 倍（40-80 周期）。
+
+DRAM 控制器的选择是 SoC 架构中影响系统级性能的又一核心决策。LPDDR5 面向移动和嵌入式的单通道带宽为 51.2 GB/s（64-bit @ 6400 MT/s），功耗约为 DDR5 的 30-40%。DDR5 面向桌面和数据中心，每通道支持双 DIMM 插槽，峰值带宽 51.2 GB/s。HBM3 通过 1024-bit 宽总线和硅通孔（Through Silicon Via, TSV）3D 堆叠，单堆栈提供 819 GB/s 带宽，是 GPU 和 AI 加速器 SoC 的首选。DRAM 控制器的调度策略直接影响带宽利用率和延迟公平性。FR-FCFS（First-Ready First-Come-First-Served）优先服务行缓冲命中请求，最大化带宽但可能饿死随机访问请求。自适应历史调度器根据请求的地址模式和历史服务质量动态调整调度优先级，在带宽利用和公平性之间取得更好平衡。DRAM 的刷新操作（tREFI 约 7.8μs、tRFC 约 350ns）周期性强制占用约 4-5% 的总带宽——在高温下刷新间隔缩短，此开销进一步增加。现代 LPDDR5 引入了每 Bank 刷新（Per-Bank Refresh）特性：刷新操作仅在指定的单个 Bank 运行，其他 Bank 仍可服务请求，大幅降低刷新对有效带宽的影响。
 
 ## 与其他概念的关系
 
 - [[architecture/concepts/on-chip-bus|片上总线（On-Chip Bus）]] — 互连拓扑和协议选择是 SoC 架构的核心决策，AXI/CHI/NoC 各适用于不同规模系统
 - [[architecture/concepts/cache-coherence|缓存一致性（Cache Coherence）]] — CXL 和 CHI 的一致性模式将 I/O 设备和加速器纳入与 CPU 相同的一致性域
 - [[architecture/concepts/memory-hierarchy|存储层次（Memory Hierarchy）]] — SoC 片内 SRAM、多级缓存到片外 DRAM/HBM 的层次划分是 PPA 优化的核心
-- [[cross-domain/concepts/low-power-design|低功耗设计（Low-Power Design）]] — 电压域划分、DVFS、电源门控和时钟门控是低功耗方法学的典型应用
+- [[cross-domain/concepts/low-power-design|低功耗设计（Low-Power Design）]] — 电压域划分、DVFS、电源门控和时钟门控是 SoC 功耗管理的核心技术，PMU 协调各域的上/下电序列并维护状态一致性
+- [[cross-domain/concepts/clock-domain-crossing|跨时钟域（CDC）]] — SoC 中数十个异步时钟域的跨域通信依赖异步 FIFO 和 CDC 同步器，域划分策略直接影响芯片面积和时序收敛难度
+- [[architecture/concepts/branch-prediction|分支预测（Branch Prediction）]] — CPU 核心前端的分支预测器决定取指带宽的连续性，在多核 SoC 中各核心独立预测，但共享的 I-Cache 和 BTB 的组织影响取指延迟
+- [[cross-domain/concepts/reset-methodology|复位策略（Reset Strategy）]] — SoC 上电序列需协调多电源域、多时钟域的复位释放顺序，PMU 的安全状态机确保各 IP 在复位释放前到达已知安全状态
+
+### 调试与可测性设计基础设施
+
+大规模 SoC 的调试基础设施是硅后验证和问题定位的关键。CoreSight 是 ARM 的调试和跟踪架构标准，通过调试访问端口（Debug Access Port, DAP）和可编程的跟踪组件（ETM/PTM 和 STM/ITM）提供对处理器核心、总线和系统组件的非侵入式观测能力。嵌入式跟踪宏单元（Embedded Trace Macrocell, ETM）以压缩格式记录每条执行指令的 PC 和数据值，通过芯片上的跟踪缓冲区（Embedded Trace Buffer, ETB）或片外跟踪端口（Trace Port Interface Unit, TPIU）输出。跟踪带宽在 4 路 8-wide 发射的高性能核心中可达 10-20 Gbps——为管理此带宽，ETM 仅输出分支结果（不输出所有指令）并通过解码器从程序镜像重建完整执行轨迹。CoreSight 还提供交叉触发接口（Cross-Trigger Interface, CTI）和交叉触发矩阵（Cross-Trigger Matrix, CTM），允许一个核心的硬件断点停止其他核心或触发跟踪捕获任务。
+
+DFT（Design for Testability）在 SoC 架构阶段就需要规划。边界扫描（JTAG/IEEE 1149.1）提供芯片级别的互连测试能力。内存内建自测试（Memory Built-In Self Test, MBIST）在芯片上部署自动测试向量生成器，对片内 SRAM 进行全速 March 算法测试。扫描链（Scan Chain）将触发器串接为移位寄存器，通过 ATPG（Automatic Test Pattern Generation）生成测试向量以覆盖制造缺陷。SoC 架构师需为 DFT 预留芯片面积（通常 2-5%）和测试引脚的封装资源。

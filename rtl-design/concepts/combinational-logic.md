@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 组合逻辑
+  - Combinational Logic_组合逻辑
   - Combinational Logic
   - 门级逻辑
   - 无记忆电路

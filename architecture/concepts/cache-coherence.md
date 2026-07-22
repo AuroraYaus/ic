@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 缓存一致性
+  - Cache Coherence_缓存一致性
   - Cache Coherence
   - 一致性协议
   - Coherence Protocol
@@ -63,6 +63,14 @@ Snoop Filter 是性能关键部件。它为每个核心簇维护私有缓存内�
 
 "写升级"（Write Upgrade）模式在生产者-消费者场景中体现了一致性开销。生产者写入 → 使所有共享者失效（Invalidation）→ 消费者读取 → 从生产者获取脏数据 → 消费者写入 → 使生产者失效。如果生产者和消费者轮流访问，每一轮都触发两次一致性迁移——这就是经典的生产者-消费者乒乓。解决方案是使用基于无锁数据结构的设计模式（如 Ring Buffer with Head/Tail 指针分离），减少写入者间的直接竞争。
 
+### 目录协议的变体与存储优化
+
+目录的存储开销随核心数线性增长，是目录式协议可扩展性的主要瓶颈。全位向量目录（Full Bit-Vector Directory）为每个核心分配 1 位，N 核系统每个目录条目需 N 位。当 N=1024 时，每个 64 字节缓存行的目录条目为 1024 位 + 状态位（128 字节），目录的存储开销超过了数据本身的存储开销。三种经典优化方案：（1）有限指针目录（Limited Pointer Directory）——仅存储 K 个共享者指针（通常 K=3-4），超过 K 个共享者时退化至广播模式。此方案基于观察：绝大多数缓存行在任一时刻的共享者数量不超过 2-3 个。（2）粗粒度位向量目录（Coarse-Grain Bit-Vector Directory）——每位代表一个核心簇（通常 4-8 个核心），位宽减少 4-8 倍，代价是簇内广播的额外侦听开销。（3）稀疏目录（Sparse Directory / Directory Cache）——仅缓存活跃共享的缓存行目录条目，通过 SRAM 目录缓存保存最近访问的一小部分目录状态，类似小型全相联缓存。缺失时回退到内存中的完整目录表或广播。
+
+### 一致性协议的验证与形式化方法
+
+缓存一致性协议的正确性直接关系到多核系统的功能正确性，其状态空间（状态数 × 核心数 × 地址数 × 事务类型数）的组合爆炸使人工验证极容易出错。工业实践中，一致性协议的验证采用分层方法：在事务级，使用模型检验工具（如 Murphi / TLA+）对所有可能状态转换进行穷举验证，检查不变量（SWMR、数据值、无死锁）在所有可达状态下是否成立。在实现级，RTL 验证通过 SystemVerilog 断言（SVA）在仿真和形式验证中检查关键协议属性——如"一个缓存行不能同时在两个核心的 Modified 状态"。Synopsys 的 Verdi Protocol Analyzer 和 Cadence 的 JasperGold 专门针对一致性协议提供自动验证检查。ARM 的 CHI 规范提供了形式化参考模型（FRM）作为一致性协议的黄金标准。
+
 ## 关键要点
 
 - MESI 协议的 Exclusive 状态优化了读后写模式——从 E 到 M 零总线事务，在读密集且写也密集的代码中效果显著
@@ -73,9 +81,20 @@ Snoop Filter 是性能关键部件。它为每个核心簇维护私有缓存内�
 - 伪共享检测工具：Linux `perf c2c` 通过采样 L2/L3 一致性缺失来定位伪共享热点
 - TSO 模型在微架构中通过 Store Buffer 合并写入 + 按序提交实现——提交顺序决定 Store 全局可见顺序
 - RISC-V RVWMO 通过 FENCE 指令提供与 x86 MFENCE 等效的细粒度可控屏障
+- 有限指针目录（K=3-4）利用共享者数通常 ≤2-3 的观察，将存储开销从 O(N) 降至 O(K)，覆盖 99%+ 的共享模式
+- 全位向量目录在 1024 核系统中每个缓存行的目录存储开销（1024 位 = 128 字节）超过数据行本身（64 字节），是裸位向量目录的致命缺陷
+- 一致性协议的形式化验证（TLA+/Murphi）是 SoC 流片前的强制性质量关口——协议级缺陷在硅后无法修复
+- ARM CHI 规范的形式化参考模型（FRM）通过穷举可达状态空间检查 SWMR 不变量和无死锁属性，是目录式协议验证的工业标准
+- 一致性缺失的延迟三级分解（请求→目录→脏持有者→请求方）在 64+ 核 NUMA 系统中可达 200-500 周期，网络跳数主导了延迟
+- CHI 协议的信用流控（Credit-based Flow Control）为每条虚通道预分配发送信用，接收方返回信用令牌，消除 AXI READY Handshake 在长物理链路上的流量控制瓶颈
+- 一致性协议的死锁避免：在多跳消息传递中，Request 和 Response 消息必须使用独立的虚网络，否则请求等待响应、响应等待数据、数据等待缓冲释放的循环将导致协议级死锁
+- Snoop Filter 的容量管理：当 Snoop Filter 溢出时，需回退至全广播模式——此时性能退化但功能正确性不变。Bloom Filter 型 Snoop Filter 通过多哈希函数编码缓存的地址集合，压缩率高但存在假阳性代价
+- 一致性协议的写无效化与写更新（Write Update）是一对设计选项：无效化产生一致性缺失但数据仅需传输一次，更新在写入时广播新值给所有共享者但占用高带宽——现代协议几乎全采用无效化方案
+- 自修改代码（Self-Modifying Code）对一致性协议的挑战：指令缓存和数据缓存必须保持一致性——通过 I/D 一致性操作（IC IVAU / DC CVAU）或硬件侦听建立同步点
 
 ## 与其他概念的关系
 
 - [[architecture/concepts/memory-hierarchy|存储层次（Memory Hierarchy）]] — 缓存一致性在私有缓存间维护，缓存组织方式和替换策略与一致性状态转换深度耦合
 - [[architecture/concepts/out-of-order|乱序执行（Out-of-Order Execution）]] — Load/Store 乱序提交受一致性模型约束，LSQ 提交顺序决定核心向一致性协议暴露 Store 的顺序
-- [[architecture/concepts/on-chip-bus|片上总线（On-Chip Bus）]] — CHI 协议的分布式消息直接承载目录式协议的点对点消息传递，是缓存一致性的硬件实现载体
+- [[architecture/concepts/on-chip-bus|片上总线（On-Chip Bus）]] — CHI 协议的 Request/Response/Snoop/Data 消息通道直接承载目录式协议的三跳消息传递，一致性事务在 CHI 序列化点（PoS/PoC）完成全局排序
+- [[cross-domain/concepts/clock-domain-crossing|跨时钟域（CDC）]] — 分布式目录的跨 NoC 跳数在物理实现中涉及跨时钟域传输，目录请求和响应消息的 CDC 延迟增加了三级跳的总延迟

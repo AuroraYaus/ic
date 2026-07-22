@@ -1,7 +1,7 @@
 ---
 type: moc
 aliases:
-  - RTL设计总览
+  - RTL Design MOC_RTL设计总览
   - RTL Design Map of Content
 tags:
   - asic

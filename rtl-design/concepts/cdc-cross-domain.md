@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 跨时钟域
+  - CDC Cross-Domain_跨时钟域
   - Clock Domain Crossing
   - CDC
   - 异步接口
@@ -53,6 +53,56 @@ DMUX（Demultiplexer）同步器是握手同步器的高吞吐率变体——发
 
 CDC 验证工具（SpyGlass CDC、Questa CDC）通过静态分析检测以下类型的 CDC 问题：a) 未同步信号——直接跨域的单比特或多比特信号；b) 同步器结构错误——2-FF 间距过大、缺少 ASYNC_REG 属性标记；c) 多比特 CDC 未使用 Gray 码或握手——可能导致数据混叠；d) 复位域交叉——复位信号在不同域间的传播路径；e) 组合逻辑在同步器输入端——可能引入毛刺。CDC 验证是 Signoff 的强制项——在仿真无法覆盖的异步行为空间中，静态 CDC 分析是目前唯一的系统级保证手段。
 
+### 两级同步器与脉冲展宽的可综合实现
+
+以下展示标准的两级触发器同步器和快时钟到慢时钟的脉冲展宽电路的可综合编码：
+
+```systemverilog
+// 两级触发器同步器（2-FF Synchronizer）—— CDC 最基本结构
+module cdc_2ff_sync (
+    input  logic clk_dst,     // 目标域时钟
+    input  logic rst_n_dst,   // 目标域复位
+    input  logic sig_async,   // 异步输入信号（来自源时钟域）
+    output logic sig_sync     // 同步后的信号（目标域内使用）
+);
+    // ASYNC_REG 属性标记这些触发器为同步器 —— CDC 工具和 P&R 工具识别此属性
+    (* ASYNC_REG = "TRUE" *) logic sync_ff1, sync_ff2;
+
+    always_ff @(posedge clk_dst or negedge rst_n_dst) begin
+        if (!rst_n_dst) begin
+            sync_ff1 <= 1'b0;
+            sync_ff2 <= 1'b0;
+        end else begin
+            sync_ff1 <= sig_async;   // 第一级：可能进入亚稳态
+            sync_ff2 <= sync_ff1;    // 第二级：解析后的稳定输出
+        end
+    end
+    assign sig_sync = sync_ff2;
+endmodule
+
+// 脉冲展宽器：确保快时钟域的窄脉冲不被慢时钟域遗漏
+module pulse_stretcher (
+    input  logic clk_src, rst_n_src,
+    input  logic pulse_in,           // 快时钟域的单周期脉冲
+    output logic stretched_out       // 展宽后的电平信号（在源域，跨到慢域前）
+);
+    logic stretch_ff;
+    always_ff @(posedge clk_src or negedge rst_n_src) begin
+        if (!rst_n_src) begin
+            stretch_ff    <= 1'b0;
+            stretched_out <= 1'b0;
+        end else begin
+            if (pulse_in)
+                stretched_out <= 1'b1;   // 脉冲到达：拉高展宽输出
+            else if (stretch_ff)
+                stretched_out <= 1'b0;   // ACK 返回后：拉低展宽输出
+        end
+    end
+endmodule
+```
+
+**脉冲展宽的使用协议**：快时钟域的单周期脉冲触发展宽器拉高 `stretched_out`；展宽的高电平信号通过 2-FF 同步器传输到慢时钟域；慢时钟域检测到高电平后完成操作并通过另一组 2-FF 同步器返回 ACK（确认信号）；快时钟域检测 ACK 后拉低展宽输出。展宽器的保持时间需满足——`stretched_out` 的高电平持续时间至少为慢时钟域 2 个时钟周期（保证慢域至少采样一次），通常设计为慢域若干周期的倍数。
+
 ## 关键要点
 
 - 两级触发器同步器（2-FF Synchronizer）是 CDC 最基本的结构——MTBF 须计算验证，两个触发器物理上须靠近并标记 ASYNC_REG 属性
@@ -62,11 +112,13 @@ CDC 验证工具（SpyGlass CDC、Questa CDC）通过静态分析检测以下类
 - 绝对不能对多比特数据总线使用每比特独立的 2-FF 同步器——各比特亚稳态解析时间不同导致"混叠"数据（部分旧值+部分新值）
 - 组合逻辑的输出在同步前应先在源时钟域寄存一拍——消除毛刺（组合逻辑输出可能有多次翻转），保证同步器输入为干净的单次翻转
 - CDC 验证（SpyGlass CDC 等静态分析工具）是 ASIC Signoff 的强制项——CDC 错误在仿真中几乎不可能复现，只有静态 CDC 分析能系统性地检测同步结构缺陷
-- 快时钟到慢时钟（Fast-to-Slow）的 CDC 需要额外的展宽电路（Pulse Stretcher）——确保窄脉冲不被慢时钟遗漏
+- 快时钟到慢时钟（Fast-to-Slow）的 CDC 需要额外的展宽电路（Pulse Stretcher）——确保窄脉冲不被慢时钟遗漏。展宽信号的持续时间至少为慢时钟域 2 个周期，通过 ACK 握手关闭展宽输出
+- 同步器触发器的物理布局必须标记 `ASYNC_REG` 属性并约束布局靠近——P&R 工具使用此属性优化时钟偏斜、减少同步器两级之间的延迟不对称（最大 2x 时钟周期是经验上限）
+- 异步 FIFO 的深度选择：深度小（2-4）适用于低带宽控制信号，深度大（16-64）适用于高带宽数据流——FIFO 的"几乎满/几乎空"水位线（Watermark）用于生成背压信号以避免溢出/读空
 
 ## 与其他概念的关系
 
-- [[concepts/metastability|亚稳态（Metastability）]] — 亚稳态是 CDC 问题的物理根源，MTBF 量化了同步器可靠性的概率模型
-- [[rtl-design/concepts/sequential-logic|时序逻辑]] — 同步器的行为基于 D-FF 的建立/保持时间窗口和亚稳态解析时间，与触发器结构和工艺直接相关
-- [[cross-domain/concepts/clock-domain-crossing|跨时钟域（CDC）]] — 跨域概念整合了 CDC 在 SoC 全芯片层面的策略：时钟域划分、同步点选择和验证流程
-- [[cross-domain/concepts/reset-methodology|复位策略]] — 复位同步器是 CDC 中的一个特殊子集，复位释放的跨域同步影响整个芯片的上电序列
+- [[concepts/metastability|亚稳态（Metastability）]] — 亚稳态是 CDC 问题的物理根源，MTBF 量化了同步器可靠性的概率模型。同步器级数（2-FF vs 3-FF）的选择由 MTBF 计算决定——2-FF 对大多数商用工艺足以满足 >10 年 MTBF，高可靠性应用（汽车/航天）需 3-FF
+- [[rtl-design/concepts/sequential-logic|时序逻辑]] — 同步器的行为基于 D-FF 的建立/保持时间窗口和亚稳态解析时间，与触发器结构和工艺直接相关。ASIC 标准单元库中的专用同步器触发器具有比普通 D-FF 更高的增益带宽积（$\tau$ 更小），解析时间更短
+- [[cross-domain/concepts/clock-domain-crossing|跨时钟域（CDC）]] — 跨域概念整合了 CDC 在 SoC 全芯片层面的策略：时钟域划分、同步点选择和验证流程。全芯片 CDC 策略包括 CDC 拓扑图（哪些域与哪些域通信）和 CDC 信号的数量/类型/带宽统计
+- [[cross-domain/concepts/reset-methodology|复位策略]] — 复位同步器是 CDC 中的一个特殊子集，复位释放的跨域同步影响整个芯片的上电序列。复位的 CDC 特殊性在于它是"全局信号"——需要确保所有域同时或按顺序完成复位释放，避免跨域协议在复位期间出现未定义行为

@@ -1,7 +1,7 @@
 ---
 type: moc
 aliases:
-  - ASIC 实现流程总览
+  - ASIC Flow MOC_ASIC 实现流程总览
   - ASIC Flow Map of Content
 tags:
   - asic

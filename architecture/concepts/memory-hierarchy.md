@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 存储层次
+  - Memory Hierarchy_存储层次
   - Memory Hierarchy
   - 缓存层次
   - Cache Hierarchy
@@ -57,6 +57,16 @@ L1 缓存面临 TLB 访问延迟与缓存访问时间的关键权衡。PIPT（Ph
 
 工作集（Working Set）是程序在时间窗口 Δt 内访问的地址集合。当工作集 <= 缓存容量时，程序经历的主要是强制缺失；当工作集超过缓存容量时，容量缺失率急剧上升——这对应 AMAT 曲线的"拐点"（Knee Point）。拐点之后，每增加一倍缓存容量带来的缺失率改善递减。经典的缓存设计经验法则：缓存容量每翻一倍，缺失率减少一半（平方根规则, Square-Root Rule of Thumb）。但这只在工作集小于缓存容量前成立——一旦容量覆盖了工作集的主要部分，进一步增加容量的改善微乎其微。理解目标负载的工作集大小是缓存容量规划的核心。
 
+### 非阻塞缓存与 MSHR
+
+非阻塞缓存（Non-Blocking Cache）允许缓存在处理一次缺失期间继续服务后续的缓存访问，是实现内存级并行（Memory-Level Parallelism, MLP）的关键硬件机制。其核心数据结构是缺失状态保持寄存器（Miss Status Holding Register, MSHR）。当一次缓存缺失发生时，一个 MSHR 条目被分配，记录缺失地址、目标寄存器号和缺失类型（Load/Store/IFetch）。后续访问如果命中 MSHR 中的缺失地址（即同一缓存行的第二次缺失），会合并到同一 MSHR 条目中而非发起新的下级请求——这称为缺失合并（Miss Merging）。后续访问如果命中缓存或在 MSHR 中无匹配，则正常处理或分配新的 MSHR 条目。
+
+MSHR 的数量直接决定了缓存可同时容忍的未完成缺失数量，进而决定 MLP 的上限。典型 L1 缓存配置 4-8 个 MSHR，L2 缓存配置 16-32 个。MSHR 的溢出条件（所有条目被占用时再次发生缺失）导致缓存必须阻塞新的访存请求直至某个 MSHR 条目释放——这称为 MSHR 资源匮乏（MSHR Starvation），是影响 MLP 上限的关键瓶颈。非阻塞属性通常用两个数字描述，如 "hit under 8 misses, miss under 4 misses"：前者表示在 8 次缺失未解决期间仍可处理缓存命中，后者表示在 4 次缺失未解决期间可继续发起新的缺失请求。
+
+### 缓存的 ECC 与软错误防护
+
+SRAM 缓存在先进工艺节点（≤7nm）面临日益严重的软错误（Soft Error）风险。存储单元电荷状态的随机翻转——由高能粒子（α 粒子或高能中子）撞击芯片引起——可导致缓存数据静默损坏（Silent Data Corruption, SDC）。L1 数据缓存通常采用奇偶校验（Parity）检测 1-bit 翻转——每字节 1 位奇偶位，硬件开销最低但无法纠正错误，检测到后触发精确机器检查异常。L2 和 L3 缓存通常采用单纠错双检错纠错码（Single Error Correction, Double Error Detection, SECDED ECC）——每 64 位数据附加 8 位 ECC 码，可纠正单比特翻转和检测双比特翻转。车规和航空 SoC 可能需要更强的 ECC（如多比特纠正 Chipkill ECC）来满足 ASIL 功能安全需求。
+
 ## 关键要点
 
 - AMAT = hit_time + miss_rate * miss_penalty，三级缓存需逐级累加
@@ -67,10 +77,24 @@ L1 缓存面临 TLB 访问延迟与缓存访问时间的关键权衡。PIPT（Ph
 - 存储层次每级本质上是"容量-延迟-带宽-功耗"四维权衡，不存在单一最优解
 - 预取器的预取距离、预取度和节流三参数共同决定效率，过度预取可通过污染导致性能下降
 - CXL 扩展内存（Type-3 Memory）在 DRAM 和存储间插入新的层次，提供近 DRAM 带宽但延迟高一个数量级
+- MSHR 数量决定 MLP 上限：L1 通常 4-8 个，L2 通常 16-32 个；MSHR 溢出直接导致缓存阻塞并限制了系统的内存级并行度
+- 非阻塞缓存的"hit under miss"和"miss under miss"是两个递增的并行等级，后者对硬件的要求显著更高——需多个 MSHR 和更复杂的地址冲突检测
+- L1 缓存采用 Parity（1-bit 检测），L2/L3 采用 SECDED ECC（1-bit 纠正 + 2-bit 检测），车规 SoC 需 Chipkill ECC 应对多比特翻转
+- 现代处理器的 L1 缓存访问延迟约 3-5 个周期（在 3-5 GHz 下），L2 约 10-15 周期，L3 约 30-50 周期，DDR5 DRAM 约 300-400 周期
+- SECDED ECC 的存储开销：每 64 位数据 8 位 ECC（12.5% 开销），Chipkill ECC（如每 128 位数据 16 位 ECC）可纠正多比特错误和整符号错误
+- 缓存分组（Banking）是提高缓存带宽的常用技术：将缓存按低地址位分成 2-4 个 Bank，允许每个 Bank 独立并行访问，双倍带宽仅需增加一组 Bank 地址解码逻辑
+- Cache Compression（缓存压缩）通过在缓存行存储压缩数据提高有效容量：如 ARM 的 Pointer-Based Compression 对零值/小值进行模式匹配压缩，有效容量提升 2-3× 但引入压缩/解压缩延迟和碎片化管理开销
+- 写合并缓冲区（Write Combining Buffer, WCB）是将多个部分字节写入合并为完整缓存行写入的硬件结构——将多次分散 Store 合并为一次突发写回，显著减少写流量和总线占用
+- 缓存一致性缺失在 AMAT 建模中体现为额外的缺失惩罚：一致性缺失惩罚 = 目录查询延迟 + 数据从远程核心缓存的传输延迟，典型值 100-300 周期——比 DRAM 访问更长
+- 访问模式对缓存性能的"友好度"排序：顺序访问（Stream）> 步幅访问（Stride）> 随机访问（Random）> 指针追逐（Pointer Chasing），后者 CPI 可能高出前者 10-100 倍
+- SRAM 缓存的漏电功耗（Leakage Power）在 5nm 以下节点可占总缓存功耗的 30-50%；休眠状态通过降低 SRAM 阵列的电源电压（Retention Voltage, 约 0.6V vs 正常 0.8V-1.0V）减少漏电
+- 预取器的污染度量："准确度"（Accuracy）= 被使用的预取行数 / 总预取行数，"覆盖率"（Coverage）= 预取消除的缺失数 / 总缺失数，两者共同决定预取效率——理想预取器同时具有高准确度和高覆盖率
+- L1 缓存的设计约束体现了延迟-容量-相联度的三元折中：增加容量需要更多 Index 位（VIPT 下受页大小限制）或降低相联度（增加冲突缺失率），三者互相制约
+- Inclusive vs Exclusive vs NINE（Non-Inclusive Non-Exclusive）缓存包含策略：Inclusive（L1 内容总是 L2 子集）简化一致性但浪费容量，Exclusive（L1 与 L2 互斥）最大化有效容量但替换复杂，NINE 是两者的折中方案
 
 ## 与其他概念的关系
 
 - [[architecture/concepts/cache-coherence|缓存一致性（Cache Coherence）]] — 私有缓存的 MESI 状态转换与写策略、替换策略深度耦合，一致性消息延迟由缓存层次决定
 - [[architecture/concepts/out-of-order|乱序执行（Out-of-Order Execution）]] — 乱序执行的 MLP（Memory-Level Parallelism）通过同时容忍多个缓存缺失来掩盖深存储层次的延迟
-- [[architecture/concepts/on-chip-bus|片上总线（On-Chip Bus）]] — 缓存缺失和写回事务通过 AXI/CHI 在各级存储间传输，总线延迟直接贡献 miss_penalty
-- [[asic-flow/concepts/static-timing-analysis|静态时序分析（STA）]] — SRAM 缓存阵列的读写时序含 Tag 比较、Data MUX、Way Select 等关键路径
+- [[architecture/concepts/on-chip-bus|片上总线（On-Chip Bus）]] — 缓存缺失和写回事务通过 AXI/CHI 在各级存储间传输，总线延迟直接贡献 miss_penalty，AXI RID/WID 支持 MLP 的事务流水线化
+- [[asic-flow/concepts/static-timing-analysis|静态时序分析（STA）]] — SRAM 缓存阵列的读写时序含 Tag 比较、Data MUX、Way Select 等关键路径，缓存访问时间通常定义处理器时钟周期的下限

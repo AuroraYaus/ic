@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - Signoff
+  - Signoff_签核
   - 签核
   - Tape-Out
   - Sign-off
@@ -48,21 +48,53 @@ IR 压降（IR Drop）是供电网络（Power Delivery Network, PDN）中由于�
 
 最终签核必须在所有工艺角（Process Corner）、电压（Voltage）和温度（Temperature）组合（统称 PVT 角）下通过。典型多角签核矩阵包括：SSGNP（Slow-Slow, 高 Vth, 低 VDD, 高温 — 最坏 Setup）、FFGNP（Fast-Fast, 低 Vth, 高 VDD, 低温 — 最坏 Hold）、以及 Typ 25°C。先进工艺签核角可达 20-50 个 PVT 组合，每个角都需要完整的 STA + IR + EM，计算资源需求极大。多角并行化和增量 STA 技术（仅重新分析改变的部分）是关键效率优化手段。
 
+### 信号完整性签核
+
+信号完整性（Signal Integrity, SI）签核分析互连线之间的**串扰（Crosstalk）**效应对时序和功能的影响。串扰噪声（Crosstalk Noise）是在受害线网（Victim Net）静态时，攻击线网（Aggressor Net）的跳变通过耦合电容在受害线上感应出电压毛刺——如果毛刺幅度超过受害线网接收门的噪声容限（Noise Margin, 通常为 VDD 的 30%-50%），可能引起功能错误。串扰延迟（Crosstalk Delay）是攻击线网跳变方向与受害线网相同/相反时分别减小/增大受害线的有效延迟——同向跳变加速信号（Speed-Up），反向跳变减慢信号（Slow-Down）。SI 签核工具（PrimeTime SI/Tempus SI）基于耦合电容（从 SPEF 获取）和时序窗口分析（Timing Window Analysis）来判断攻击-受害翻转的时间重叠——只有当攻击和受害在时间窗口内同时翻转时才计入串扰，大幅降低过度悲观。
+
+### DRC/LVS 签核
+
+物理签核是投片的最后技术关卡。DRC 签核（Design Rule Check Signoff）对版图 GDSII 执行全芯片设计规则检查——与 P&R 工具内置的 DRC 不同，签核 DRC 使用晶圆厂官方提供的 Calibre/IC Validator 规则集（Rule Deck），包含所有强制性规则和最新工艺要求。LVS 签核（Layout vs. Schematic Signoff）确认版图与网表的晶体管级等价性。**DRC 和 LVS 一旦发生变化必须重新签核**——即使一次微小的局部 ECO 修改也可能引入跨层次的 DRC 违例。DRC/LVS 工具的报告（通常是 Calibre RVE/ICV-UI 格式）需要设计工程师手动审查每一处违例并确认其分类：真实违例（需版图修复）或假违例（工具规则的假阳性，可豁免）。自动豁免流程（Waiver Flow）允许设计者对已验证的假违例建立豁免规则，在后续重新签核中自动过滤已豁免的违例。
+
+### 签核数据库管理与版本控制
+
+签核流程中的检查项众多、数据量大、迭代频繁——对签核数据库的管理和版本控制是工程实践中的重要环节。**签核结果数据库（Signoff Results Database）**汇总所有工具的所有分析角的结果——每次签核运行（Signoff Run）生成数百 GB 至数 TB 的数据，包含时序报告、IR 压降热力图、EM 违例列表和 DRC/LVS 违例标注。签核管理工具（如 Synopsys Timing Constraints Manager、Cadence vManager）提供 web-based 仪表板，支持历史趋势分析（如 WNS 随 ECO 迭代的收敛趋势）、跨角违例交叉引用（同一路径在多个角上的 Slack）和自动回归检测（新的 ECO 是否引入已修复过的旧违例）。**签核冻结（Signoff Freeze）**是投片前的最终步骤——冻结所有签核数据版本、锁定分析配置和豁免文件，生成签核冻结报告（Signoff Freeze Report）供管理层审查和批准。
+
+### 汽车与功能安全签核要求
+
+汽车电子（ISO 26262 功能安全标准）和航空电子（DO-254）对签核提出附加要求。**故障注入验证（Fault Injection Verification）**在签核流程中验证 DFT 逻辑确实能检测和隔离 ISO 26262 定义的故障模型——包括对安全关键路径的瞬态故障和永久故障覆盖率证明。**冗余电路等价性检查（Redundancy Equivalence Check）**验证安全机制中的双冗余/三冗余逻辑的等价性——冗余电路的一组 LEC 比较点需要特殊的约束条件排除正常的功能分歧。**安全机制可观测性签核（Safety Mechanism Observability Signoff）**确认安全监视器（如看门狗、ECC、奇偶校验）的输出确实能传播到顶层安全输出端口——不可观测的安全机制即使存在也无法触发系统级安全反应。这些额外的签核检查使汽车级芯片的签核工作量和周转时间通常是消费电子芯片的 1.5-2 倍。
+
 ## 关键要点
 
-- 签核工具链独立于实现工具链——PrimeTime 签核 STA, Calibre 签核 DRC/LVS, Voltus 签核 IR/EM——"签核级"意味着晶圆厂认可的分析精度
+- 签核工具链独立于实现工具链——PrimeTime 签核 STA, Calibre 签核 DRC/LVS, Voltus 签核 IR/EM——"签核级"意味着晶圆厂认可的分析精度，其误差裕量已经计入晶圆厂的工艺波动模型中
 - OCV 演进路径 OCV -> AOCV -> POCV -> LVF 是从统一悲观降额到概率统计建模的递进——每代方法消除 15%-25% 过度悲观，在先进节点中是不可或缺的收敛手段
-- 动态 IR 压降可达静态的 2-5 倍，DECAP 密度和布局是抑制动态 IR 的核心设计手段——需要瞬态向量（Vectorless 或 VCD-driven）分析
-- 电迁移签核分为 DC EM、AC/RMS EM 和 Signal EM，三者基于不同的电流计算模型——铜互连 EM 极限约 10-20 mA/µm²
-- LEC 是唯一不需测试向量的签核项——等价性检查通过 SAT 形式化验证 RTL-vs-Gate 功能一致
+- 动态 IR 压降可达静态的 2-5 倍，DECAP 密度和布局是抑制动态 IR 的核心设计手段——需要瞬态向量（Vectorless 或 VCD-driven）分析；去耦电容通常占芯片面积的 5%-15%
+- 电迁移签核分为 DC EM、AC/RMS EM 和 Signal EM，三者基于不同的电流计算模型——铜互连 DC EM 极限约 10-20 mA/µm²，信号 EM 的瞬态峰值电流限制通常高于 DC 极限 3-5 倍
+- LEC 是唯一不需测试向量的签核项——等价性检查通过 SAT 形式化验证 RTL-vs-Gate 功能一致；任何不通过 LEC 签核的修改都必须追溯修改来源
 - PVT 角全覆盖是 Signoff 的计算资源瓶颈——先进工艺 20-50+ 角往往需要大规模并行计算集群支持
 - Timing ECO 是 Signoff 中的高频活动——在签核 STA 发现违例后通过最小侵入调整修复，需反复迭代直到全角全模式收敛
 - Setup 和 Hold 修复存在根本冲突——插入缓冲器修复 Hold 会增加线长侵蚀 Setup，通常优先修复 Setup 再用有用偏斜/缓冲器修复 Hold
+- 信号完整性签核（SI Signoff）分析串扰噪声和串扰延迟——基于时序窗口的过滤可减少 70%-90% 的假违例，避免过度设计
+- DRC 豁免（Waiver）管理是签核流程中的重要环节——已验证的假违例需要系统性记录和审批，在每次签核重跑中自动过滤
+- 签核检查必须在全芯片层级（Full-Chip Level）完成——模块级签核通过不能免除顶层签核，跨模块边界（如顶层的 I/O 接口时序、跨电源域信号）的交互只能在全芯片层级暴露
+- 签核结果数据库（Signoff Results DB）管理数百 GB 至 TB 级的结果数据——签核管理工具（如 vManager）提供 web 仪表板和自动回归检测
+- 签核冻结（Signoff Freeze）锁定所有数据版本、配置和豁免文件——是管理层审批投片的正式决策节点
+- 汽车电子签核（ISO 26262）增加故障注入验证、冗余电路等价性检查和安全机制可观测性签核——周转时间通常为消费电子的 1.5-2 倍
+- 签核工具之间的数据互通是关键——SPEF（寄生参数）、SDC（时序约束）、UPF（电源意图）在各个签核工具间共享且版本一致
+- ATE 测试向量签核验证所有 at-speed 测试周期的信号时序满足测试设备的能力边界——扫描频率和 I/O 带宽是 ATE 签核的核心约束
+- 签核交叉依赖性（Cross-Dependency）意味着一个签核项的失败可能触发其他已通过项的重新签核——例如 ECO 修改版图后需要重新 DRC + LVS + STA + IR/EM
+- 签核自动化流水线（Signoff Automation Pipeline）通过 CI/CD 模式在每次版图更新后自动触发所有签核检查——减少人工操作和遗漏风险
+- Signoff 数据的完整性和可追溯性是质量管理的基础——晶圆厂对签核数据保留要求通常为产品生命周期加 10 年
+- 签核审查委员会（Signoff Review Board）在投片前审查所有签核报告——由设计、验证、DFT、物理设计各领域的高级工程师组成
+- 投片签核（Tape-Out Signoff）是商业决策节点——签核通过标志着设计团队的工作交付晶圆厂，任何投片后的修改都需要新的光罩（Mask）投入
 
 ## 与其他概念的关系
 
-- [[asic-flow/concepts/static-timing-analysis|静态时序分析（STA）]] — STA 是时序签核的核心分析引擎，PrimeTime/Tempus 的签核级 STA 分析精度满足晶圆厂认可标准
-- [[asic-flow/concepts/physical-verification|物理验证（Physical Verification）]] — DRC/LVS 是 Signoff 中的强制物理验证项，使用 Calibre/IC Validator 等专用签核工具
-- [[asic-flow/concepts/power-analysis|功耗分析（Power Analysis）]] — 功耗签核（IR Drop + EM + Total Power）与功耗分析共用数据集但使用签核级精度引擎
-- [[verification/concepts/formal-verification|形式验证（Formal Verification）]] — LEC 等价性检查是形式验证在 ASIC 流程中的关键应用，是签核的必选项
-- [[cross-domain/concepts/timing-closure|时序收敛（Timing Closure）]] — Signoff 是时序收敛的最终裁判——Signoff 通过即完成 Timing Closure
+- [[asic-flow/concepts/static-timing-analysis|静态时序分析（STA）]] — STA 是时序签核的核心分析引擎，PrimeTime/Tempus 的签核级 STA 分析精度满足晶圆厂认可标准；Signoff STA 使用真实的 SPEF 寄生参数和 POCV/LVF 统计时序模型
+- [[asic-flow/concepts/physical-verification|物理验证（Physical Verification）]] — DRC/LVS/ERC/天线规则是 Signoff 中的强制物理验证项，使用 Calibre/IC Validator 等专用签核工具；物理签核和时序签核相互独立但必须同时通过
+- [[asic-flow/concepts/power-analysis|功耗分析（Power Analysis）]] — 功耗签核（IR Drop + EM + Total Power）与功耗分析共用数据集但使用签核级精度引擎；功耗签核的门级仿真精度远高于 RTL 级功耗估算
+- [[verification/concepts/formal-verification|形式验证（Formal Verification）]] — LEC 等价性检查是形式验证在 ASIC 流程中的关键应用，是签核的必选项；任何 ECO 修改后的 LEC 重新签核确保功能等价性未被破坏
+- [[cross-domain/concepts/timing-closure|时序收敛（Timing Closure）]] — Signoff 是时序收敛的最终裁判——Signoff 通过即完成 Timing Closure；时序闭合并不仅是在单个角上，而是在全角全模式下的同时收敛
+- [[asic-flow/concepts/dft|可测试性设计（DFT）]] — DFT 覆盖率签核是投片前的硬性指标——固定型故障覆盖率 98%+ 和跳变故障覆盖率 85%+ 是多数消费电子的最低要求；ATE 测试向量签核验证所有 at-speed 测试的信号时序
+- [[asic-flow/concepts/clock-tree|时钟树综合（CTS）]] — CTS 签核验证全局和局部偏斜、最大转换时间和最小脉冲宽度在全工艺角下满足约束——时钟签核不通过不能继续布线
+- [[asic-flow/concepts/place-and-route|布局布线（P&R）]] — Signoff 发现的违例通过 ECO 方式回流至 P&R 修复——从 P&R 到 Signoff 再回到 ECO 的迭代周期决定了投片的最终时间线

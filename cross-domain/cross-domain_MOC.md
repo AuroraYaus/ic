@@ -1,7 +1,7 @@
 ---
 type: moc
 aliases:
-  - 跨领域概念总览
+  - Cross-Domain MOC_跨领域概念总览
   - Cross-Domain Map of Content
 tags:
   - asic

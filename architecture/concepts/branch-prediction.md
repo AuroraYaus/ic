@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 分支预测
+  - Branch Prediction_分支预测
   - Branch Prediction
   - 分支预测器
 tags:
@@ -63,6 +63,14 @@ TAGE（TAgged GEometric history length）预测器是现代分支预测的标杆
 
 BTB 的组织常用多级结构：L1 BTB（小容量，如 256-512 项，1 周期延迟）覆盖热分支的 95%+；L2 BTB（大容量，2K-4K 项，2-3 周期延迟）处理 L1 BTB 缺失。L1 BTB 缺失时，取指流水线必须停顿等待 L2 BTB 的结果——这称为 BTB 惩戒（BTB Penalty），比分支误预测惩戒小得多（仅 1-2 个取指空洞），但频率更高（因为 BTB 容量有限）。BTB 的替换策略通常使用 Not-Most-Recently-Used（NMRU），倾向于保留最近使用的条目。
 
+### 间接跳转预测
+
+间接跳转（Indirect Branch）的目标地址存储在寄存器中，同一 PC 可以跳转到不同目标——例如 C++ 虚函数调用（vtable dispatch）、switch-case 跳表和函数指针调用。直接跳转的 BTB 查找依赖 PC 索引并返回单一目标，而间接跳转需要在同一 PC 下跟踪多个可能的目标。间接跳转预测器（Indirect Branch Predictor, IBP）通过维护目标历史列表来区分不同的目标上下文。
+
+ITTAGE（Indirect-TAGE）是现代体系结构的标杆解决方案。它在 TAGE 框架基础上为每个 TAGE 组件增加一个目标地址字段——当最长历史组件命中时，不仅提供方向预测，还提供目标地址预测。ITTAGE 在 CBP（Championship Branch Prediction）竞赛中实现了超过 99.5% 的间接跳转预测精度。对于无法预测的间接跳转（如随机多态调用），预测器退化为默认策略——通常使用目标地址栈（Target Address Cache, TAC）维护最近观测到的目标，从中选择最频繁者。
+
+间接跳转预测的难点在于：目标多样性随程序复杂度快速增长（C++ 大程序中单个虚函数调用点可能有数十个目标类），且目标地址分布往往服从幂律——少数热点目标占据大多数调用。ITTAGE 的多组件历史策略在此时发挥关键作用：短历史组件快速适应最近的频繁目标切换，长历史组件在稳定调用模式下提供精确预测。预测错误惩罚与直接分支相同——清空 ROB 并回滚 RAT——因此间接跳转预测精度对面向对象语言编写的程序（如浏览器引擎、数据库）的性能至关重要。
+
 ## 关键要点
 
 - 两位饱和计数器在 1K 项时可达 85-92% 精度，4K 项时可达 92-97%，项数增加受面积和访问延迟约束
@@ -74,9 +82,19 @@ BTB 的组织常用多级结构：L1 BTB（小容量，如 256-512 项，1 周�
 - RAS Corruption 修复是精确异常的基础，需要在分支检查点中包含 RAS 栈快照
 - 间接跳转（虚函数、switch-case 跳表）的目标预测需要 ITTAGE 或专用间接跳转预测器
 - 分支预测功耗影响不容忽视：3% 误预测率约浪费 10-15% 的总功耗在无效投机执行上
+- 间接跳转（虚函数、switch-case、函数指针）的预测需要 ITTAGE 或专用 IBP，CBP 竞赛中 ITTAGE 精度超过 99.5%
+- 间接跳转的目标地址分布遵循幂律——少数热点目标占据绝大多数调用，短历史组件快速捕获目标切换，长历史组件提供稳态精确预测
+- BTB 两级结构的命中率级联：L1 BTB（256-512 项）覆盖 95%+ 动态分支，缺失后 L2 BTB（2K-4K 项）需 2-3 周期填充，产生 BTB 惩戒
+- 分支预测器的总面积在高性能处理器中可达 1-3 mm²（5nm），其中 BTB 占 60-70%，TAGE 表占 20-30%，RAS 和逻辑占 10%
+- 分支预测器别名冲突（Aliasing）的缓解方法：增大表容量、使用标签区分、应用不同的哈希函数组合 PC 和 GHR，TAGE 的标签机制是此方向的典范
+- 循环预测器（Loop Predictor）是 TAGE 的常见补充：对固定迭代次数的循环进行精确预测，第一次循环训练计数器，后续循环直接预测迭代次数和退出点，精度接近 100%
+- 分支预测器的更新延迟（Update Latency）存在触达问题：分支在 EX 阶段确定结果后需更新预测器，但后续分支已经在预测器中取指——信息延迟导致下一次循环迭代的第一次分支仍使用陈旧信息
+- 取指地址的预测环路延迟（Fetch-Predict-Fetch Loop）是前端频率的关键限制：预测器必须在取指 PC 有效的同一个周期（或最多 1 个延迟周期）内生成下一个取指地址
+- 分支预测器的训练策略区分"即时更新"（Speculative Update，在分支推测执行后立即更新）和"提交时更新"（Update at Commit）：前者训练速度快但可能用错误路径污染预测表，后者保证训练信息准确但有延迟
 
 ## 与其他概念的关系
 
 - [[architecture/concepts/pipelining|流水线（Pipelining）]] — 分支预测直接决定流水线控制冒险处理效率，预测精度决定误预测惩罚的频率
 - [[architecture/concepts/out-of-order|乱序执行（Out-of-Order Execution）]] — 误预测导致 ROB 中投机指令全部清空和 RAT 回滚，恢复开销巨大
-- [[architecture/concepts/memory-hierarchy|存储层次（Memory Hierarchy）]] — RAS 和 BTB 本质是以 PC 为索引的小型缓存，其替换和访问策略与缓存设计共享原理
+- [[architecture/concepts/memory-hierarchy|存储层次（Memory Hierarchy）]] — RAS 和 BTB 本质是以 PC 为索引的小型缓存，其替换和访问策略与缓存设计共享原理。BTB 容量不足引发的 BTB 惩戒与缓存容量缺失类似，增加 BTB 项数是缓解路径
+- [[concepts/cmos-fundamentals|CMOS 基础]] — 分支预测器的 SRAM 阵列访问延迟是前端的时序瓶颈：在 5GHz 下 200ps 内需完成 BHT/TAGE 表 + BTB 的方向和目标生成，要求极紧凑的 SRAM 位单元布局

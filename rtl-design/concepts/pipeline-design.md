@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 流水线设计
+  - Pipeline Design_流水线设计
   - Pipeline Design
   - Pipelining
 tags:
@@ -52,6 +52,52 @@ Valid-Ready 接口的正确实现需要考虑几个关键细节：a) ready 信�
 
 以 16x16 位流水线乘法器为例展示流水线化技术。非流水线 Booth-Wallace 乘法器延迟约 $T_{booth} + T_{wallace\_tree} + T_{final\_adder}$。将其分为 3 级流水线：第一级（Booth 编码和部分积生成），第二级（Wallace 树压缩到两个部分和），第三级（最终加法器）。每级插入 32 位寄存器，三级流水线吞吐率达到每周期 1 次乘法，而非流水线版本约每 3 周期 1 次。面积开销约为三级寄存器（96 个 D-FF）加上必要的 Stall/Flush 控制逻辑（约 30-50 个等效门）。
 
+### Skid Buffer 与反压传播延迟
+
+当 Valid-Ready 流水线级数较长（>10 级）时，ready 信号从流水线末端逐级向前传播的组合路径可能成为新的时序瓶颈——每一级 ready 取决于下一级的 ready 和 valid 状态，形成 $\mathcal{O}(N)$ 的进位链式延迟。**Skid Buffer（滑动缓冲）**是解决长流水线反压传播延迟的标准技术——在 ready 路径上插入两级寄存器（Skid Buffer），将 ready 的传播延迟从组合路径转化为可时序约束的寄存器到寄存器路径。
+
+Skid Buffer 的双寄存器结构：当接收端反压（ready=0）时，数据首先被缓存在第一个 Skid 寄存器中；如果反压持续，数据进一步被缓存到第二个 Skid 寄存器（两级深度的弹性缓冲区）。两级 Skid Buffer 允许 ready 信号在最坏情况下有 2 个周期的延迟（两级寄存器链的 clk2q + 组合逻辑），而非一长串组合逻辑的聚合延迟。Skid Buffer 的容量通常为 2（两级深度），足以覆盖绝大多数的流水线反压延迟需求——对于极端长的流水线（如网络包处理器的 32 级流水线），可在每 8-10 级之间插入一个 Skid Buffer 将 ready 路径分段。
+
+**Skid Buffer 可综合实现的核心逻辑**：
+
+```systemverilog
+// 两级 Skid Buffer：在 ready 路径上插入寄存器以打断长组合链
+module skid_buffer #(parameter WIDTH = 32) (
+    input  logic             clk, rst_n,
+    input  logic             i_valid, i_data [WIDTH-1:0],
+    output logic             i_ready,
+    output logic             o_valid, o_data [WIDTH-1:0],
+    input  logic             o_ready
+);
+    logic [WIDTH-1:0] skid_data;
+    logic             skid_valid;  // Skid buffer 中有缓存数据
+
+    assign i_ready = o_ready || !o_valid;  // 总在可接收或下游空闲时准备好
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            o_valid    <= 1'b0;
+            skid_valid <= 1'b0;
+        end else begin
+            if (i_ready) begin
+                if (o_ready || !o_valid) begin
+                    o_valid <= i_valid;
+                    o_data  <= i_data;
+                end else begin
+                    skid_valid <= i_valid;
+                    skid_data  <= i_data;
+                end
+            end
+            if (o_ready && skid_valid) begin
+                o_valid    <= 1'b1;
+                o_data     <= skid_data;
+                skid_valid <= 1'b0;
+            end
+        end
+    end
+endmodule
+```
+
 ## 关键要点
 
 - 吞吐率提升（$K$ 倍）以延迟增加（$K$ 周期）和寄存器面积/功耗为代价——流水线级数 $K$ 的选定是全系统时序和面积权衡的结果
@@ -62,10 +108,13 @@ Valid-Ready 接口的正确实现需要考虑几个关键细节：a) ready 信�
 - 结构冒险通过资源复制（多端口）、时分复用（Stall）或架构避免（分离 I-Cache/D-Cache）解决
 - 流水线乘法器的典型分割为 Booth 编码 -> 部分积压缩 -> 最终加法，每级寄存使得吞吐率达到每周期 1 次乘法
 - 流水线寄存器的时钟门控（当 Stall 时）可显著降低流水线动态功耗——Stall 期间各阶段输出数据不变，门控时钟消除无意义的触发器翻转
+- Skid Buffer（两级弹性缓冲）是解决长流水线反压 propagation 延迟的标准技术——在 ready 路径上插入寄存器，将 $\mathcal{O}(N)$ 组合延迟转化为可约束的寄存器到寄存器路径
+- 流水线的"气泡"（Bubble）是指由于 Stall 或 Flush 导致的流水线空闲周期——气泡率（Bubble Rate）是衡量流水线效率的关键指标，分支预测失败是处理器流水线气泡的主要来源
+- 流水线寄存器布局中需要物理上靠近其所分隔的组合逻辑块——流水线寄存器的物理分布直接影响时钟树延迟平衡和时序收敛的难度
 
 ## 与其他概念的关系
 
-- [[rtl-design/concepts/sequential-logic|时序逻辑]] — 流水线寄存器本质是 D-FF，流水线最大频率由最慢阶段的 setup/clk2q 决定
-- [[rtl-design/concepts/fsm-design|FSM 设计]] — 流水线控制器（Stall/Flush 逻辑）本质上是 FSM+Datapath 分离设计的典型实例
-- [[rtl-design/concepts/arithmetic-circuits|算术电路]] — 高性能算术单元（乘法器、加法器、除法器）广泛使用流水分割以提升吞吐率
-- [[architecture/concepts/pipelining|体系结构流水线]] — 处理器级流水线与 RTL 级流水的接口对齐——处理器微架构决策驱动 RTL 流水线的划分方式
+- [[rtl-design/concepts/sequential-logic|时序逻辑]] — 流水线寄存器本质是 D-FF，流水线最大频率由最慢阶段的 setup/clk2q 决定。时钟树平衡和寄存器物理布局直接影响流水线各阶段间的时钟偏斜（Clock Skew）预算分配
+- [[rtl-design/concepts/fsm-design|FSM 设计]] — 流水线控制器（Stall/Flush 逻辑）本质上是 FSM+Datapath 分离设计的典型实例。FSM 的状态转换（如 IDLE -> ACTIVE -> STALL -> FLUSH）直接控制流水线寄存器的使能和清零
+- [[rtl-design/concepts/arithmetic-circuits|算术电路]] — 高性能算术单元（乘法器、加法器、除法器）广泛使用流水分割以提升吞吐率。乘法器从 Booth 编码到 Wallace 树到最终加法的三阶段分割是流水线在数据通路中最直接的应用
+- [[architecture/concepts/pipelining|体系结构流水线]] — 处理器级流水线与 RTL 级流水的接口对齐——处理器微架构决策（如指令发射宽度、重排序缓冲区深度）驱动 RTL 流水线的划分方式和握手协议设计

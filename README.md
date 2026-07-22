@@ -1,7 +1,7 @@
 ---
 type: spec
 aliases:
-  - README
+  - README_项目总览
   - 项目总览
 tags:
   - asic

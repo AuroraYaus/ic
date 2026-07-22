@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - P&R
+  - Place and Route_布局布线
   - Place and Route
   - 布局布线
   - Physical Design
@@ -47,7 +47,23 @@ source_spec: "Cadence Innovus User Guide, Synopsys ICC2 User Guide, Kahng/Lienig
 
 ### ECO 流程
 
-工程变更指令（Engineering Change Order, ECO）是在设计后期对网表的局部修改——修复时序违例、逻辑错误或满足新的规格要求——而不重新运行完整的 P&R 流程。ECO 流程在已有版图上利用预留单元（Spare Cell）或在版图空余位置插入少量新门，通过最小化的布局和走线扰动实现修改。ECO 的挑战在于在极度拥挤的版图中找到空间插入新单元而不引起大规模时序退化——基于签核时序结果驱动的 ECO 需要 STA 和 P&R 工具的紧密交互。
+工程变更指令（Engineering Change Order, ECO）是在设计后期对网表的局部修改——修复时序违例、逻辑错误或满足新的规格要求——而不重新运行完整的 P&R 流程。ECO 流程在已有版图上利用预留单元（Spare Cell）或在版图空余位置插入少量新门，通过最小化的布局和走线扰动实现修改。ECO 的挑战在于在极度拥挤的版图中找到空间插入新单元而不引起大规模时序退化——基于签核时序结果驱动的 ECO 需要 STA 和 P&R 工具的紧密交互。典型做法是在初始布局时均匀散布 Spare Cell（约占标准单元面积的 1%-3%），ECO 阶段将这些 Spare Cell 替换为所需功能单元，并仅对其扇入扇出线网重新走线。
+
+### 先进工艺的布线挑战
+
+先进节点（<7nm）中多重图形技术（Multiple Patterning）将布线约束推向极限。FinFET 工艺中 M0/M1 层需要使用双重图形（Double Patterning, LELE）或自对准双重图形（SADP），甚至三重/四重图形——布线器必须将同一掩模层的线网分配到不同"颜色"的光刻步骤中，确保同色线网间距满足更大间距要求。**颜色分配（Coloring）**成为布线阶段的新维度约束——颜色冲突（无法合法分配相邻线网到不同颜色）需要拆线重布（Rip-up and Reroute）直至所有线网满足着色约束。SADP 工艺特有的**强制间距（Mandrel Spacing）**规则对线网的间距和方向施加比传统 DRC 更严格的限制。此外，**线端切割规则（Cut Regularity）**在 SADP 中要求切割位置满足网格对齐约束。这些多重图形相关规则使先进节点的布线时间复杂度比传统节点提高数倍。
+
+### 标准单元行与电源轨
+
+标准单元行（Standard Cell Row）是版图的基本组织单位——每个 Row 通常包含一条水平 VDD 轨和一条 VSS 轨（交错排列），标准单元的 N 阱和 P 阱边界与行边界对齐。一条芯片中可能有数百万个 Rows，Rows 之间的间距（Row Pitch）决定了标准单元的垂直方向密度——常见 Row Pitch 在 7nm 为 240-300nm。Rows 可以翻转（Row Flip）来共享相邻行之间的 N 阱或 P 阱以减小面积。**混合高度单元（Multi-Height Cell）**的支撑使布局引擎将复杂逻辑映射到 2 倍或 3 倍高度的单元上，以换取更高的驱动和更低的逻辑级数，但也使合法化（Legalization）更加复杂。
+
+### 时序驱动的详细布局优化
+
+详细布局（Detailed Placement）不仅是几何合法化——现代 P&R 工具在详细布局阶段执行增量时序优化。**门尺寸调整（Gate Sizing）**根据负载和时序需求在库中同一逻辑功能的多个尺寸版本之间切换——关键路径使用大驱动（低延迟但高漏电）、非关键路径缩小尺寸以降低功耗和面积。**缓冲器插入（Buffer Insertion）**在长互连线中插入中间缓冲器/反相器——将长线的 RC 延迟从 $O(L^2)$ 增长（集总模型）变为 $O(L)$ 增长（分段驱动），同时改善过渡时间（Slew）。**VT 交换（VT Swap）**在不改变门尺寸的前提下将关键路径的单元从高 Vth（慢速低漏电）交换为低 Vth（快速高漏电）——门列表和布线不变，仅替换库版本，是面积中性的纯时序修复手段。**寄存器重定时（Register Retiming）**在详细布局后执行——基于实际物理位置和 RC 延迟反标，将寄存器沿路径移动以平衡流水线各级延迟。
+
+### 布线后的时序与寄生参数提取
+
+详细布线完成后，P&R 工具执行寄生参数提取（RC Extraction）以获取精确的互连线电阻和电容值。**2.5D 提取**基于每层的宽高比和绝缘介质厚度计算电容，速度快但精度有限（误差 5%-10%）。**3D 场求解器提取（Field Solver Extraction）**使用有限元方法求解麦克斯韦方程计算精确电容，精度 <2% 但计算成本高——用于关键线网（时钟、高速接口）的签核级提取。提取结果以 SPEF 格式输出供 STA 工具反标——SPEF 包含每个线网的分布式 RC 网络（$\pi$ 模型或等效的 RC 阶梯网络）。P&R 内部使用的**提取关联（Extraction Correlation）**分析将自身 RC 提取结果与签核级提取器（如 StarRC/Quantus QRC）比较，确保 P&R 内部时序估算与 Signoff STA 之间的相关性误差控制在 10%-15% 以内。
 
 ## 关键要点
 
@@ -57,12 +73,28 @@ source_spec: "Cadence Innovus User Guide, Synopsys ICC2 User Guide, Kahng/Lienig
 - CTS 插入时机在标准单元合法化之后、详细布线之前——CTS 需要准确的单元位置来计算 RC 延迟
 - 拆线重布（Rip-up and Reroute）是解决布线拥塞的经典策略，逐次迭代至拥塞消除——但可能过度拉长关键路径线长
 - 详细布线使用 Maze/A* 算法逐段处理 DRC——是计算最密集的阶段，通常使用并行分区处理
-- ECO 流程依赖预留单元（Spare Cell）实现局部网表修改，避免了完整重跑流程的数天周转时间——但受限于版图剩余空间
+- ECO 流程依赖预留单元（Spare Cell, 占面积 1%-3%）实现局部网表修改，避免了完整重跑流程的数天周转时间——但受限于版图剩余空间
 - Innovus 和 ICC2 均支持从 RTL 到 GDSII 的全流程，核心差异在于优化引擎、时序模型的集成度和多 CPU 扩展能力
+- 多重图形（Multiple Patterning）在 7nm 以下节点中对布线引入颜色分配约束——线网着色冲突需要额外拆线重布迭代
+- 电源网格（Power Grid）的 IR 压降分析在设计早期用静态分析指导网格宽度和间距决策——高层金属（M8-M14）的电阻是电源网格设计的关键参数
+- 时钟布线在详细布线中拥有最高优先级——时钟线网需要屏蔽（Shielding）和更大间距以减少串扰，金属资源消耗超过普通信号线
+- 布局阶段可以施加 Bound/Region 约束将关键路径逻辑限定在特定区域以最小化互连延迟——模块之间的接口时序受跨区域延迟主导
+- 寄生参数提取（RC Extraction）从 2.5D（误差 5%-10%）到 3D 场求解器（误差 <2%）——关键线网使用 3D 提取，非关键线网使用 2.5D 以节省计算时间
+- 门尺寸调整（Gate Sizing）、VT 交换和缓冲器插入是详细布局中的增量时序修复三步法——VT 交换是面积中性的纯时序优化
+- 提取相关性分析（Extraction Correlation）确保 P&R 内部 RC 估算与 Signoff 提取器之间的偏差控制在 10%-15% 以内
+- 寄存器重定时（Register Retiming）在详细布局后基于实际 RC 反标优化流水线平衡——大幅度移动寄存器位置会影响 CTS 叶节点分布
+- 拥塞驱动布图规划（Congestion-Driven Floorplanning）使用全局布线估算指导宏模块调整——避免宏模块间通道布线空间不足导致后期无法收敛
+- P&R 流程的单次迭代（从布图规划到详细布线）在数十亿门设计中需要数小时到数十小时——并行计算和增量设计（Incremental Design）是大规模 SoC 的必备策略
+- 电源网格（Power Grid）的 IR 压降分析在设计早期用静态分析指导网格宽度和间距决策——高层金属（M8-M14）的方阻（Sheet Resistance）是电源网格设计的关键参数
+- Via Pillar/Tower（通孔堆叠）连接相邻金属层的电源网格交叉点——大电流路径通过多个并行通孔（通常 4-16 个）减小有效的通孔电阻和 EM 风险
+- P&R 到签核 DRC 之间的迭代通常需要 2-5 个循环——每次迭代修改版图后重新签核 DRC/LVS，直至违例清零
 
 ## 与其他概念的关系
 
-- [[asic-flow/concepts/synthesis|逻辑综合（Synthesis）]] — 综合输出的门级网表和 SDC 约束是 P&R 的输入，物理综合在综合阶段引入布局信息以减少综合-P&R 时序鸿沟
-- [[asic-flow/concepts/clock-tree|时钟树综合（CTS）]] — CTS 是 P&R 流程中的子阶段，位于全局布局和详细布线之间，P&R 工具集成了 CTS 引擎
-- [[asic-flow/concepts/static-timing-analysis|静态时序分析（STA）]] — STA 驱动 P&R 的时序优化——每次布局或布线迭代后运行 STA 评估，违例驱动 ECO 修复
-- [[asic-flow/concepts/signoff|签核（Signoff）]] — P&R 输出最终版图后，Signoff STA/DRC/LVS 验证决定是否可投片——P&R 的目标是满足所有签核指标
+- [[asic-flow/concepts/synthesis|逻辑综合（Synthesis）]] — 综合输出的门级网表和 SDC 约束是 P&R 的输入，物理综合在综合阶段引入布局信息以减少综合-P&R 时序鸿沟；综合阶段的寄存器聚类和模块分组指导 P&R 的布图规划
+- [[asic-flow/concepts/clock-tree|时钟树综合（CTS）]] — CTS 是 P&R 流程中的子阶段，位于全局布局和详细布线之间，P&R 工具集成了 CTS 引擎；CTS 后的时钟走线占据详细布线的关键资源
+- [[asic-flow/concepts/static-timing-analysis|静态时序分析（STA）]] — STA 驱动 P&R 的时序优化——每次布局或布线迭代后运行 STA 评估，违例驱动 ECO 修复；P&R 内部的 RC 估算引擎与 Signoff STA 精度之间存在 10%-15% 的相关性误差
+- [[asic-flow/concepts/signoff|签核（Signoff）]] — P&R 输出最终版图后，Signoff STA/DRC/LVS 验证决定是否可投片——P&R 的目标是满足所有签核指标；签核发现的问题通过 ECO 方式回流至 P&R 修复
+- [[asic-flow/concepts/physical-verification|物理验证（Physical Verification）]] — DRC/LVS/天线规则在 P&R 中需要提前预防而非事后修复——P&R 引擎内置 DRC 感知的布线和通孔生成可减少签核 DRC 违例数量 80% 以上
+- [[asic-flow/concepts/dft|可测试性设计（DFT）]] — 扫描链的布局需要在 P&R 中考虑——扫描链连接顺序影响布线拥塞，扫描长链跨大规模芯片区域会导致时序和布线双重挑战
+- [[asic-flow/concepts/power-analysis|功耗分析（Power Analysis）]] — P&R 中的功耗感知布局根据活动因子热图指导单元分布——高翻转率集群需要更大的 DECAP 密度和更密的电源网格

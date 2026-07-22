@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 时序收敛
+  - Timing Closure_时序收敛
   - Timing Signoff
   - STA Signoff
   - Timing ECO

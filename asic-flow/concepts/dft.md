@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - DFT
+  - DFT_可测试性设计
   - Design for Testability
   - 可测试性设计
 tags:
@@ -55,28 +55,46 @@ ATPG 覆盖率（Test Coverage）是衡量 DFT 质量的核心指标，定义为
 
 ### MBIST、LBIST 与边界扫描
 
-- MBIST（Memory Built-In Self-Test）：针对片上 SRAM/DRAM 的内建自测试。BIST 控制器按 March 算法生成地址序列和读写模式，自动对比读出数据与期望值。MBIST 还可以执行修复（Repair），利用冗余行/列替换故障单元。
-- LBIST（Logic Built-In Self-Test）：使用片上 PRPG（伪随机序列生成器）产生测试向量，通过扫描链加载，再用 MISR 压缩响应。LBIST 的优势在于上电自检（Power-On Self-Test），无需外部 ATE 设备。现代 LBIST 采用重新播种（Reseeding）策略：在一个测试序列结束后加载新种子值，重复多轮直到覆盖率饱和。MISR 压缩虽是有损的（存在别名概率），但使用 32 位或 64 位 MISR 可将别名概率降至 2^{-32} 以下，在实际工程中可忽略。
-- JTAG/IEEE 1149.1 边界扫描（Boundary Scan）：在芯片的 I/O 焊盘和内部核心逻辑之间插入边界扫描单元（BSC），通过 TAP 控制器（Test Access Port）提供的 TDI、TDO、TCK、TMS 和可选的 TRST 五线接口实现对芯片间互连的测试。边界扫描主要用于 PCB 板级互连测试和芯片配置。
-- IEEE 1687 IJTAG（Internal JTAG）：将 JTAG 的控制范型扩展到芯片内部，通过分段插入链路（Segment Insertion Bit, SIB）在网络化的仪器接口之间建立动态访问路径，实现对外设 IP 中嵌入的测试和调试仪器的按需访问。
+- MBIST（Memory Built-In Self-Test）：针对片上 SRAM/DRAM 的内建自测试。BIST 控制器按 March 算法生成地址序列和读写模式，自动对比读出数据与期望值。MBIST 还可以执行修复（Repair），利用冗余行/列替换故障单元。March C- 算法（包含 10 次全阵列遍历）是工业标准，可检测固定型故障、跳变故障、耦合故障和地址解码故障。BIST 控制器的面积开销通常为存储器面积的 5%-10%。
+- LBIST（Logic Built-In Self-Test）：使用片上 PRPG（伪随机序列生成器）产生测试向量，通过扫描链加载，再用 MISR 压缩响应。LBIST 的优势在于上电自检（Power-On Self-Test），无需外部 ATE 设备。现代 LBIST 采用重新播种（Reseeding）策略：在一个测试序列结束后加载新种子值，重复多轮直到覆盖率饱和。MISR 压缩虽是有损的（存在别名概率），但使用 32 位或 64 位 MISR 可将别名概率降至 2^{-32} 以下，在实际工程中可忽略。测试点插入（Test Point Insertion）在 LBIST 流程中对随机困难故障节点插入控制点（Control Point, 强制为 1/0）和观测点（Observe Point, 引出到扫描输出）以提升覆盖率。
+- JTAG/IEEE 1149.1 边界扫描（Boundary Scan）：在芯片的 I/O 焊盘和内部核心逻辑之间插入边界扫描单元（BSC），通过 TAP 控制器（Test Access Port）提供的 TDI、TDO、TCK、TMS 和可选的 TRST 五线接口实现对芯片间互连的测试。边界扫描主要用于 PCB 板级互连测试和芯片配置。TAP 控制器的 16 状态 FSM 支持 EXTEST（外部互连测试）、INTEST（内部逻辑测试）、SAMPLE/PRELOAD、BYPASS 和 IDCODE 等强制指令。
+- IEEE 1687 IJTAG（Internal JTAG）：将 JTAG 的控制范型扩展到芯片内部，通过分段插入链路（Segment Insertion Bit, SIB）在网络化的仪器接口之间建立动态访问路径，实现对外设 IP 中嵌入的测试和调试仪器的按需访问。SIB 的层次化结构允许对深层嵌套 IP 的仪器进行选择性访问——关闭不需要访问的分支以节约扫描路径长度和测试时间。
+- IEEE 1500 核心测试（Core Test）：为大尺寸 SoC 中的 IP 核心提供标准化的测试壳（Test Wrapper）和控制接口，使第三方 IP 的嵌入式测试能通过统一的 Wrapper 串行端口访问而不依赖外部 I/O。Wrapper Boundary Register（WBR）在核心的输入输出端口分别提供隔离和串行化能力。
+
+### 低功耗 DFT 与测试模式管理
+
+测试模式下的功耗管理是现代 DFT 设计的重要课题。**扫描移位功耗分析**表明移位模式下的平均翻转率可达功能模式的 3-5 倍——因为随机测试向量使所有扫描触发器在每个移位周期都翻转。**分段移位（Segmented Shift）**将长扫描链分为多个短段，每次仅激活一个段进行移位，其余段保持静止——可以将移位功耗降低 50%-70%，但增加总移位周期数。**低功耗 ATPG（Low-Power ATPG）**在生成测试向量时加入功耗约束——优化向量顺序使相邻向量的 Hamming 距离最小化，从而减少移位翻转次数。测试时钟控制（Test Clock Gating）在不需要测试的模块中关断测试时钟以减少不必要的翻转。
+
+### DFT 签核与 ATE 接口
+
+DFT 签核确认测试结构可被自动测试设备（Automatic Test Equipment, ATE）正确执行。**测试向量验证（Test Pattern Validation）**在 Signoff STA 环境中对所有 at-speed 测试向量执行时序验证——确保每个测试周期的 SI（Scan-In）和 SE（Scan Enable）信号在规定的时序窗口内到达目标寄存器。**ATE 资源规划（ATE Resource Planning）**考虑测试仪的通道数量、频率限制和向量存储深度——如果扫描压缩不充分，ATE 存储容量可能无法容纳完整测试向量集。**测试覆盖率签核报告（Test Coverage Signoff Report）**列出所有未检测故障的分类和理由——如 "AU"（ATPG Untestable）类别中的故障需要设计者逐一审查确认其"不可测"属性是真实的设计特征而非测试结构的缺陷。测试成本模型（Test Cost Model）预测从 ATE 测试时间换算的单芯片测试成本——在 98% 覆盖率之上每增加 1% 覆盖率可能使测试时间增加 20%-40%，测试成本优化是覆盖率目标设定的现实约束。
 
 ## 关键要点
 
 - 扫描链通过 MUX-DFF 将内部触发器串行化为可控可观察状态，本质是用测试时间换测试覆盖率——可观测性从接近零提升到接近 100%
 - ATPG 从 D 算法到 PODEM 的关键突破是将搜索空间从全部信号线缩减到仅主输入，使测试向量生成从 NP 问题变为可实用
-- 测试压缩（EDT/OPMISR+）是现代 DFT 的必备技术——不压缩时测试数据量可达数百 Gbits，压缩后通常降低 50-100 倍
+- 测试压缩（EDT/OPMISR+）是现代 DFT 的必备技术——不压缩时测试数据量可达数百 Gbits，压缩后通常降低 50-100 倍，覆盖率损失通常 <0.5%
 - 跳变故障（Transition Fault）的 at-speed 测试在深亚微米工艺中不可忽略，固定型故障覆盖率再高也无法保证芯片在目标频率下正常工作
-- MBIST 的 March 算法覆盖了存储器单元间的耦合故障（Coupling Fault）和寻址故障（Address Fault），是现代 SoC 中所有片上存储器的标准测试手段
-- JTAG 边界扫描的 TAP 控制器使用 16 状态 FSM，EXTEST 指令驱动互连测试，INTEST 可辅助内部逻辑测试
-- DFT 对功能设计的影响包括增加面积（通常 2%-5%）、增加延迟（扫描 MUX 在功能路径上）、需要额外的测试时钟和复位控制
+- MBIST 的 March C- 算法（10 次全阵列遍历）覆盖了存储器单元间的耦合故障和寻址故障，是现代 SoC 中所有片上存储器的标准测试手段；BIST 控制器面积约为存储器面积的 5%-10%
+- JTAG 边界扫描的 TAP 控制器使用 16 状态 FSM，EXTEST 指令驱动互连测试，INTEST 可辅助内部逻辑测试，IDCODE 读取芯片标识
+- DFT 对功能设计的影响包括增加面积（通常 2%-5%）、增加延迟（扫描 MUX 在功能路径上增加约 10-30ps）、需要额外的测试时钟和复位控制
 - 扫描链的 DFT DRC 检查是易被忽视但致命的环节——未处理的异步复位、三态总线冲突、门控时钟非透明化都会导致测试向量失效
 - IEEE 1687 IJTAG 通过 SIB 实现分级仪器访问，克服了传统 JTAG 扁平化访问在大型 SoC 中的可扩展性问题
-- LBIST 的伪随机向量覆盖率受随机困难（Random Resistant）故障制约，重新播种和混合确定性向量是标准解决方案
+- LBIST 的伪随机向量覆盖率受随机困难（Random Resistant）故障制约，重新播种和测试点插入（Control/Observe Point）是标准解决方案
+- 扫描测试的功耗管理（Low-Power DFT）日益重要——扫描移位模式的翻转率可达功能模式的 3-5 倍，需要专用的分段移位（Segmented Shift）和低功耗 ATPG 向量生成
+- 基于结构测试（Structural Test）的故障诊断日益依赖芯片内嵌的故障定位能力——扫描链诊断（Scan Chain Diagnosis）通过逻辑分析和物理失效分析联合定位缺陷
+- 分段移位（Segmented Shift）将长链分为多段逐段激活——移位功耗降低 50%-70%，但增加移位周期数和测试时间
+- 低功耗 ATPG 优化向量顺序使相邻向量的 Hamming 距离最小化——直接减少移位翻转次数
+- 测试成本模型预测从 ATE 测试时间换算的单芯测试成本——覆盖率从 98% 提升至 99% 可能使测试时间增加 20%-40%
+- ATE 资源规划考虑测试仪通道数量（通常 256-1024 个数字通道）和向量存储深度（128M-512M 向量/通道）
+- IEEE 1500 Core Test Wrapper 使第三方 IP 的嵌入式测试可通过标准化 WBR 接口访问——是大规模 SoC 混合 DFT 策略的基础
 
 ## 与其他概念的关系
 
-- [[asic-flow/concepts/synthesis|逻辑综合（Synthesis）]] — DFT 插入通常在综合之后、物理设计之前进行，综合工具可以执行扫描替换
-- [[asic-flow/concepts/clock-tree|时钟树综合（CTS）]] — 扫描模式下时钟树必须满足严格的偏斜要求，否则 at-speed 测试的大量同时翻转会导致 IR 压降失效
-- [[asic-flow/concepts/signoff|签核（Signoff）]] — DFT 覆盖率签核（如 98% SAF + 85% TDF）是流片前的硬性指标，测试向量也需要签核级验证
-- [[asic-flow/concepts/power-analysis|功耗分析（Power Analysis）]] — 扫描移位期间的功耗远高于功能模式，需要专门的测试功耗分析和降低策略
-- [[cross-domain/concepts/low-power-design|跨领域 — 低功耗设计]] — 电源门控模块在测试模式下需要特殊处理，保持寄存器和隔离单元影响 DFT 策略
+- [[asic-flow/concepts/synthesis|逻辑综合（Synthesis）]] — DFT 插入通常在综合之后、物理设计之前进行，综合工具可以执行扫描替换；综合阶段必须为扫描 MUX 预留功能路径的时序裕度
+- [[asic-flow/concepts/clock-tree|时钟树综合（CTS）]] — 扫描模式下时钟树必须满足严格的偏斜要求，否则 at-speed 测试的大量同时翻转会导致 IR 压降失效；扫描时钟树和功能时钟树共享物理走线但负载条件不同
+- [[asic-flow/concepts/signoff|签核（Signoff）]] — DFT 覆盖率签核（如 98% SAF + 85% TDF）是流片前的硬性指标，测试向量也需要签核级验证；ATPG 向量需要经过时序签核验证确保 at-speed 测试在芯片频率下可执行
+- [[asic-flow/concepts/power-analysis|功耗分析（Power Analysis）]] — 扫描移位期间的功耗远高于功能模式（翻转率 3-5 倍），需要专门的测试功耗分析和降低策略；低功耗 ATPG 在 IR 压降约束下优化向量序列
+- [[cross-domain/concepts/low-power-design|跨领域 — 低功耗设计]] — 电源门控模块在测试模式下需要特殊处理，保持寄存器和隔离单元影响 DFT 策略；UPF 电源意图描述中的电源域定义决定 DFT 控制信号的插入位置
+- [[asic-flow/concepts/physical-verification|物理验证（Physical Verification）]] — DFT 结构（如扫描链、JTAG TAP 控制器、BIST 控制器）在版图中必须通过 DRC/LVS 验证——测试 IO 焊盘的 ESD 保护结构是物理验证的关键检查项
+- [[asic-flow/concepts/static-timing-analysis|静态时序分析（STA）]] — at-speed 测试向量的时序签核需要 STA 确认所有测试周期的信号满足建立/保持时间——测试时序违例导致测试向量在 ATE 上失败

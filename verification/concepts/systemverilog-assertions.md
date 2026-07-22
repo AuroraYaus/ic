@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - SVA
+  - SystemVerilog Assertions_属性检查
   - SystemVerilog断言
   - 属性检查
   - Property Specification

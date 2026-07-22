@@ -1,7 +1,7 @@
 ---
 type: index
 aliases:
-  - 数字IC知识库
+  - Digital IC Hub_数字IC知识库
   - ASIC Knowledge Base
   - 数字IC入口
 tags:

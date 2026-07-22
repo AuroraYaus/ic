@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 半导体基础
+  - Semiconductor Basics_半导体基础
   - Semiconductor Physics
   - Band Theory
   - PN Junction
@@ -56,19 +56,51 @@ PVT 变异是数字 IC 设计必须面对的物理现实：Process（晶圆间/�
 
 随着沟道长度缩小到深亚微米级别，出现三个关键非理想效应：**漏致势垒降低（DIBL: Drain-Induced Barrier Lowering）**——漏极高电压通过耗尽区穿透沟道降低源极电子势垒，$V_{th}$ 随 $V_{DS}$ 升高而降低；**速度饱和（Velocity Saturation）**——高电场下载流子漂移速度趋于饱和（硅中电子约 $10^7\text{ cm/s}$），短沟道中 $I_D$ 远低于长沟道预测；**热载流子效应（Hot Carrier Effects）**——高能载流子穿透栅氧化层或产生碰撞电离，长期导致 $V_{th}$ 漂移和 HCI 老化。这些效应是 FinFET、GAA 等 3D 晶体管结构取代平面 MOSFET 的根本驱动力——立体沟道增强栅极静电控制，抑制 DIBL 和亚阈值漏电。
 
+### 高 K / 金属栅（HKMG）与先进栅堆叠
+
+随着 $t_{ox}$ 缩小到约 1.4nm 以下（等效氧化层厚度 EOT），$SiO_2$ 的直接隧穿电流密度呈指数增长——每减少 0.1nm 氧化层厚度，栅极漏电增加约一个数量级。解决方案是在 45nm 工艺节点引入高介电常数（High-K）材料（如 $HfO_2$，$\kappa \approx 20-25$，约为 $SiO_2$ 的 5-6 倍）替代 $SiO_2$ 作为栅介质。由平行板电容公式 $C = \kappa \varepsilon_0 / t$，高 $\kappa$ 材料在更大物理厚度下实现同等电容密度——物理厚度增加使隧穿概率指数衰减，同时等效电学厚度保持目标值，保证了 $g_m$ 不变。
+
+金属栅（Metal Gate）与高 K 介质配套引入。传统多晶硅栅与高 K 介质接触时产生费米能级钉扎（Fermi Level Pinning）和声子散射——降低载流子迁移率——且有栅耗尽效应（Poly Depletion）使有效 $t_{ox}$ 增大约 0.3-0.4 nm。金属栅消除栅耗尽、优化功函数，NMOS 和 PMOS 分别使用不同功函数的金属（如 TiAlN 用于 NMOS、TiN 用于 PMOS）以实现对称阈值电压。
+
+### 迁移率退化与应力工程
+
+晶体管导通电流 $I_{on} \propto \mu \cdot C_{ox} \cdot (W/L)$。随着垂直电场增强（$t_{ox}$ 减薄）、掺杂浓度升高和沟道尺寸缩小，载流子迁移率 $\mu$ 因表面粗糙度散射和库仑散射持续退化。**应变硅（Strained Silicon）** 技术自 90nm 节点引入，通过对硅晶格施加应力改变能带结构——拉伸应力提升 NMOS 电子迁移率（降低导带有效质量），压缩应力提升 PMOS 空穴迁移率（轻空穴带和重空穴带分离）。接触蚀刻停止层（CESL, Contact Etch Stop Layer）和嵌入 SiGe 源漏（eSiGe）是两大主要实现方式，可带来 20-35% 的 $I_{on}$ 提升。
+
+### FinFET 三维晶体管结构
+
+FinFET（Fin Field-Effect Transistor）自 Intel 22nm（2011 年）商用，通过将沟道竖立为垂直"鳍片"（Fin）实现三面栅极包裹——栅极从鳍片顶部和两侧三个方向对沟道施加静电控制。与平面 MOSFET 不同，FinFET 的有效沟道宽度 $W = 2 \cdot H_{fin} \cdot N_{fin}$（鳍高 × 鳍数 × 2，因栅极包裹两侧），驱动能力通过调整鳍的数量而非连续尺寸来调节——这使得 FinFET 标准单元只能以离散的鳍数步进（1-fin、2-fin、3-fin 等），丧失了平面工艺中任意调整栅极宽度的灵活性。
+
+FinFET 的核心优势来自改进的静电完整性（Electrostatic Integrity）：栅极对沟道的控制越强，DIBL 越弱、亚阈值斜摆（Subthreshold Swing, SS）越接近 60 mV/dec 理论极限。FinFET 的 $SS \approx 65-70\text{ mV/dec}$，相比 28nm 平面工艺的 85-100 mV/dec 大幅改善。然而 FinFET 引入了新的设计约束：**量化宽度效应（Quantized Width）**——标准单元的驱动强度受限为有限离散档位；**自热效应（Self-Heating）**——鳍片被氧化物包围导热差，局部温升可能达 20-50°C，影响 $I_{on}$ 和可靠性；**鳍片高度变异**——鳍高的工艺偏差（约 ±1-2nm）导致跨芯片 $I_{on}$ 波动。
+
+### 温度效应：迁移率与 $V_{th}$ 的竞争
+
+温度对 MOSFET 的影响体现为两种相互竞争的机制：晶格散射随温度升高加剧——载流子迁移率降低，$I_{on}$ 随之减小；同时 $V_{th}$ 随温度升高而线性降低（每 °C 约 -1 至 -2 mV），$V_{GS} - V_{th}$ 增大，$I_{on}$ 随之增大。在低 $V_{DD}$（接近 $V_{th}$）时，$V_{th}$ 降低的效应更强——$I_{on}$ 随温度升高而增大——这是温度反转效应（Temperature Inversion, TI）的物理起源。传统观念认为"高温慢"（电路在 125°C 最慢），但在先进低 $V_{DD}$ 工艺中，"高温快"成为现实——时序 Signoff 必须在高温角（125°C）和低温角（-40°C）都进行检查，以覆盖不同电压和工艺条件下的最差情况。
+
+### 制造变异与统计工艺偏差
+
+工艺角的物理来源可追溯至制造过程中的系统性偏差和随机涨落。系统性偏差——晶圆级梯度（光刻胶厚度、刻蚀速率在晶圆中心与边缘的差异）、芯片间偏差（不同晶圆/批次间的参数漂移）——由工艺 Equipment 控制能力决定。随机涨落——芯片内晶体管间的独立变异——来源更加根本：
+
+- **随机掺杂涨落（Random Dopant Fluctuation, RDF）**：沟道区域内掺杂原子数量服从泊松统计，$\sigma_{V_{th}} \propto 1/\sqrt{WL \cdot t_{ox}}$——晶体管越小，$V_{th}$ 离散度越大。FinFET 因沟道通常为轻掺杂（"未掺杂沟道"），RDF 影响大幅减弱——这是 FinFET 相较平面工艺的又一优势。
+- **线边缘粗糙度（Line Edge Roughness, LER）**：光刻和刻蚀工艺导致栅极线条边缘呈不规则锯齿状（RMS 约 ±1-2nm），有效沟道长度 $L_{eff}$ 的局部变异直接转化为 $V_{th}$ 和 $I_{on}$ 的波动。LER 在 EUV（极紫外）光刻中仍然是关键挑战。
+- **功函数变异（Work Function Variation, WFV）**：金属栅材料中晶粒取向的随机分布导致局部功函数不同——在纳米级栅极面积上，晶粒数量少、统计涨落显著，是 FinFET 工艺中 $V_{th}$ 变异的主要来源之一。
+
+这些随机变异的总和决定了芯片内局部变异的幅度（$\sigma/\mu$ 约 5-15%）。在 STA 中通过 OCV/AOCV/POCV 时序降额建模——将物理离散转化为可计算的设计裕量——是时序收敛从"全局悲观"走向"统计精确"的演进路径。
+
 ## 关键要点
 
-- 能带理论：导体（无禁带）、绝缘体（$E_g > 5\text{ eV}$）、半导体（$E_g \approx 1.12\text{ eV}$）——掺杂在禁带中引入施主/受主能级精确控制导电性
-- PN 结内建电场 $\phi_{bi} \approx 0.7\text{ V}$ 和单向导电性决定 MOSFET 源漏与衬底的隔离特性
-- MOSFET 通过栅极电场在衬底表面形成反型层导电沟道——$t_{ox}$ 和沟道掺杂决定 $V_{th}$
-- 体效应使串联堆叠中上端晶体管 $V_{th}$ 升高——NAND 门串联 NMOS 尺寸需加大的物理原因
-- 亚阈值导电 SS $\approx$ 60-80 mV/decade 是先进工艺静态功耗核心来源，决定 Multi-Vth 策略的物理基础
-- PVT 变异是 STA 和时序收敛必须处理的物理现实——工艺角（SS/FF/TT/SF/FS）是对极端条件的工程抽象
-- 短沟道效应（DIBL、速度饱和、HCI）推动 FinFET 和 GAA 等 3D 晶体管结构的诞生
+- 能带理论：导体（无禁带）、绝缘体（$E_g > 5\text{ eV}$）、半导体（$E_g \approx 1.12\text{ eV}$）——掺杂在禁带中引入施主/受主能级，精确控制导电性，硅中室温本征载流子浓度 $n_i \approx 1.5 \times 10^{10}\text{ cm}^{-3}$
+- PN 结内建电势 $\phi_{bi} \approx 0.7\text{ V}$（掺杂浓度约 $10^{17}-10^{18}\text{ cm}^{-3}$）和单向导电性决定 MOSFET 源漏与衬底的隔离——所有 CMOS 晶体管的源/漏-衬底结都必须始终保持反向偏置
+- MOSFET 通过栅极电场在衬底表面形成反型层导电沟道——$t_{ox}$ 和沟道掺杂决定 $V_{th}$，强反型条件 $V_{GS} > V_{th}$ 下沟道电荷 $Q_{inv} = C_{ox}(V_{GS} - V_{th})$
+- 体效应使串联堆叠中上端晶体管 $V_{th}$ 升高 $\Delta V_{th} = \gamma(\sqrt{2\phi_F + V_{SB}} - \sqrt{2\phi_F})$——NAND 门串联 NMOS 尺寸需加大的物理原因，直接影响标准单元库中多输入逻辑门的晶体管尺寸设计
+- 亚阈值导电的 SS 理论极限为 60 mV/dec（300K），实际器件约 70-100 mV/dec——先进工艺静态功耗核心来源，决定 Multi-Vth 库策略并使电源门控（Power Gating）成为必需
+- PVT 变异是 STA 和时序收敛必须处理的物理现实——工艺角（SS/FF/TT/SF/FS）对极端条件的工程抽象，随机掺杂涨落（RDF）和线边缘粗糙度（LER）在先进工艺中引入额外的局部变异
+- 短沟道效应（DIBL、速度饱和、HCI）推动 FinFET（22nm 以下）和 GAA/Nanosheet（3nm 以下）等 3D 晶体管结构的诞生——FinFET 的 $SS \approx 65\text{ mV/dec}$，接近理想值
+- HKMG 以 $HfO_2$（$\kappa \approx 20-25$）替代 $SiO_2$ 作为栅介质，物理厚度增加 5-6 倍而电学厚度不变——使栅极隧穿电流降低约 $10^4-10^5$ 倍
+- 应变硅通过晶格应力改变能带结构：NMOS 电子迁移率提升 30-50%，PMOS 空穴迁移率提升 20-35%，是 Dennard 缩放失效后维持性能提升的关键技术
 
 ## 与其他概念的关系
 
-- [[concepts/cmos-fundamentals|CMOS 基础]] — MOSFET 在数字电路中的应用：CMOS 反相器、NAND/NOR 门、静态/动态功耗的物理起源
-- [[concepts/metastability|亚稳态（Metastability）]] — 亚稳态解析时间常数 $\tau$ 取决于晶体管 $g_m$ 和节点电容，器件物理在数字可靠性中的直接体现
-- [[cross-domain/concepts/low-power-design|低功耗设计]] — 亚阈值漏电、Multi-Vth 和漏电-速度权衡的器件物理基础
-- [[cross-domain/concepts/timing-closure|时序收敛]] — PVT 变异和工艺角的物理来源决定 STA 必须在多个 Corner 下进行分析
+- [[concepts/cmos-fundamentals|CMOS 基础]] — MOSFET 在数字电路中的应用：CMOS 反相器、NAND/NOR 门的晶体管级结构、静态功耗的亚阈值漏电起源和动态功耗 $P = \alpha C V^2 f$ 中 $C$ 的器件级分解（$C_g, C_d, C_w$）
+- [[concepts/metastability|亚稳态（Metastability）]] — 亚稳态解析时间常数 $\tau = C/g_m$ 取决于晶体管跨导 $g_m$（迁移率 $\mu$ 和 $V_{GS} - V_{th}$）和节点电容（$C_{ox}$ 和扩散电容），解释了先进工艺中 $\tau$ 从 5-10 ps 降至 1-3 ps 的原因——FinFET 的高 $g_m$ 和更小寄生电容
+- [[cross-domain/concepts/low-power-design|低功耗设计]] — 亚阈值漏电（$I_{sub} \propto e^{-V_{th}/nU_T}$）是静态功耗的核心来源，Multi-Vth 库（HVT/SVT/LVT）和电源门控（Power Gating）的器件物理基础：高 $V_{th}$ 使漏电降低约 $10\times$ 每 60 mV
+- [[cross-domain/concepts/timing-closure|时序收敛]] — PVT 变异和工艺角的物理来源——随机掺杂涨落（RDF）和线边缘粗糙度（LER）在 FinFET 工艺中仍是局部变异主因——决定 STA 必须在 SS/FF/TT/SF/FS 多个 Corner 下进行分析，温度反转效应（Temperature Inversion）使 Signoff 角的选择更加复杂

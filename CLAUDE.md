@@ -1,7 +1,7 @@
 ---
 type: spec
 aliases:
-  - 数字IC 项目 CLAUDE 指南
+  - CLAUDE_数字IC 项目 CLAUDE 指南
   - ASIC 执行规范
 tags:
   - asic

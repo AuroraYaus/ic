@@ -1,7 +1,7 @@
 ---
 type: moc
 aliases:
-  - 功能验证总览
+  - Verification MOC_功能验证总览
   - Verification Map of Content
   - 验证总览
   - 功能验证

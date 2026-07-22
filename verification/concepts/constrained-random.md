@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 约束随机验证
+  - Constrained Random_约束随机验证
   - Constrained-Random Verification
   - CRV
 tags:

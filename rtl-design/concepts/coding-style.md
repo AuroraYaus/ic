@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - RTL编码风格
+  - Coding Style_RTL编码风格
   - RTL Coding Style
   - 编码规范
   - 可综合RTL
@@ -53,6 +53,64 @@ SystemVerilog Assertions (SVA) 应直接嵌入 RTL 模块中——即时断言�
 
 RTL Lint 工具（SpyGlass Lint、Ascent Lint、Vivado Lint）自动检测编码风格、可综合性、CDC 结构和 DFT 兼容性问题。关键 Lint 规则包括：锁存器推断检测、多驱动检测、组合环路检测、未初始化寄存器检测（上电 X 传播风险）、时钟用作数据检测（时钟信号进入 MUX/D 输入是严重的设计错误）、三态逻辑在非 I/O 端口的使用、异步复位的同步释放检测。所有 Lint 违反必须解决或人工确认为"有意"（Waived with Justification），`lint_clean` 是 RTL Freeze 的条件。
 
+### 三进程 FSM 与参数化模块的可综合模板
+
+以下展示符合编码规范的三进程 FSM 和参数化流水线级的标准编码风格：
+
+```systemverilog
+// 三进程 FSM 标准模板（Moore 型）
+module spi_controller #(
+    parameter CLK_FREQ = 100_000_000,
+    parameter SPI_FREQ = 10_000_000
+) (
+    input  logic       clk, rst_n,
+    input  logic       spi_start, spi_miso,
+    output logic       spi_cs_n, spi_sclk, spi_mosi,
+    output logic       done
+);
+    // 状态编码使用 enum —— 类型安全 + 波形可读
+    typedef enum logic [2:0] {
+        IDLE      = 3'b001,
+        TX_DATA   = 3'b010,
+        RX_DATA   = 3'b100,
+        WAIT_CS   = 3'b111  // 非法态恢复目标（格雷相邻编码的安全冗余）
+    } state_t;
+
+    state_t current_state, next_state;
+
+    // 进程 1：状态寄存器 —— always_ff，纯时序
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) current_state <= IDLE;
+        else        current_state <= next_state;
+    end
+
+    // 进程 2：次态逻辑 —— always_comb，纯组合
+    always_comb begin
+        next_state = current_state;  // 默认保持状态，避免锁存器
+        unique case (current_state)
+            IDLE:    if (spi_start) next_state = TX_DATA;
+            TX_DATA: if (bit_cnt_done) next_state = RX_DATA;
+            RX_DATA: if (rx_done) next_state = WAIT_CS;
+            WAIT_CS: if (cs_hold_timer_done) next_state = IDLE;
+            default: next_state = IDLE;  // 非法状态安全恢复
+        endcase
+    end
+
+    // 进程 3：输出逻辑 —— always_comb（Moore 型：仅依赖状态）
+    always_comb begin
+        {spi_cs_n, spi_sclk, spi_mosi, done} = '0;
+        unique case (current_state)
+            IDLE:    spi_cs_n = 1'b1;
+            TX_DATA: begin spi_cs_n = 1'b0; /* sclk/mosi 由其他逻辑产生 */ end
+            RX_DATA: spi_cs_n = 1'b0;
+            WAIT_CS: begin spi_cs_n = 1'b0; done = 1'b0; end
+            default: spi_cs_n = 1'b1;  // 安全默认：片选无效
+        endcase
+    end
+    // ... datapath logic omitted for brevity
+endmodule
+```
+
 ## 关键要点
 
 - 信号命名约定（`_i`/`_o`/`_n` 后缀、时钟域前缀）是代码可维护性的基础——约定一旦确定必须团队全员遵守
@@ -63,10 +121,13 @@ RTL Lint 工具（SpyGlass Lint、Ascent Lint、Vivado Lint）自动检测编码
 - 参数化设计使用 `parameter`（可覆盖）+ `localparam`（不可覆盖）+ `generate`（条件/循环实例化）——参数空间须明确限定
 - SVA 嵌入 RTL 使断言随设计传播到下游（综合/门级仿真/形式验证）——即时和并发断言覆盖模块内部协议
 - Lint 工具检查是 RTL Freeze 的前提——`lint_clean`（零违反或所有违反都有豁免记录）是 RTL 质量的最低标准
+- 每个时钟域的复位策略（同步/异步/异步断言同步释放）必须一致——同一时钟域内混用不同复位类型导致时序约束冲突和 DFT 扫描链故障
+- 模块接口中所有输出信号必须在所有条件下被赋值（X 传播风险）——`always_comb` 块中对输出 `= '0` 作为起始默认赋值，再在 case/if 中覆盖，是消除隐式锁存器和 X 优化的有效模式
+- 时序 always_ff 块中禁止出现组合逻辑——组合计算的中间结果应在独立的 `always_comb` 块中产生，再在 `always_ff` 中采样。违反此原则导致门级仿真 X 值与 RTL 仿真不一致
 
 ## 与其他概念的关系
 
-- [[rtl-design/concepts/fsm-design|FSM 设计]] — 三进程 FSM 模板和状态编码约定（enum/unique case/default 安全恢复）是编码风格的核心子集
-- [[rtl-design/concepts/cdc-cross-domain|CDC 设计]] — CDC 命名约定和 ASYNC_REG 属性标记是跨时钟域编码风格的具体要求
-- [[rtl-design/concepts/sequential-logic|时序逻辑]] — always_ff 中的同步/异步复位模板和时钟使能编码风格直接影响时序约束的正确标注
-- [[rtl-design/concepts/systemverilog|SystemVerilog]] — always_comb/always_ff/enum/unique case 等 SV 构造是提升编码安全性的基础
+- [[rtl-design/concepts/fsm-design|FSM 设计]] — 三进程 FSM 模板和状态编码约定（enum/unique case/default 安全恢复）是编码风格在控制逻辑中的核心应用。FSM 的状态定义（enum 类型、独热 vs 二进制编码约束）和输出寄存策略（是否输出寄存一拍消除毛刺）是编码风格直接影响时序和面积的具体切削点
+- [[rtl-design/concepts/cdc-cross-domain|CDC 设计]] — CDC 命名约定和 ASYNC_REG 属性标记是跨时钟域编码风格的具体要求。跨域信号的命名（含源和目标时钟域标识）使 CDC 工具的静态分析能够自动识别和分类跨域路径
+- [[rtl-design/concepts/sequential-logic|时序逻辑]] — always_ff 中的同步/异步复位模板和时钟使能编码风格直接影响时序约束的正确标注。复位信号的编码方式（`if (!rst_n)` 在 always_ff 的最外层）向综合工具传递"这是异步复位"的信号，影响综合的库单元选择
+- [[rtl-design/concepts/systemverilog|SystemVerilog]] — always_comb/always_ff/enum/unique case 等 SV 构造是提升编码安全性的基础。SystemVerilog 的 `interface` 将多信号总线封装为单一连接，大幅减少模块端口数量和连线错误的概率

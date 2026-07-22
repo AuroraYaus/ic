@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 验证平台架构
+  - Testbench Architecture_验证平台架构
   - Testbench Architecture
   - UVM Testbench
   - 验证环境
@@ -59,6 +59,22 @@ Testcase 与 Sequence 的分离是 UVM 架构的关键设计——Testcase 决�
 
 回归测试（Regression）是验证流程的骨干——在每次 RTL 更新后自动重新运行所有测试用例，确保新代码没有破坏已有功能（Regression Bug）。回归基础设施包括：a) 测试列表（Regression List / Test Suite）——按优先级（Smoke -> Sanity -> Full Regression）组织；b) 随机种子管理——每个测试用例使用伪随机数生成器（PRNG），给定相同的种子产生完全相同的激励序列（确定性随机）；c) 覆盖率和通过率追踪——每轮回归后统计功能覆盖率和代码覆盖率的变化趋势，驱动下一轮验证的激励随机化和定向测试开发。大规模回归（数千个测试用例）通常使用计算农场（LSF, Grid Engine）并行分发执行，由回归管理框架（如 Jenkins + 自研 Regression Runner）统一调度和结果汇总。
 
+### 覆盖率收集器（Coverage Collector）
+
+覆盖率收集器是 UVM Testbench 中独立于 Scoreboard 的 `uvm_subscriber` 组件。它通过 `analysis_export` 连接到各 Monitor 的 `analysis_port`，在 `write()` 方法（每收到一笔事务时调用）中采样 Covergroup（`covergroup`）。Coverage Collector 与 Scoreboard 的关键区别在于：Scoreboard 执行正确性检查（Pass/Fail 判定），Coverage Collector 只采样不判定正确性——两者可以由同一个 Monitor 数据流驱动但逻辑完全解耦。
+
+Coverage Collector 的组织方式通常按 Agent 和功能域划分：每个 Agent 对应一个或多个 Coverage Collector（如 AXI Coverage Collector 覆盖地址对齐、突发类型、响应状态），跨 Agent 的端到端覆盖率（如 DMA 传输完成延迟分布）由独立的 Cross-Agent Coverage Collector 在收到多个 Monitor 的数据后进行交叉采样。Covergroup 的采样时机对覆盖率的准确性至关重要——在 Monitor 的事务 `write()` 回调中采样保证每个合法事务都被计数，而非在 Scoreboard 的比对环节（Scoreboard 可能丢弃错误事务而不统计）。
+
+### End-of-Test 机制
+
+除 UVM Objection 外，Testbench 还需要以下 End-of-Test (EOT) 协调机制来确保验证的完整性：
+
+**超时保护（Timeout Watchdog）**：在 Testcase 的 `run_phase` 中启动定时任务，若超过预设时间阈值仍未完成所有 Objection，强制终止仿真并报告超时错误。超时值通常按测试复杂度设定——简单模块级测试 1-5ms（仿真时间单位），复杂场景级测试 10-50ms。
+
+**Scoreboard Drain 检查**：仿真结束前 Scoreboard 必须验证其内部所有队列是否已清空——期望队列中不应残留因等待乱序响应而未匹配的期望事务，实际队列中不应有未被比对的实际事务。Drain 检查通常在 `check_phase` 中执行，若有未匹配事务则报告 `UVM_ERROR`。
+
+**覆盖率归档（Coverage Save）**：在 `extract_phase` 或 `final_phase` 中通过 `coverage_save()` 或工具命令将当次测试的功能覆盖率和代码覆盖率数据保存到数据库（通常为 UCDB 格式），以便后续覆盖率合并和趋势分析。
+
 ## 关键要点
 
 - 分层验证架构（信号层 -> 命令层 -> 功能层 -> 场景层）分离关注点——每层可独立开发和调试，减少修改复杂度
@@ -69,10 +85,17 @@ Testcase 与 Sequence 的分离是 UVM 架构的关键设计——Testcase 决�
 - 回归测试是验证流程的骨干——每次 RTL 更新后自动重跑所有测试用例，随机种子确保可重现性
 - Monitor 是被动组件（不驱动 DUT），Driver 是主动组件（驱动 DUT 信号）——这一分离保证功能收集和激励驱动的独立性
 - raise_objection/drop_objection 控制仿真结束——所有 Sequence 在完成前 raise objection（阻止仿真结束），完成后 drop objection（允许仿真结束）
+- Coverage Collector 与 Scoreboard 逻辑解耦——Coverage Collector 只采样功能覆盖点不做 Pass/Fail 判定，两者共享 Monitor 数据流但职责独立，避免覆盖率的采样逻辑被 Scoreboard 的错误处理干扰
+- Scoreboard 的 Drain 检查（`check_phase` 中验证期望队列和实际队列均已清空）是避免"假通过"的必要手段——若仿真结束时 Scoreboard 队列仍有未匹配的残留事务，说明存在未被检查的激励-响应对，测试结果无效
+- Testbench 的 `virtual interface` 是连接抽象事务级世界和物理信号级世界的桥梁——`virtual interface` 必须作为 config_db 参数在 `build_phase` 中传递给各组件，时序采样通过 SystemVerilog 的 Clocking Block（`clocking cb @(posedge clk)`）实现确定性同步而非裸信号采样
+- Monitor 和 Driver 共享同一个 DUT Interface 但逻辑完全独立——Monitor 只采样不驱动（被动组件），Driver 只驱动不采样（主动组件），这一分离保证了激励生成和功能检查的独立性，使得任意 Agent 可配置为 Active（含 Driver+Monitor）或 Passive（仅 Monitor）模式
+- Regression 的分级策略（Smoke → Sanity → Full）控制验证迭代速度——Smoke（5-10 个核心测试，<10 分钟）在每次 RTL 提交后运行，Sanity（50-100 个测试，<2 小时）每日运行，Full Regression（所有测试，<24 小时）每周或里程碑运行
+- Reference Model 的验证价值取决于其独立实现性——若 Reference Model 与 RTL 由同一人按同一思路编写，则两者可能共享相同的理解偏差，比对"通过"只是确认偏见；高质量 Reference Model 应使用不同语言/算法或由独立工程师实现
 
 ## 与其他概念的关系
 
-- [[verification/concepts/uvm-methodology|UVM 方法学]] — UVM 是验证平台架构的事实标准框架，定义了 Component/Sequence/Factory/Config DB 等核心基础设施
-- [[verification/concepts/systemverilog-assertions|SystemVerilog 断言（SVA）]] — SVA 嵌入在 Testbench 的 Interface 和 Module 中作为协议检查和时序属性验证
-- [[verification/concepts/coverage-model|覆盖率模型]] — Coverage Collector 从 Monitor 接收事务并采样功能覆盖点，回归结果驱动覆盖率的收敛
-- [[verification/concepts/constrained-random|受约束随机激励]] — Sequence 的随机约束（`rand` 变量 + `constraint` 块）产生受控随机事务，是 CDV（Coverage-Driven Verification）的激励来源
+- [[verification/concepts/uvm-methodology|UVM 方法学]] — UVM 是验证平台架构的事实标准框架，定义了 Component 层次（`uvm_component`）、Sequence 机制（`uvm_sequence`）、Factory 和 Config DB 等核心基础设施，testbench-architecture 文件描述了这些抽象在具体验证平台中的实例化方式和连接关系
+- [[verification/concepts/systemverilog-assertions|SystemVerilog 断言（SVA）]] — SVA 嵌入在 Testbench 的 Virtual Interface 和 DUT Module 中作为协议检查和时序属性验证：Interface 中的 SVA 负责协议合规（如 AXI 握手规则、Read-Write Hazard 检测），DUT 内部可采用形式工具证明或仿真在线检查
+- [[verification/concepts/coverage-model|覆盖率模型]] — Coverage Collector（`uvm_subscriber`）从 Monitor 接收事务并在 `write()` 回调中采样 `covergroup`，回归测试的覆盖率数据（UCDB 格式）被合并和趋势分析以驱动测试列表的优化——新增测试瞄准未覆盖的 Cover Bin，删除不再贡献新覆盖的冗余测试
+- [[verification/concepts/constrained-random|受约束随机激励]] — Sequence 的 `rand` 字段和 `constraint` 块产生受控随机事务，是 CDV（覆盖率驱动验证）的激励来源；约束的分布控制和权重调整（`dist` 操作符）是实现覆盖率收敛的关键手段——对覆盖盲区对应的值增加分布权重
+- [[verification/concepts/formal-verification|形式验证（Formal Verification）]] — Testbench 的 Assumption 层（输入约束）与形式验证的 Assume 属性在逻辑上等价——Testbench 通过 Sequence 约束和 Driver 协议限制输入空间的合法范围，形式验证通过 `assume property` 实现同样的功能，高质量的 Testbench Assumption 可以转化为形式验证的 Assume 契约

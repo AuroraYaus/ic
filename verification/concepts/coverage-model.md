@@ -1,7 +1,7 @@
 ---
 type: concept
 aliases:
-  - 功能覆盖率
+  - Coverage Model_功能覆盖率
   - Functional Coverage
   - Coverage-Driven Verification
   - 覆盖率驱动验证
