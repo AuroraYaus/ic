@@ -12,8 +12,7 @@ tags:
   - flip-flop
 source_spec: "Wakerly, Digital Design; Weste & Harris, CMOS VLSI Design Ch.10; Rabaey, Digital Integrated Circuits Ch.7"
 ---
-
-# 时序逻辑（Sequential Logic）
+# Sequential Logic — 时序逻辑
 
 时序逻辑是数字电路的另一半核心——与组合逻辑输出仅取决于当前输入不同，时序逻辑的输出依赖于当前输入**和**历史状态，即电路具有记忆能力。同步时序逻辑以边沿触发的 D 触发器（D Flip-Flop, D-FF）为基本存储单元，在时钟节拍的控制下统一更新状态，构成了现代数字系统的**同步设计范式**（Synchronous Design Methodology）。在同步时序电路中，所有状态寄存器由同一时钟（或经时钟树平衡的多个时钟）驱动，两个寄存器之间的数据通路是纯组合逻辑，时序收敛（Timing Closure）即在预定的时钟周期内确保所有路径的建立/保持时间约束得到满足。这一范式将时序验证问题从"任意状态在任意时刻变化"的模拟电路难题，简化为"相邻寄存器间组合路径延迟小于时钟周期"的静态时序分析（Static Timing Analysis, STA）问题——STA 是整个 ASIC 后端流程的数学基石。
 

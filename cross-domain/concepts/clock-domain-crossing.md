@@ -12,8 +12,7 @@ tags:
   - metastability
 source_spec: "Cummings, 'Clock Domain Crossing Design & Verification Techniques', SNUG 2008; Ginosar, 'Metastability and Synchronizers: A Tutorial', IEEE Design & Test 2011; Kleeman & Cantoni, 'Metastable Behavior in Digital Systems', IEEE Design & Test 1987; Verma & Daga, 'CDC Verification Techniques', DVCon 2010"
 ---
-
-# 跨时钟域（Clock Domain Crossing, CDC）
+# Clock Domain Crossing — 跨时钟域设计
 
 跨时钟域（Clock Domain Crossing, CDC）是数字 IC 设计中连接不同时钟频率或不同相位域的关键技术。当信号从一个时钟域驱动而在另一个时钟域采样时，如果两个时钟之间没有固定的相位关系（异步时钟），采样时钟上升沿可能恰好落在数据信号的翻转窗口内，触发亚稳态（Metastability）——锁存器输出在不可预测的时间内振荡或停留在中间电平，导致下游逻辑出现非确定性行为。
 

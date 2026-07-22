@@ -12,8 +12,7 @@ tags:
   - cdc
 source_spec: "Kleeman & Cantoni, Metastable Behavior in Digital Systems (IEEE Design & Test 1987); Ginosar, Metastability and Synchronizers: A Tutorial (IEEE 2011)"
 ---
-
-# 亚稳态（Metastability）
+# Metastability — 亚稳态
 
 亚稳态（Metastability）是数字电路中所有同步器设计的根本物理依据，也是跨时钟域设计（CDC）、异步复位以及任何异步信号采样场景必须面对的基础问题。亚稳态的本质是双稳态存储元件（交叉耦合反相器构成的触发器）在输入信号于采样窗口内变化时，输出进入一个不稳定的中间状态，需要一段随机的解析时间（Resolution Time）才能衰减到确定的逻辑电平。
 

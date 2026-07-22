@@ -12,8 +12,7 @@ tags:
   - cache
 source_spec: "Hennessy & Patterson, Computer Architecture: A Quantitative Approach, 6th Ed; Jacob, Ng & Wang, Memory Systems: Cache, DRAM, Disk; Denning, 'The Working Set Model for Program Behavior', CACM 1968"
 ---
-
-# 存储层次（Memory Hierarchy）
+# Memory Hierarchy — 存储层次
 
 存储层次是计算机体系结构中最基本的设计原则之一，其核心思想是利用程序访问的局部性原理，通过多级不同容量、不同速度的存储设备构建金字塔结构——从容量小、速度快、离处理器最近的寄存器堆到容量大、速度慢、离处理器最远的磁盘/SSD。每一级存储作为上一级的缓存，以接近上一级的速度提供接近下一级的容量，将平均访问时间（Average Memory Access Time, AMAT）最小化。
 

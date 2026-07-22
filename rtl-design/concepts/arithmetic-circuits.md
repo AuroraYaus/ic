@@ -11,8 +11,7 @@ tags:
   - arithmetic
 source_spec: "Parhami, Computer Arithmetic: Algorithms and Hardware Designs; Weste & Harris, CMOS VLSI Design; Hennessy & Patterson, Computer Architecture"
 ---
-
-# 算术电路（Arithmetic Circuits）
+# Arithmetic Circuits — 算术电路
 
 算术电路是数字系统中执行加、减、乘、除和移位等基本算术运算的专门硬件单元，位于几乎所有芯片数据通路的性能关键路径上。算术电路的硬件实现选择——从简单的行波进位加法器（Ripple Carry Adder, RCA）到复杂的 Booth-Wallace 乘法器——直接决定了运算单元的延迟、面积和功耗，进而影响整个系统的时钟频率和能效比。现代综合工具可以从 RTL 中的 `+`、`*` 运算符自动推断硬件结构，但了解底层算法和实现结构对于性能优化（如设置综合约束指导工具选择乘法器架构）、定制设计（如 DSP 加速器）和性能瓶颈分析是必要的。算术电路设计不存在"最优方案"——选择取决于面积、速度和功耗的具体约束。
 

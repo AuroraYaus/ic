@@ -9,8 +9,7 @@ tags:
   - moc
 source_spec: "IEEE 1364, IEEE 1800, Weste & Harris CMOS VLSI Design"
 ---
-
-# RTL 设计（RTL Design）— 总览
+# RTL Design — RTL 设计总览
 
 寄存器传输级（Register Transfer Level, RTL）设计是数字集成电路开发流程的核心环节，它用硬件描述语言（Hardware Description Language, HDL）描述设计在寄存器之间的数据传输和逻辑运算。RTL 代码通过逻辑综合（Synthesis）工具转换为门级网表（Gate-Level Netlist），是连接架构设计与物理实现的桥梁。
 

@@ -13,8 +13,7 @@ tags:
   - property-checking
 source_spec: "IEEE 1800-2023 SystemVerilog LRM Chapter 16 (Assertions); Vijayaraghavan & Ramanathan, A Practical Guide for SystemVerilog Assertions"
 ---
-
-# SystemVerilog 断言（SystemVerilog Assertions, SVA）
+# SystemVerilog Assertions — SVA 断言
 
 SystemVerilog 断言（SystemVerilog Assertions, SVA）是 IEEE 1800 标准中定义的一套用于描述和验证硬件时序行为的声明式语言。断言不是激励生成机制，而是属性的声明——它描述 "设计应该满足什么条件"，由仿真器或形式验证工具自动检查。SVA 既可以嵌入 RTL 代码（White-Box），也可以放置在接口（Interface）或独立的绑定模块（Bind Module）中对设计进行非侵入式检查（Black/Gray-Box）。
 

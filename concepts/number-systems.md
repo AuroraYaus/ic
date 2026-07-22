@@ -11,8 +11,7 @@ tags:
   - math
 source_spec: "Mano & Ciletti, Digital Design; IEEE 754-2019"
 ---
-
-# 数字的数制表示（Number Systems in Digital Design）
+# Number Systems — 数字的数制表示
 
 数字电路处理的是离散的数值表示，理解数制和编码是数字IC设计的第一步。所有的数据、地址、指令，在硬件层面最终都以二进制比特的形式存在和操作。
 

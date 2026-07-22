@@ -11,8 +11,7 @@ tags:
   - low-power
 source_spec: "Rabaey, Digital Integrated Circuits Ch.5; Synopsys PrimePower User Guide; Cadence Voltus User Guide; IEEE 1801 UPF Standard"
 ---
-
-# 功耗分析（Power Analysis）
+# Power Analysis — 功耗分析
 
 功耗分析（Power Analysis）贯穿 ASIC 设计全流程——从 RTL 级功耗估算（Early Power Estimation）到 Signoff 级精确功耗签核（Power Signoff）——其目标是在设计的每个阶段准确评估并优化芯片的能量消耗。功耗已成为先进工艺节点下与性能同等重要的第一级设计约束：FinFET 工艺中漏电功耗（Leakage Power）占比随阈值电压降低呈指数增长，7nm 以下工艺中静态功耗可达总功耗的 30%-50%。功耗分析的准确性直接影响芯片热设计（Thermal Design Power, TDP）、封装选型和供电网络（Power Delivery Network, PDN）设计。
 

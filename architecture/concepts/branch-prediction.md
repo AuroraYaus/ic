@@ -12,8 +12,7 @@ tags:
   - microarchitecture
 source_spec: "Hennessy & Patterson, Computer Architecture: A Quantitative Approach, 6th Ed; Seznec & Michaud, 'A Case for (Partially) Tagged GEometric History Length Branch Prediction', JILP, 2006; McFarling, 'Combining Branch Predictors', DEC WRL TN-36, 1993"
 ---
-
-# 分支预测（Branch Prediction）
+# Branch Prediction — 分支预测
 
 分支预测是现代高性能处理器前端的核心部件。条件分支指令在全程序中占比约 15-20%，平均每 5-7 条指令就遇到一次分支。如果处理器在取指阶段无法正确预测分支的方向和目标地址，流水线和乱序执行引擎将被迫等待分支结果确定——在深流水线处理器中可能造成 15-20 个周期的停滞。分支预测器的作用是在取指的同时推测分支方向和目标地址，持续为处理器后端提供投机性的指令流。
 

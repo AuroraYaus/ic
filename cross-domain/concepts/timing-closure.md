@@ -14,8 +14,7 @@ tags:
   - physical-design
 source_spec: "Synopsys PrimeTime User Guide; Cadence Tempus Documentation; Bhasker & Chadha, Static Timing Analysis for Nanometer Designs"
 ---
-
-# 时序收敛（Timing Closure）
+# Timing Closure — 时序收敛
 
 时序收敛（Timing Closure）是数字IC物理实现流程中最核心、最耗时的迭代环节，其目标是在所有工艺角（Corner）和工作模式（Mode）下，芯片内的每一条时序路径——寄存器到寄存器（Register-to-Register）、输入到寄存器（Input-to-Register）、寄存器到输出（Register-to-Output）、输入到输出（Input-to-Output）——都满足建立时间（Setup Time）和保持时间（Hold Time）约束。一个未能收敛的设计无法完成 Tape-Out。
 

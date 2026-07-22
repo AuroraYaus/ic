@@ -14,8 +14,7 @@ tags:
   - ieee
 source_spec: "IEEE 1364-2001 / 1364-2005, Verilog HDL Language Reference Manual; Palnitkar, Verilog HDL: A Guide to Digital Design and Synthesis"
 ---
-
-# Verilog 硬件描述语言（Verilog HDL）
+# Verilog HDL — Verilog 硬件描述语言
 
 Verilog HDL 是最早被工业界广泛采纳的硬件描述语言之一，由 Gateway Design Automation 于 1984 年创建，1990 年进入公共领域，随后由 IEEE 标准化为 IEEE 1364-1995，最后一个纯 Verilog 标准是 IEEE 1364-2005（此后被 IEEE 1800 SystemVerilog 合并）。Verilog 的设计哲学借鉴了 C 语言的语法，使其对软件工程师友好，但其语义是硬件并行的，需要设计者始终在"这是电路"的思维模型下编写代码。
 

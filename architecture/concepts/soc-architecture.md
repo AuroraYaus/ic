@@ -11,8 +11,7 @@ tags:
   - soc
 source_spec: "Wolf, Modern VLSI Design: IP-Based Design, 4th Ed; ARM AMBA CHI Specification (IHI0050); Keating et al., Low Power Methodology Manual (LPMM); UCIe Specification Rev 1.1; Flynn, 'Very High-Speed Computing Systems', Proc. IEEE 1966"
 ---
-
-# SoC 架构（SoC Architecture）
+# SoC Architecture — SoC 架构
 
 片上系统（System-on-Chip, SoC）将完整的电子系统集成在单一硅片上，包含处理器、存储器、外设、互连和专用加速器。SoC 架构设计是在性能（Performance）、功耗（Power）和面积（Area）之间寻求全局最优的过程——PPA 三角的每一维度存在根本折中，设计者的核心挑战在于根据目标应用（移动端、数据中心、汽车、IoT）找到最佳平衡点。
 

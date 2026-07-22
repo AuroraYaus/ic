@@ -13,8 +13,7 @@ tags:
   - physical-verification
 source_spec: "Synopsys PrimeTime User Guide, Cadence Tempus User Guide, Cadence Voltus User Guide, Mentor Calibre User Guide"
 ---
-
-# 签核（Signoff）
+# Signoff — 签核
 
 签核（Signoff）是 ASIC 设计流程中的最终质量关卡——在设计数据送交晶圆厂（Tape-Out）制造光罩（Mask）之前，必须在时序、功耗、物理验证和逻辑等价性等维度通过一整套极其严格的质量检查标准。签核失败将直接导致流片失败——芯片返回时功能缺陷或无法在目标频率工作——这种成本在先进工艺节点（5nm/3nm）中可达数千万美元。签核的工具链独立于实现工具链，使用专用签核级 EDA 工具：时序签核用 PrimeTime/Tempus，物理验证用 Calibre/IC Validator，功耗签核用 Voltus/RedHawk，等价性检查用 Formality/Conformal，IR 压降签核用 RedHawk/Voltus。
 

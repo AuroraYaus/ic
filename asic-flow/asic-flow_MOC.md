@@ -9,8 +9,7 @@ tags:
   - moc
 source_spec: "Synopsys ICC/DC/PrimeTime Reference, Cadence Innovus/Genus Reference, Weste & Harris CMOS VLSI Design"
 ---
-
-# ASIC 实现流程（ASIC Flow）— 总览
+# ASIC Flow — ASIC 实现流程总览
 
 ASIC 实现流程（Application-Specific Integrated Circuit Flow）是将 RTL 设计转化为可用于制造的物理版图（GDSII）的完整工程流程。这一流程从前端综合开始，经历物理设计（布局布线、时钟树、电源网络），最终以签核（Signoff）结束，涵盖时序、功耗、可测试性和物理验证等多个维度的交叉任务。整个流程通常在业界标准 EDA 工具的驱动下完成，包括 Synopsys 的 Design Compiler / IC Compiler II / PrimeTime 生态和 Cadence 的 Genus / Innovus / Tempus 生态。
 

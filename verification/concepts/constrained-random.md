@@ -13,8 +13,7 @@ tags:
   - randomization
 source_spec: "IEEE 1800-2023 SystemVerilog LRM Chapter 18 (Constrained Random Value Generation); Spear & Tumbush, SystemVerilog for Verification (3rd Ed.)"
 ---
-
-# 约束随机验证（Constrained-Random Verification, CRV）
+# Constrained Random — 约束随机验证
 
 约束随机验证（Constrained-Random Verification, CRV）是现代功能验证的核心方法论，其基本思想是：验证工程师不编写逐个测试用例的确定激励，而是定义激励的合法空间（通过约束，Constraints），然后由仿真器的随机求解器（Random Solver）在合法空间内生成大量随机测试向量。CRV 相较于传统定向测试（Directed Test）的核心优势在于它可以发现验证工程师未预料到的边界条件和 Corner Case——定向测试覆盖验证者 "已知的需要测试的场景"，而随机验证覆盖 "可能存在的未知问题"。CRV 与覆盖率模型（Coverage Model）配合构成 CDV 闭环：随机生成 → 收集覆盖率 → 分析缺口 → 调整约束 → 重新随机生成。
 

@@ -12,8 +12,7 @@ tags:
   - front-end
 source_spec: "Bushnell & Agrawal Essentials of Electronic Testing, IEEE 1149.1 JTAG Standard, IEEE 1687 IJTAG Standard, Mentor/Synopsys DFT User Guides"
 ---
-
-# 可测试性设计（Design for Testability）
+# DFT — 可测试性设计
 
 可测试性设计（Design for Testability, DFT）是在芯片设计阶段主动嵌入测试结构的工程方法，其核心目标是在芯片制造完成后能够高效地检测出制造缺陷（Manufacturing Defect）。不可测的芯片是不可靠的——没有 DFT 结构的芯片依赖于外部 I/O 直接驱动内部节点做功能测试，这在现代深亚微米 SoC（系统级芯片）中包含数亿甚至数百亿晶体管的情况下已完全不可行。DFT 通过扫描链、内建自测试（BIST）和边界扫描等手段，系统性地解决了大规模数字 IC 的可控性（Controllability）和可观测性（Observability）问题。
 

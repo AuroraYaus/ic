@@ -17,8 +17,7 @@ tags:
   - rtl-design
 source_spec: "IEEE 1801 (UPF); Keating et al., Low Power Methodology Manual (LPMM); Synopsys Low Power Flow Guide"
 ---
-
-# 低功耗设计（Low-Power Design）
+# Low Power Design — 低功耗设计
 
 低功耗设计（Low-Power Design）是现代数字IC设计中最关键的横切关注点之一，它横跨架构设计、RTL 编码、逻辑综合、物理实现直至 Signoff 的全流程。功耗不仅是移动和物联网设备中电池寿命的决定因素，在数据中心和高性能计算领域也直接制约着散热能力（Thermal Design Power, TDP）和封装成本。低功耗设计的核心是在性能（Performance）、面积（Area）和功耗（Power）——即 PPA 三角——之间找到最优平衡点。
 

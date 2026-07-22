@@ -12,8 +12,7 @@ tags:
   - synthesizable
 source_spec: "Cummings, SNUG papers on RTL Coding; Sutherland, RTL Modeling with SystemVerilog; IEEE 1800-2017; Synopsys HDL Compiler User Guide"
 ---
-
-# RTL 编码风格（RTL Coding Style）
+# Coding Style — RTL 编码风格
 
 RTL 编码风格直接影响综合质量（Quality of Results, QoR）、时序收敛的难度、验证效率和团队协作成本。好的编码风格不是个人偏好的问题，而是直接转化为更小的面积、更高的频率和更少的 bug。综合工具不会"读懂"设计者的意图——它们按照 RTL 的精确描述生成硬件——如果 RTL 描述的是非可综合结构（锁存器、组合环路、多驱动），综合结果将产生功能错误或不可预测的行为。设计者的责任是使用工具能正确理解和优化的构造来描述期望的硬件。
 

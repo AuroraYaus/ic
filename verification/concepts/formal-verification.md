@@ -15,8 +15,7 @@ tags:
   - equivalence-checking
 source_spec: "Clarke, Grumberg & Peled, Model Checking; IEEE 1850 PSL Standard; Synopsys VC Formal User Guide; Cadence JasperGold User Guide"
 ---
-
-# 形式验证（Formal Verification）
+# Formal Verification — 形式验证
 
 形式验证（Formal Verification）是基于数学证明的验证方法，它使用形式化逻辑和算法来**穷举地证明**设计是否满足给定的属性规范，而不是通过样本测试（仿真）来推断。形式验证保证了给定属性在所有可能的输入组合和状态空间下都成立（或不成立，此时工具给出具体违反序列的一个反例（Counterexample））。形式验证不依赖测试激励——它从设计的状态空间出发，通过数学推导验证属性——因此可以覆盖仿真中无法穷举的 Corner Case。形式验证主要包括两大类：**属性检查/模型检查（Property Checking / Model Checking）**和**等价性检查（Equivalence Checking）**。
 

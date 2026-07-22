@@ -14,8 +14,7 @@ tags:
   - multi-core
 source_spec: "Sorin, Hill & Wood, A Primer on Memory Consistency and Cache Coherence, 2nd Ed; Hennessy & Patterson, Computer Architecture: A Quantitative Approach, 6th Ed; Papamarcos & Patel, 'A Low-Overhead Coherence Solution for Multiprocessors with Private Cache Memories', ISCA 1984"
 ---
-
-# 缓存一致性（Cache Coherence）
+# Cache Coherence — 缓存一致性
 
 在多核处理器系统中，每个核心拥有独立的私有缓存（L1 和通常 L2），多个核心可能同时缓存同一内存地址的数据副本。缓存一致性协议（Cache Coherence Protocol）确保所有核心对任何内存地址的读操作都返回该地址的最新写入值——即维护单写多读（Single-Writer, Multiple-Reader, SWMR）不变性，确保没有两个核心同时拥有一个地址的可写（脏/独占, Dirty/Exclusive）副本。一致性协议与内存一致性模型共同规范了多核共享内存的语义。
 

@@ -12,8 +12,7 @@ tags:
   - signoff
 source_spec: "Synopsys PrimeTime User Guide, Cadence Tempus User Guide, Bhasker & Chadha Static Timing Analysis for Nanometer Designs"
 ---
-
-# 静态时序分析（Static Timing Analysis）
+# Static Timing Analysis — 静态时序分析
 
 静态时序分析（Static Timing Analysis, STA）是数字 IC 设计签署（Signoff）的核心方法。与动态仿真不同，STA 不需要输入测试向量（Test Vector），而是穷举式地分析芯片中所有可能的时序路径，在 PVT（Process-Voltage-Temperature）最坏条件下验证整个设计的时序是否满足要求。STA 的速度比门级仿真快数个数量级，并且提供 100% 的路径覆盖率，是现代 ASIC 流程中不可或缺的时序验证手段。
 

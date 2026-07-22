@@ -10,8 +10,7 @@ tags:
   - moc
 source_spec: "Local vault index"
 ---
-
-# 数字IC
+# Digital IC — 数字IC知识库
 
 数字集成电路（Digital Integrated Circuit）设计全栈知识库，覆盖从 RTL 编码到 GDSII 签核的完整 ASIC 设计流程。
 

@@ -12,8 +12,7 @@ tags:
   - uvm
 source_spec: "UVM 1.2 User Guide (Accellera); Bergeron, Writing Testbenches Using SystemVerilog; Mentor UVM Cookbook"
 ---
-
-# 验证平台架构（Testbench Architecture）
+# Testbench Architecture — 验证平台架构
 
 验证平台（Testbench）是用硬件验证语言（Hardware Verification Language, HVL，主要是 SystemVerilog）编写的仿真环境，其目标是在不修改被测设计（Design Under Test, DUT）的前提下，通过施加受控激励、收集响应并与预期值比较来验证 DUT 的功能正确性。现代验证平台的架构遵循分层（Layered）、封装（Encapsulation）和复用（Reuse）的设计原则——通用验证方法学（Universal Verification Methodology, UVM）是 SystemVerilog 验证的事实标准框架，定义了一套完整的类库和架构模板。
 

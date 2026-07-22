@@ -12,8 +12,7 @@ tags:
   - metastability
 source_spec: "Cummings, SNUG 2008 CDC Design & Verification; Ginosar, Fourteen Ways to Fool Your Synchronizer (ASYNC 2003); Dally & Poulton, Digital Systems Engineering"
 ---
-
-# 跨时钟域设计（Clock Domain Crossing, CDC）
+# CDC Cross-Domain — RTL 跨时钟域
 
 跨时钟域（Clock Domain Crossing, CDC）是数字 IC 设计中最具挑战性的问题之一——当信号从一个时钟驱动的同步电路传输到另一个异步时钟驱动的同步电路时，由于两个时钟没有固定的相位和频率关系，目标时钟域的寄存器可能在源信号变化的任意时刻对其进行采样，存在亚稳态（Metastability）风险。现代 SoC 通常包含数十到数百个独立时钟域——高性能处理器核、低速外设总线、DDR 存储器接口、SerDes 等各自工作在完全不同的频率下——CDC 设计的正确性直接决定了芯片能否可靠工作。CDC 错误在仿真中通常不会复现（仿真器用确定性调度处理时序），但在硅片上以极低但非零的概率出现，是最难调试的功能性缺陷之一。因此 CDC 验证（使用 SpyGlass CDC、Questa CDC 等专用工具）是 ASIC Signoff 的强制检查项。
 

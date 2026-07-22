@@ -13,8 +13,7 @@ tags:
   - state-machine
 source_spec: "Wakerly, Digital Design; Cummings, SNUG 2000 FSM Coding Styles; IEEE 1800-2017 SystemVerilog"
 ---
-
-# 有限状态机设计（FSM Design）
+# FSM Design — 有限状态机设计
 
 有限状态机（Finite State Machine, FSM）是数字控制逻辑最核心的建模和实现范式。FSM 将系统的行为抽象为有限个状态（State），每个状态定义特定的输出行为，状态之间的转换（Transition）由输入条件触发。FSM 广泛应用于总线协议控制器（AXI、PCIe 的读写状态序列）、存储器控制器（刷新/激活/读写序列）、中断控制器、流水线控制、网络协议解析和加密引擎等几乎所有数字控制模块。FSM 的设计质量直接影响系统的功能正确性、面积、功耗和时序收敛——一个精心设计的 FSM 时钟频率可以高于 1GHz，而一个粗糙编写的 FSM 可能成为整个芯片的时序瓶颈。
 

@@ -9,8 +9,7 @@ tags:
   - overview
 source_spec: "Local vault documentation"
 ---
-
-# 数字IC知识库 — Vault 总览
+# README — 数字IC 知识库总览
 
 > 数字集成电路（Digital IC）设计全栈知识库，覆盖从 RTL 编码到 GDSII 签核的完整 ASIC 流程。
 

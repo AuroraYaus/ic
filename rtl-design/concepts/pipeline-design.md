@@ -11,8 +11,7 @@ tags:
   - throughput
 source_spec: "Hennessy & Patterson, Computer Architecture: A Quantitative Approach Ch.3; Weste & Harris, CMOS VLSI Design Ch.11"
 ---
-
-# 流水线设计（Pipeline Design）
+# Pipeline Design — RTL 流水线设计
 
 流水线（Pipeline）是提升数字电路吞吐率（Throughput）的核心微架构技术——将一个复杂的组合操作拆分为多个较短的阶段（Stage），相邻阶段之间插入流水线寄存器（Pipeline Register），使多个操作可以在不同阶段重叠执行，如同工厂装配线。流水线的核心权衡是：**吞吐率提升的代价是延迟（Latency）增加**（因寄存器插入的时钟周期开销）和面积/功耗增加（因流水线寄存器和握手逻辑的触发器开销）。流水线不仅用于处理器（经典的 5 级 RISC 流水线：取指-译码-执行-访存-写回），也是高性能算术单元（流水线乘法器、浮点加法器）、网络包处理器和图像处理管道的标准设计模式。
 

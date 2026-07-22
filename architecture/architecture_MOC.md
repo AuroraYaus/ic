@@ -9,8 +9,7 @@ tags:
   - moc
 source_spec: "Hennessy & Patterson, Computer Architecture: A Quantitative Approach; Digital Design and Computer Architecture (Harris & Harris)"
 ---
-
-# 计算机体系结构（Computer Architecture）— 总览
+# Architecture — 计算机体系结构总览
 
 计算机体系结构是数字IC设计中承上启下的关键层次——它向下驱动微架构和RTL实现，向上支撑指令集架构（Instruction Set Architecture, ISA）和软件生态。体系结构决策（流水线深度、缓存层次、总线拓扑、乱序程度）直接决定了芯片的性能（Performance）、功耗（Power）和面积（Area, PPA）三大指标。
 

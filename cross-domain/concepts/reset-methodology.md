@@ -11,8 +11,7 @@ tags:
   - reset
 source_spec: "Cummings, 'Asynchronous & Synchronous Reset Design Techniques', SNUG 2002/2003; Weste & Harris, CMOS VLSI Design; Keating et al., Low Power Methodology Manual (LPMM); Bhatnagar, Advanced ASIC Chip Synthesis"
 ---
-
-# 复位方法学（Reset Methodology）
+# Reset Methodology — 复位策略
 
 复位（Reset）是数字系统中将电路强制置入已知初始状态的机制。复位设计看似简单，但在大规模 SoC 中涉及同步-异步选择、复位树的时序收敛、多时钟域复位排序、DFT 兼容性和功耗控制等多个维度——不当的复位设计是芯片死机（Deadlock）、不定态传播（X-propagation）、和硅后调试困难的常见根源。
 

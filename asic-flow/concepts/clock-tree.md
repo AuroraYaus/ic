@@ -11,8 +11,7 @@ tags:
   - cts
 source_spec: "Synopsys IC Compiler II CTS User Guide, Cadence Innovus CCOpt User Guide, Weste & Harris CMOS VLSI Design Ch.14"
 ---
-
-# 时钟树综合（Clock Tree Synthesis）
+# Clock Tree Synthesis — 时钟树综合
 
 时钟树综合（Clock Tree Synthesis, CTS）是物理设计中构建时钟分配网络的关键阶段。时钟信号的"心跳"特性决定了 CTS 的独特性：每个时钟周期内，所有受时钟驱动的时序单元必须在一个可控的时间分布窗口内接收到时钟沿。CTS 的目的不是传播"最快的"时钟，而是传播"最平衡的"时钟。
 

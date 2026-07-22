@@ -12,8 +12,7 @@ tags:
   - digital-logic
 source_spec: "Wakerly, Digital Design: Principles and Practices; Palnitkar, Verilog HDL; IEEE 1800-2017"
 ---
-
-# 组合逻辑（Combinational Logic）
+# Combinational Logic — 组合逻辑
 
 组合逻辑是数字电路的两大基本类型之一（另一类是时序逻辑）。组合逻辑电路的输出仅取决于当前输入值，不依赖任何历史状态——它没有记忆能力，也没有反馈回路。任何数字系统都可以分解为组合逻辑（Cloud of Combinational Logic）和时序元件（Registers）的交替结构，这是同步时序电路设计的核心抽象。从最简单的与门、多路选择器到复杂的 ALU（算术逻辑单元）、译码器和优先级编码器，组合逻辑是数字 IC 设计者每天都必须面对的基本构件。
 

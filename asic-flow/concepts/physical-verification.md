@@ -14,8 +14,7 @@ tags:
   - lvs
 source_spec: "Mentor Calibre User Guide, Cadence PVS/Pegasus User Guide, Synopsys IC Validator User Guide, Baker CMOS Design Rules"
 ---
-
-# 物理验证（Physical Verification）
+# Physical Verification — 物理验证
 
 物理验证（Physical Verification, PV）是确保版图（Layout/GDSII）在物理层面可被晶圆厂可靠制造的最后一道技术关卡。物理验证不合格的版图即使时序完美也无法被可靠制造——DRC 违例意味着晶圆厂的光刻/刻蚀/CMP 工艺会产生制造缺陷；LVS 不匹配意味着版图中的晶体管连接与原始网表不一致。与 STA 验证时序、LEC 验证逻辑不同，PV 关注版图几何结构与制造规则的符合性。物理验证使用专用的签核级 EDA 工具：Mentor Calibre（市场份额最高）、Cadence PVS/Pegasus、Synopsys IC Validator，这些工具将设计规则手册（Design Rule Manual, DRM）编码为可执行规则检查脚本（Rule Deck），对 GDSII/OASIS 版图文件进行全面逐层几何分析。
 

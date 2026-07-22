@@ -9,8 +9,7 @@ tags:
   - moc
 source_spec: "Synopsys PrimeTime User Guide, IEEE 1801 UPF Standard, Cummings SNUG Papers, Keating Low Power Methodology Manual"
 ---
-
-# 跨领域概念（Cross-Domain）— 总览
+# Cross-Domain — 跨领域概念总览
 
 跨领域（Cross-Domain）概念是贯穿数字IC设计多个阶段、跨越 RTL 设计、功能验证、物理实现和签核边界的系统性工程问题。这些概念不隶属于单一领域，而是作为"胶水层"将前端设计决策与后端物理约束连接起来——一个前端做出的选择（如复位策略、时钟域划分）会在后端产生放大效应，而 Signoff 的质量要求又会反向约束前端的实现方式。
 

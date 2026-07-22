@@ -12,8 +12,7 @@ tags:
   - moc
 source_spec: "IEEE 1800-2023, IEEE 1800.2-2020, Accellera UVM 1.2"
 ---
-
-# 功能验证（Functional Verification）— 总览
+# Verification — 功能验证总览
 
 功能验证（Functional Verification）是数字集成电路开发流程中验证设计功能正确性的关键环节。与制造测试（Manufacturing Test, DFT）关注物理缺陷不同，功能验证专注于回答一个根本问题：**设计的行为是否符合规范（Specification）？** 随着芯片规模从数千门增长到数百亿晶体管，功能验证已经超越 RTL 设计本身，成为数字 IC 项目中占用资源和时间最多的环节——在大型 SoC 项目中，验证工程师与设计工程师的比例通常为 2:1 至 3:1。
 

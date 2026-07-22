@@ -10,8 +10,7 @@ tags:
   - transistor
 source_spec: "Weste & Harris, CMOS VLSI Design; Rabaey, Digital Integrated Circuits"
 ---
-
-# CMOS 基础（CMOS Fundamentals）
+# CMOS Fundamentals — CMOS 基础
 
 互补金属氧化物半导体（Complementary Metal-Oxide-Semiconductor, CMOS）是当代数字集成电路的主流工艺基础，几乎所有的数字芯片——从微处理器到存储器——都基于 CMOS 工艺制造。
 

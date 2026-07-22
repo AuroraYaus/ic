@@ -10,8 +10,7 @@ tags:
   - front-end
 source_spec: "Synopsys Design Compiler User Guide, Cadence Genus User Guide, Weste & Harris CMOS VLSI Design Ch.13"
 ---
-
-# 逻辑综合（Logic Synthesis）
+# Synthesis — 逻辑综合
 
 逻辑综合（Logic Synthesis）是 ASIC 实现流程的第一个关键阶段，其任务是将寄存器传输级（Register Transfer Level, RTL）的硬件描述代码自动转换为由标准单元库中的门级电路组成的网表（Gate-Level Netlist）。综合过程不是简单的翻译，而是在满足时序、面积和功耗约束的前提下，进行大量优化决策的智能搜索过程。
 

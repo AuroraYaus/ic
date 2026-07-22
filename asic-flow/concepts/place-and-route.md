@@ -12,8 +12,7 @@ tags:
   - physical-design
 source_spec: "Cadence Innovus User Guide, Synopsys ICC2 User Guide, Kahng/Lienig/Markov/Hu VLSI Physical Design Ch.3-5"
 ---
-
-# 布局布线（Place and Route）
+# Place and Route — 布局布线
 
 布局布线（Place and Route, P&R）是 ASIC 物理设计的核心阶段，将门级网表中数百万乃至数十亿个标准单元和宏模块精确映射到芯片版图（Layout/GDSII）的物理坐标上，并完成所有逻辑连接的金属走线。P&R 的质量直接决定了芯片的最终频率、功耗和面积——一个好的布局可以使关键路径缩短 30%-50%，差的布局则导致布线拥塞无法修复。主流 EDA 工具为 Cadence Innovus（现称 Innovus Implementation System）和 Synopsys IC Compiler II（ICC2），两者均采用层次化、并行化的设计流程，可在数小时内完成数十亿晶体管级 SoC 的物理实现。
 

@@ -12,8 +12,7 @@ tags:
   - testbench
 source_spec: "IEEE 1800.2-2020 Universal Verification Methodology Language Reference Manual; Accellera UVM 1.2 User's Guide"
 ---
-
-# 通用验证方法学（Universal Verification Methodology, UVM）
+# UVM Methodology — UVM 方法学
 
 通用验证方法学（Universal Verification Methodology, UVM）是集成电路功能验证领域事实上的工业标准方法学，由 Accellera 标准化并纳入 IEEE 1800.2-2020。UVM 基于 SystemVerilog 构建，提供了一套完整的类库（Class Library）和验证架构框架，覆盖从块级（Block-Level）到芯片级（Chip-Level）乃至系统级（System-Level）的验证需求。其核心设计理念是通过工厂模式（Factory Pattern）和配置机制（Configuration Mechanism）实现验证组件的高度可重用性和可扩展性。
 

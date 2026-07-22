@@ -15,8 +15,7 @@ tags:
   - interconnect
 source_spec: "ARM AMBA AXI and ACE Protocol Specification (IHI0022); ARM AMBA CHI Specification (IHI0050); Dally & Towles, Principles and Practices of Interconnection Networks; ARM AMBA AHB/APB Specification"
 ---
-
-# 片上总线与互连（On-Chip Bus & Interconnect）
+# On-Chip Bus — 片上总线
 
 片上总线是 SoC 内部各 IP 模块之间数据传输的核心基础设施。从简单的 AHB/APB 外设总线到高带宽的 AXI4/AXI5 多通道协议，再到支持缓存一致性的大规模 CHI（Coherent Hub Interface）协议和片上网络（NoC），片上互连的演进直接反映了 SoC 规模从单核 MCU 到百核异构计算的跨越。
 

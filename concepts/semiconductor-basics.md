@@ -13,8 +13,7 @@ tags:
   - cmos
 source_spec: "Pierret, Semiconductor Device Fundamentals; Sze & Ng, Physics of Semiconductor Devices; Taur & Ning, Fundamentals of Modern VLSI Devices"
 ---
-
-# 半导体基础（Semiconductor Physics Fundamentals）
+# Semiconductor Basics — 半导体基础
 
 半导体物理是数字集成电路的底层科学——从单个晶体管的开关行为，到 PVT 变异，再到先进工艺的短沟道效应，无不根植于半导体材料的能带结构和载流子输运机制。对于数字 IC 设计师而言，理解半导体基础是为了理解晶体管行为的边界条件——从而在架构和 RTL 层面做出正确设计决策。
 

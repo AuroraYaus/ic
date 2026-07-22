@@ -15,8 +15,7 @@ tags:
   - ilp
 source_spec: "Hennessy & Patterson, Computer Architecture: A Quantitative Approach, 6th Ed; Tomasulo, 'An Efficient Algorithm for Exploiting Multiple Arithmetic Units', IBM Journal, 1967; Smith & Sohi, 'The Microarchitecture of Superscalar Processors', Proc. IEEE, 1995"
 ---
-
-# 乱序执行（Out-of-Order Execution）
+# Out-of-Order — 乱序执行
 
 乱序执行是现代高性能处理器实现指令级并行的核心技术。与顺序流水线不同，乱序执行允许指令在不违反程序语义的前提下以与程序顺序不同的次序执行——指令一旦操作数就绪即可发射执行，不再受前面无关指令阻塞的影响。这一机制将处理器的有效执行窗口从顺序流水线的几级扩展到数百条指令，大幅提升后端功能单元利用率。
 

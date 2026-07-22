@@ -15,8 +15,7 @@ tags:
   - cdv
 source_spec: "IEEE 1800-2023 SystemVerilog LRM Chapter 19 (Coverage); Mentor/Siemens, Coverage Cookbook; Synopsys, VCS Coverage User Guide"
 ---
-
-# 覆盖率模型（Coverage Model）
+# Coverage Model — 覆盖率模型
 
 覆盖率模型（Coverage Model）是覆盖率驱动验证（Coverage-Driven Verification, CDV）方法论的核心组件，它用可量化的指标回答 "验证是否充分" 这一根本问题。在功能验证中，覆盖率分为两大类：**代码覆盖率（Code Coverage）** 和 **功能覆盖率（Functional Coverage）**。代码覆盖率由仿真工具自动收集，反映 RTL 代码的执行情况；功能覆盖率由验证工程师显式定义，描述测试计划中列出的功能点和场景是否被激励触发。两者缺一不可——代码覆盖率 100% 而功能覆盖率 0% 意味着所有代码都运行过但没有检验任何功能意图，反之亦然。
 

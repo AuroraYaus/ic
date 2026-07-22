@@ -13,8 +13,7 @@ tags:
   - microarchitecture
 source_spec: "Hennessy & Patterson, Computer Architecture: A Quantitative Approach, 6th Ed; Patterson & Hennessy, Computer Organization and Design, RISC-V Ed"
 ---
-
-# 流水线（Pipelining）
+# Pipelining — 指令流水线
 
 流水线是处理器微架构中最核心的性能提升技术之一。它将一条指令的执行过程划分为多个阶段，每个时钟周期可以同时处理不同指令的不同阶段，从而在不提高时钟频率的前提下，将指令吞吐率从单周期每 N 个周期完成一条指令提升到每个周期完成一条指令的理想情况。经典的五级流水线本质上是对单周期处理器数据通路的功能性拆分，通过插入流水线寄存器在组合逻辑中切断长路径，使时钟周期由最长的单个阶段延迟而非整条数据通路延迟决定。
 

@@ -13,8 +13,7 @@ tags:
   - ieee
 source_spec: "IEEE 1800-2017, SystemVerilog Language Reference Manual; Sutherland, RTL Modeling with SystemVerilog"
 ---
-
-# SystemVerilog（SystemVerilog, SV）
+# SystemVerilog — 系统 Verilog
 
 SystemVerilog 是 Verilog HDL 的增强超集，由 Accellera 主导开发，2005 年被 IEEE 标准化为 IEEE 1800-2005（取代了 IEEE 1364 Verilog 标准），最新版为 IEEE 1800-2017。SystemVerilog 不仅统一了硬件描述（RTL）和硬件验证（Verification）两大领域，还引入了大量改善设计意图表达、降低编码错误和提高仿真效率的语言特性。对 RTL 设计而言，SV 将 Verilog 的 wire/reg 概念统一为 logic，引入了意图显式的 always_ff、always_comb 和 always_latch 块，补充了 interface、enum、struct、union、package 等高级抽象，使硬件设计代码的可读性、可维护性和 lint 检出率大幅提升。几乎所有现代 ASIC 和 FPGA 项目的 RTL 编码均已迁移到 SystemVerilog 可综合子集。
 
