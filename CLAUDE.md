@@ -9,7 +9,7 @@ tags:
   - policy
 source_spec: "Local project instructions — inherited from obsidian vault rules"
 ---
-# CLAUDE.md — 数字IC 项目规范
+# 数字IC 项目规范
 
 ## 硬性规则
 
