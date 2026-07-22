@@ -1,6 +1,6 @@
 {
-  "collapse-filter": true,
-  "search": "-path:3gpp/3GPP_Rel19",
+  "collapse-filter": false,
+  "search": "",
   "showTags": false,
   "showAttachments": false,
   "hideUnresolved": false,
@@ -8,256 +8,68 @@
   "collapse-color-groups": false,
   "colorGroups": [
     {
-      "query": "tag:#crc",
-      "color": {
-        "a": 1,
-        "rgb": 14427686
-      }
-    },
-    {
-      "query": "tag:#harq",
-      "color": {
-        "a": 1,
-        "rgb": 14753096
-      }
-    },
-    {
-      "query": "tag:#redundancy-version",
-      "color": {
-        "a": 1,
-        "rgb": 14362487
-      }
-    },
-    {
-      "query": "tag:#soft-buffer",
-      "color": {
-        "a": 1,
-        "rgb": 5195493
-      }
-    },
-    {
-      "query": "tag:#llr",
-      "color": {
-        "a": 1,
-        "rgb": 165063
-      }
-    },
-    {
-      "query": "tag:#transport-block",
-      "color": {
-        "a": 1,
-        "rgb": 14251782
-      }
-    },
-    {
-      "query": "tag:#code-block",
-      "color": {
-        "a": 1,
-        "rgb": 15357964
-      }
-    },
-    {
-      "query": "tag:#cbg",
-      "color": {
-        "a": 1,
-        "rgb": 13273604
-      }
-    },
-    {
-      "query": "tag:#segmentation",
-      "color": {
-        "a": 1,
-        "rgb": 366185
-      }
-    },
-    {
-      "query": "tag:#rate-matching",
-      "color": {
-        "a": 1,
-        "rgb": 889992
-      }
-    },
-    {
-      "query": "tag:#ldpc",
-      "color": {
-        "a": 1,
-        "rgb": 1483594
-      }
-    },
-    {
-      "query": "tag:#turbo",
-      "color": {
-        "a": 1,
-        "rgb": 9647082
-      }
-    },
-    {
-      "query": "tag:#polar",
-      "color": {
-        "a": 1,
-        "rgb": 12592851
-      }
-    },
-    {
-      "query": "tag:#early-stopping",
-      "color": {
-        "a": 1,
-        "rgb": 6660877
-      }
-    },
-    {
       "query": "tag:#index",
-      "color": {
-        "a": 1,
-        "rgb": 2450411
-      }
+      "color": {"a": 1, "rgb": 16753920}
     },
     {
-      "query": "path:3gpp/docs/L0",
-      "color": {
-        "a": 1,
-        "rgb": 6583435
-      }
+      "query": "tag:#moc",
+      "color": {"a": 1, "rgb": 6749952}
     },
     {
-      "query": "path:3gpp/docs/L1/T1.",
-      "color": {
-        "a": 1,
-        "rgb": 561586
-      }
+      "query": "tag:#rtl",
+      "color": {"a": 1, "rgb": 43775}
     },
     {
-      "query": "path:3gpp/docs/L1/T2.",
-      "color": {
-        "a": 1,
-        "rgb": 4674921
-      }
+      "query": "tag:#verification",
+      "color": {"a": 1, "rgb": 16711935}
     },
     {
-      "query": "path:3gpp/docs/L1/T3.",
-      "color": {
-        "a": 1,
-        "rgb": 14427686
-      }
+      "query": "tag:#architecture",
+      "color": {"a": 1, "rgb": 16744448}
     },
     {
-      "query": "path:3gpp/docs/L1/T4.",
-      "color": {
-        "a": 1,
-        "rgb": 14753096
-      }
+      "query": "tag:#asic-flow",
+      "color": {"a": 1, "rgb": 255}
     },
     {
-      "query": "path:3gpp/docs/L1/T5.",
-      "color": {
-        "a": 1,
-        "rgb": 3359061
-      }
+      "query": "tag:#cross-domain",
+      "color": {"a": 1, "rgb": 16776960}
     },
     {
-      "query": "path:3gpp/docs/L2/T6.",
-      "color": {
-        "a": 1,
-        "rgb": 9647082
-      }
+      "query": "tag:#basics",
+      "color": {"a": 1, "rgb": 8421504}
     },
     {
-      "query": "path:3gpp/docs/L2/T7.",
-      "color": {
-        "a": 1,
-        "rgb": 15357964
-      }
+      "query": "tag:#cmos",
+      "color": {"a": 1, "rgb": 32896}
     },
     {
-      "query": "path:3gpp/docs/L2/T8.",
-      "color": {
-        "a": 1,
-        "rgb": 1483594
-      }
+      "query": "tag:#eda",
+      "color": {"a": 1, "rgb": 8388736}
     },
     {
-      "query": "path:3gpp/docs/L2/T9.",
-      "color": {
-        "a": 1,
-        "rgb": 889992
-      }
+      "query": "tag:#claude",
+      "color": {"a": 1, "rgb": 12632256}
     },
     {
-      "query": "path:3gpp/docs/L2/T10.",
-      "color": {
-        "a": 1,
-        "rgb": 12592851
-      }
+      "query": "tag:#policy",
+      "color": {"a": 1, "rgb": 12632256}
     },
     {
-      "query": "path:3gpp/docs/L2/T11.",
-      "color": {
-        "a": 1,
-        "rgb": 8141549
-      }
+      "query": "[type:index]",
+      "color": {"a": 1, "rgb": 16753920}
     },
     {
-      "query": "path:3gpp/docs/L3/T12.",
-      "color": {
-        "a": 1,
-        "rgb": 2450411
-      }
+      "query": "[type:moc]",
+      "color": {"a": 1, "rgb": 6749952}
     },
     {
-      "query": "path:3gpp/docs/L3/T13.",
-      "color": {
-        "a": 1,
-        "rgb": 14251782
-      }
-    },
-    {
-      "query": "path:3gpp/docs/L3/T14.",
-      "color": {
-        "a": 1,
-        "rgb": 8141549
-      }
-    },
-    {
-      "query": "path:3gpp/docs/L3/T15.",
-      "color": {
-        "a": 1,
-        "rgb": 366185
-      }
-    },
-    {
-      "query": "path:3gpp/docs/audits",
-      "color": {
-        "a": 1,
-        "rgb": 10033947
-      }
-    },
-    {
-      "query": "[type:channel]",
-      "color": {
-        "a": 1,
-        "rgb": 4674921
-      }
+      "query": "[type:concept]",
+      "color": {"a": 1, "rgb": 5592575}
     },
     {
       "query": "[type:spec]",
-      "color": {
-        "a": 1,
-        "rgb": 3359061
-      }
-    },
-    {
-      "query": "[type:algorithm]",
-      "color": {
-        "a": 1,
-        "rgb": 16347926
-      }
-    },
-    {
-      "query": "[type:definition]",
-      "color": {
-        "a": 1,
-        "rgb": 13273604
-      }
+      "color": {"a": 1, "rgb": 12632256}
     }
   ],
   "collapse-display": false,
@@ -265,11 +77,11 @@
   "textFadeMultiplier": 0,
   "nodeSizeMultiplier": 1,
   "lineSizeMultiplier": 1,
-  "collapse-forces": true,
-  "centerStrength": 0.518713248970312,
+  "collapse-forces": false,
+  "centerStrength": 0.5,
   "repelStrength": 10,
   "linkStrength": 1,
   "linkDistance": 250,
-  "scale": 0.6666666666666666,
+  "scale": 0.5,
   "close": true
 }

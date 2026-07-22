@@ -7,12 +7,16 @@ tags:
   - asic
   - claude
   - policy
-source_spec: "Local project instructions"
+source_spec: "Local project instructions — inherited from obsidian vault rules"
 ---
 
 # 数字IC 项目 CLAUDE.md
 
 ## 硬性规则
+
+### 0. Skill 优先检查（最高优先级）
+
+**每次收到用户请求后，第一步必须检查可用 SKILL 列表，判断是否有匹配的 SKILL。** 匹配即调用——在生成任何其他回复之前，先用 Skill 工具调用匹配的 SKILL。
 
 ### 1. 术语规范
 
@@ -24,22 +28,29 @@ source_spec: "Local project instructions"
 
 - 波形图/时序图 → Wavedrom（`.json` → `.html` → `.svg`）
 - 电路图/架构图/模块框图 → ≤50 节点 Mermaid，>50 节点 PlantUML
+- Mermaid 必须配置深色/浅色自适应主题：`%%{init: {'theme': 'default'}}%%`
 - 所有图表必须输出 SVG 作为主格式，PNG 为可选
 - 图表文件放在对应概念的 `assets/` 子目录
 
 ### 3. 代码规范
 
-- HDL 代码必须标注语言类型：````verilog` 或 ````systemverilog`
-- 脚本标注：````tcl` / ````python` / ````shell`
+- HDL 代码必须标注语言类型：```verilog 或 ```systemverilog
+- 脚本标注：```tcl / ```python / ```shell
 - 代码块上方必须有简短注释说明用途
 
-### 4. Wikilink 规范
+### 4. Wikilink 与节点规范
 
 - 概念间引用使用 Obsidian wikilink：`[[path/to/file|显示文本]]`
-- 与 3gpp 知识库交叉引用使用标签 `#ic-bridge`
+- **零空心节点强制规则**：仅对库内真实存在的 `.md` 文件添加 wikilink。未创建的概念不写 wikilink，用 `#标签` 临时标记。杜绝 Obsidian 图谱灰色空心节点。
 - 跨领域概念优先链接到 `cross-domain/` 下的对应文件
 
-### 5. 项目背景
+### 5. 文档格式规范
+
+- **表格**：必须使用 Markdown 标准 `|` 语法，严禁用 ASCII 字符绘制伪表格或架构图
+- **LaTeX 公式**：行内用单 `$`，块级用双 `$$` 独立成行，复杂公式加 `\tag{编号}`。每完成一批文件后运行 LaTeX 渲染检查
+- **参考来源**：每个概念文件 frontmatter 中的 `source_spec` 必须填写真实参考来源（教材/标准/论文），不能留空或写占位符
+
+### 6. 项目背景
 
 本项目是数字IC全栈知识库，覆盖六大领域：
 
@@ -50,10 +61,23 @@ source_spec: "Local project instructions"
 - `cross-domain/` — 跨领域概念（时序收敛，低功耗，复位策略，CDC）
 - `concepts/` — 数字IC基础（CMOS，数制，亚稳态，半导体基础）
 
-### 6. 内容质量标准
+### 7. 内容质量标准
 
 - 每个概念文件 100-400 行
 - 原理部分至少 2-3 段实质性内容，不能只有一句话
 - "关键要点" 至少 5 条
 - "与其他概念的关系" 至少 2 个 wikilink
 - 禁止空壳文件（仅标题 + 一句话 + 无实质内容的占位符）
+
+### 8. 图谱配置
+
+Obsidian 全局 Graph 视图按 `type` 元数据分组着色：
+
+| type | 用途 | 示例 |
+|:---|:---|:---|
+| `index` | 入口/MOC 页面 | `数字IC_入口.md`, `rtl-design_MOC.md` |
+| `concept` | 核心概念 | 所有 `concepts/` 下的文件 |
+| `moc` | 领域内容地图 | 各领域 `_MOC.md` 文件 |
+| `spec` | 项目规范/规则 | `CLAUDE.md` |
+
+图谱颜色分组以 `type` + 领域 `tag` 组合查询，配色区分度高、适配 Obsidian 深色主题。
