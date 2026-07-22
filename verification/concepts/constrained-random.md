@@ -20,40 +20,157 @@ source_spec: "IEEE 1800-2023 SystemVerilog LRM Chapter 18 (Constrained Random Va
 
 ## 原理
 
-### 随机变量声明
+### 随机变量声明与 rand/randc
 
-SystemVerilog 提供了 `rand` 和 `randc` 两种随机变量修饰符。`rand` 声明的变量在每一次 `randomize()` 调用时独立地抽取随机值，各变量之间以及同变量的连续随机化之间没有记忆性——这意味着同一个值可以连续出现多次。`randc`（Cyclic Random）保证在枚举完所有可能值之前不会重复，适用于需要遍历性覆盖但又不希望产生定向测试的场景——例如仲裁器验证中确保所有请求源都被轮询到。`rand` 支持 `bit`、`logic`、`integer`、枚举（`enum`）、结构体（`struct`）以及动态数组等几乎所有 SystemVerilog 数据类型。特别地，`rand bit [7:0] data[];` 可以声明元素的个数也是随机的动态数组，由 `data.size` 作为内建随机属性控制。
+SystemVerilog 提供了 `rand` 和 `randc` 两种随机变量修饰符，以及配套的 `rand_mode()` 方法用于动态控制随机状态。
 
-### 约束块
+`rand` 声明的变量在每一次 `randomize()` 调用时独立地抽取随机值——各变量之间以及同变量连续随机化之间没有记忆性，同一个值可以连续出现多次。`randc`（Cyclic Random）保证在枚举完所有可能值之前不会重复：求解器维护一个内部循环缓冲器（Cycle Buffer），每次从剩余未抽取过的值中随机选择，直到所有值都被抽过一次后才重新开始新循环。`randc` 适用于需要遍历性覆盖但又不希望编写定向测试的场景。
 
-约束块（Constraint Block）使用 `constraint c_name { ... }` 定义随机变量的合法空间。约束块内部是一个或多个关系表达式，求解器将这些表达式作为联立方程求解，找到一组使所有约束同时满足的变量赋值。约束支持多种运算：(1) **值域约束**——`data inside {[0:255]};` 使用 `inside` 关键词，支持区间、枚举列表和反转 `!()`；(2) **蕴含约束**——`mode == READ -> addr inside {[0:1023]};` 使用 `->` 表示条件推导（注意与 SVA 蕴含的区分）；(3) **if-else 约束**——`if (mode == WRITE) { data < 256; } else { data > 256; }`；(4) **分布约束**——`dist` 操作符允许为不同值分配权重：`addr dist {0 := 1, [1:255] := 2, [256:1023] := 1};`（`:=` 表示每个值独立权重，`:/` 将权重均分到范围内的所有值）；(5) **solve-before 约束**——`solve A before B;` 指导求解器在求解 B 之前先确定 A 的值，用于处理约束间的依赖关系和优化求解顺序。
+```systemverilog
+class mem_transfer extends uvm_sequence_item;
+    rand bit [31:0] addr;
+    rand bit [63:0] data;
+    randc bit [3:0]  burst_len;  // Cyclic: each length 0-15 tested once per cycle
+    rand bit [2:0]   burst_size;
 
-### 求解器基础
+    // Dynamic array with random element count
+    rand bit [7:0] byte_enable[];
+    constraint data_strobe_size { byte_enable.size() inside {[1:8]}; }
+endclass
+```
 
-约束求解器（Constraint Solver）是一个基于约束满足问题（CSP, Constraint Satisfaction Problem）的求解引擎。求解器的基本工作流程为：(1) 解析所有活跃约束块的表达式，构建约束图（Constraint Graph）——图中节点为随机变量，边为变量间的约束关系；(2) 通过 solve-before 指令或自动推理确定变量求解顺序；(3) 按顺序依次为每个变量随机分配值，每次分配后检查是否满足所有相关约束，若不满足则回溯（Backtracking）或重新随机。求解器的性能受约束复杂度和变量空间的乘积影响——过于紧密耦合的约束链可能导致求解器需要大量回溯尝试才能找到合法解，极端情况下求解失败（Randomization Failure），此时 `randomize()` 返回 0，需要检查 `$fatal` 或 `assert(randomize())` 来捕获这一错误。
+`rand` 支持几乎所有的 SystemVerilog 数据类型：`bit`/`logic` 向量、`integer`、枚举（`enum`）、结构体（`struct`）、联合体（`union`）、动态数组、关联数组和队列。对动态数组而言，`size()` 本身也是内建的随机属性，可以受约束控制。`rand_mode(0)` 可以将特定变量临时从随机化集合中排除（变为固定值），`rand_mode(1)` 恢复其随机属性。
 
-### 约束继承与覆盖
+### 约束块语法与语义
 
-UVM 验证环境中的随机类使用继承机制实现约束复用和定制。子类可以添加新的约束变量和约束块，对父类的随机空间做追加限制。`constraint` 块可以声明为 `soft`（软约束），当与后续约束产生冲突时，求解器优先丢弃软约束，保留硬约束以满足求解。这为层叠式约束（Layered Constraints）提供了灵活性——基础 Sequence Item 的约束定义通用的合法空间，继承的子类通过硬约束进一步缩窄空间，测试层通过 `with()` 内联约束追加最终限制。
+约束块（Constraint Block）使用 `constraint c_name { ... }` 定义随机变量的合法空间。求解器将块内所有表达式作为联立方程组（而非顺序语句）求解。
 
-### 内联约束与 pre/post_randomize
+```systemverilog
+class axi_transfer extends uvm_sequence_item;
+    rand bit [31:0] addr;
+    rand bit [7:0]  data[];
+    rand bit        is_write;
+    rand bit [2:0]  burst_len;
 
-`randomize() with { constraints }` 语法允许在调用点直接追加内联约束，而不需要修改类定义。内联约束的优先级最高，会覆盖类定义中的同名约束。例如 `tx.randomize() with { length > 64; length < 128; }` 在保持类内所有其他约束不变的前提下将 `length` 限制到子范围。`pre_randomize()` 和 `post_randomize()` 是 `randomize()` 执行前后自动调用的回调（Callback）方法：`pre_randomize()` 常用于在随机化之前设定非随机的初始条件（如设置 `addr.align = 4;`）；`post_randomize()` 常用于根据随机结果计算派生值（如根据 `length` 计算 CRC 校验值）或对随机结果做后处理校验。
+    // Named constraint block: multiple blocks are combined by solver
+    constraint c_addr_align {
+        addr[1:0] == 2'b00;  // Word-aligned only
+    }
+
+    constraint c_data_size {
+        data.size() == burst_len + 1;  // Data array matches burst length
+    }
+
+    constraint c_write_read_addr {
+        if (is_write)
+            addr inside {[0 : 32'h0000_7FFF]};      // Write: lower half
+        else
+            addr inside {[32'h0000_8000 : 32'hFFFF]}; // Read: upper half
+    }
+
+    constraint c_no_cross_4k {
+        // No burst crosses 4KB boundary
+        (addr[11:0] + (burst_len + 1) * (1 << burst_size)) <= 4096;
+    }
+endclass
+```
+
+约束支持多种运算类型：(1) **值域约束**——`data inside {[0:255]};` 使用 `inside` 关键词，支持区间、枚举列表和反转 `!()`；(2) **蕴含约束**——`mode == READ -> addr inside {[0:1023]};` 使用 `->` 表示条件推导（注意与 SVA 蕴含的区分）；(3) **if-else 约束**——与过程代码体验一致但语义是声明式的；(4) **solve-before 约束**——`solve A before B;` 指导求解器在求解 B 之前先确定 A 的值。
+
+### 分布约束详解
+
+`dist` 操作符为随机值赋权重，控制不同值出现的概率。两种权重模式：
+
+- `:=`（Value Weight）：每个列出的值独立获得指定的权重。`[0:3] := 2` 中四个值各得权重 2，总权重 8
+- `:/`（Range Weight）：权重均分到范围内的所有值。`[0:3] :/ 8` 中四个值各得权重 2（8/4=2）
+
+```systemverilog
+// := vs :/ comparison
+x dist { 0 := 1, [1:3] := 2, [4:7] :/ 8 };
+// 0:     weight 1    → p = 1/15
+// 1-3:   weight 2 each → each p = 2/15
+// 4-7:   weight 2 each (8/4=2) → each p = 2/15
+
+// In practice: short bursts more common
+burst_len dist {
+    0 := 5,        // Single beat: weight 5 each
+    [1:3] := 3,    // 2-4 beats: weight 3 each
+    [4:7] := 1     // 5-8 beats: weight 1 each (rare)
+};
+```
+
+分布约束不保证严格按权重产生——求解器是随机的，权重是概率引导而非硬保证。当需要严格的权重控制（如异常注入场景）时，应使用独立的随机变量配合显式条件选择。
+
+### 求解器基础与约束图
+
+约束求解器（Constraint Solver）将随机化问题建模为约束满足问题（CSP, Constraint Satisfaction Problem）。求解过程分为三个核心阶段：
+
+1. **约束图构建**：解析所有活跃约束块的表达式，构建约束图——图中节点为随机变量，有向边代表变量间的约束依赖关系
+2. **变量排序**：通过 `solve-before` 指令或启发式自动推理确定变量求解的拓扑顺序
+3. **赋值与传播**：按序为每个变量随机赋值，每次赋值后使用约束传播算法（如 AC-3 弧相容算法）剪枝其余变量的候选值域。若赋值造成剩余变量无合法值，回溯到前一个决策点重试
+
+求解器的随机种子决定了整个随机序列：相同的种子 + 相同的随机序列 = 完全可重现的激励——这是回归测试的基本要求。双向约束（Bidirectional Constraints）——`constraint c { A + B == 10; }`——任一变量的赋值自动通过约束传播确定另一变量，这是 CSP 求解器区别于顺序赋值器的核心能力。
+
+### 动态约束控制与软约束
+
+`constraint_mode()` 和 `rand_mode()` 提供运行时的动态约束控制：
+
+- `obj.constraint_mode(0)` — 关闭指定约束块（求解器忽略该块中的约束）
+- `obj.constraint_mode(1)` — 重新使能约束块（默认所有约束块使能）
+- `obj.rand_mode(0)` — 将变量从随机化集合中排除，保持其当前值不变
+- `obj.rand_mode(1)` — 恢复变量的随机属性
+
+软约束（Soft Constraint）使用 `soft` 关键字声明。当软约束与硬约束产生冲突时，求解器自动丢弃软约束以保证硬约束满足。约束优先级从高到低为：
+
+1. **内联约束** `randomize() with { ... }` — 最高优先级
+2. **子类硬约束** — 覆盖父类的硬约束
+3. **父类硬约束** — 基础定义
+4. **软约束** — 最低优先级，冲突时被丢弃
+
+```systemverilog
+class base_seq extends uvm_sequence_item;
+    rand int size;
+    constraint c_size {
+        soft size inside {[8:64]};  // Soft: prefer small, can be overridden
+    }
+endclass
+
+class ext_seq extends base_seq;
+    constraint c_size {
+        size inside {[64:256]};     // Hard: overrides soft, redefines range
+    }
+endclass
+
+// At call site:
+seq.randomize() with { size == 128; };  // Inline: overrides all
+```
+
+### 随机化失败诊断
+
+当约束条件严格到无解时（Over-Constrained），`randomize()` 返回 0。诊断随机化失败是 CRV 验证中的高频痛点——工具特定的调试功能（如 VCS 的 `solve_debug` 或 Cadence 的 `constraint_debug`）可以通过冲突分析找出相互矛盾的约束集合。预防性措施包括：
+
+```systemverilog
+if (!item.randomize())
+    `uvm_fatal("RAND_FAIL", "Randomization failed — check constraint conflicts")
+```
+
+`pre_randomize()` 和 `post_randomize()` 是 `randomize()` 执行流程中的两个标准回调钩子：前者用于设定初始固定值（如 `addr.align = 4`），后者用于计算派生值（如根据随机长度自动计算 CRC 校验值并赋值给 `checksum` 字段）。
 
 ## 关键要点
 
-- `rand` 是独立随机（有放回），`randc` 是循环随机（无放回遍历），后者适用于遍历型覆盖场景但会降低随机多样性
-- 约束求解是 NP 完全问题——求解器使用启发式算法（如 AC-3 弧相容传播）而非暴力枚举，因此复杂约束的解空间均匀性是近似保证而非严格均匀
-- `dist` 的权重控制是引导随机分布的关键工具，`:=` 给每个值独立权重使 "热点路径" 有更高的命中率
-- `randomize() with {}` 的内联约束优先级最高，其次是子类硬约束，再次是父类硬约束，最后是软约束——这一优先级链保证了约束的渐进式精炼
-- 过于紧密的约束可能导致求解器失败（返回 0），应在验证环境中用 `assert(randomize()) else `uvm_fatal`...` 捕获随机失败并给出诊断信息
-- 求解器的随机种子（Random Seed）决定了整个随机序列：相同的种子产生相同的激励序列——在回归测试中使用固定种子实现可重现性，在探索中使用随机种子增加多样性
-- `$urandom` 和 `$urandom_range()` 是 `randomize()` 的轻量化替代，适用于过程代码中的简单随机需求，但不能参与约束求解
-- 约束块中的 `foreach` 循环可以对数组的每个元素施加约束：`foreach (data[i]) data[i] inside {[0:255]};`，使约束声明更加简洁
+- `rand` 是有放回随机（值可重复），`randc` 是循环无放回（值不重复直到遍历完毕）——前者强调独立性，后者强调遍历性
+- 约束求解是 NP 完全问题——商用求解器使用组合了随机搜索和约束传播的混合算法（而非精确求解），因此解的均匀性是近似保证
+- `dist` 的 `:=` 和 `:/` 语义差异容易混淆：`[0:255] := 1` 每个值权重 1（总权重 256），`[0:255] :/ 100` 每个值权重 100/256
+- `solve-before` 不是可选的装饰性语句——缺少正确的求解顺序可能导致求解器陷入大量回溯甚至随机化失败
+- `constraint_mode(0)` 是验证工程师手中灵活但危险的 "万能工具"——关闭关键约束可能导致非法激励流入 DUT 产生虚假 Bug
+- `unique` 约束 `constraint c { unique {a, b, c}; }` 要求所有变量取值互不相同，是仲裁器验证确保请求源不重复的标准写法
+- `foreach` 在约束块中展开为对数组每个元素的约束：`foreach(data[i]) data[i] inside {[0:255]};` 等价于对每个元素独立施加范围约束
+- `$urandom_range(min, max)` 和 `$urandom(seed)` 是 `randomize()` 的轻量化替代——不参与约束求解但在过程代码中快速高效
+- 回归测试中 `+ntb_random_seed=N` 命令行参数控制随机种子，固定种子实现重现、随机种子扩大覆盖
 
 ## 与其他概念的关系
 
-- [[verification/concepts/coverage-model|覆盖率模型（Coverage Model）]] — CRV 生成的随机激励触发 Covergroup 采样，覆盖率缺口再反馈指导约束调整，两者构成 CDV 的闭环核心
-- [[verification/concepts/uvm-methodology|UVM 验证方法学]] — UVM Sequence 机制与 rand/constraint 深度集成，Sequence Item 是 CRV 的数据载体，Sequencer 调度随机 Sequence 的执行
-- [[verification/concepts/testbench-architecture|验证平台架构]] — Agent 的 Sequencer 是 CRV 的执行入口，Scoreboard 和 Monitor 是激励效果的检查点
-- [[verification/concepts/systemverilog-assertions|SystemVerilog 断言（SVA）]] — CRV 提供激励多样性，SVA 提供时序正确性检查，两者互为补充各司其职
+- [[verification/concepts/coverage-model|覆盖率模型（Coverage Model）]] — Covergroup 定义 "验证什么"，约束随机引擎定义 "激励空间"，两者通过覆盖率缺口反馈驱动约束迭代收敛，构成 CDV 的闭环核心
+- [[verification/concepts/uvm-methodology|UVM 验证方法学]] — UVM Sequence 机制与 rand/constraint 深度集成，Sequence Item 是 CRV 的数据载体，Sequencer-Driver 流水线是 CRV 激励注入的执行通道
+- [[verification/concepts/testbench-architecture|验证平台架构（Testbench Architecture）]] — Agent 的 Sequencer 是 CRV 的执行入口，Scoreboard 和 Monitor 是激励效果的检查点——激励的随机性必须被观测和检查环完整闭环
+- [[verification/concepts/systemverilog-assertions|SystemVerilog 断言（SVA）]] — CRV 提供激励多样性的宽度，SVA 在每个激励下提供时序正确性的深度检查，两者覆盖验证的互补维度

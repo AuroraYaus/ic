@@ -40,7 +40,7 @@ source_spec: "Local project instructions — inherited from obsidian vault rules
 
 ### 4. Wikilink 与节点规范
 
-- 概念间引用使用 Obsidian wikilink：`[[path/to/file|显示文本]]`
+- 概念间引用使用 Obsidian wikilink：`领域/文件名` — 路径相对于 vault 根目录
 - **零空心节点强制规则**：仅对库内真实存在的 `.md` 文件添加 wikilink。未创建的概念不写 wikilink，用 `#标签` 临时标记。杜绝 Obsidian 图谱灰色空心节点。
 - 跨领域概念优先链接到 `cross-domain/` 下的对应文件
 

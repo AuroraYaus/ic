@@ -54,7 +54,7 @@ N 位补码的表示范围为 [-2^(N-1), 2^(N-1) - 1]，这个范围的不对称
 
 ## 与其他概念的关系
 
-- [[rtl-design/concepts/verilog-hdl\|Verilog HDL]] — HDL 中的 `signed`/`unsigned` 声明、`$signed()` 系统函数和位宽扩展规则
-- [[rtl-design/concepts/arithmetic-circuits\|算术电路（Arithmetic Circuits）]] — 加法器（RCA, CLA, CSA）和乘法器（Booth, Wallace Tree）的数制基础
-- [[architecture/concepts/pipelining\|流水线（Pipelining）]] — 浮点/定点算术单元如何在流水线中拆分以提高吞吐率
-- [[concepts/cmos-fundamentals\|CMOS 基础]] — 底层晶体管如何实现逻辑门来存储和运算这些比特
+- [[rtl-design/concepts/verilog-hdl|Verilog HDL]] — HDL 中的 `signed`/`unsigned` 声明、`$signed()` 系统函数和位宽扩展规则
+- [[rtl-design/concepts/arithmetic-circuits|算术电路（Arithmetic Circuits）]] — 加法器（RCA, CLA, CSA）和乘法器（Booth, Wallace Tree）的数制基础
+- [[architecture/concepts/pipelining|流水线（Pipelining）]] — 浮点/定点算术单元如何在流水线中拆分以提高吞吐率
+- [[concepts/cmos-fundamentals|CMOS 基础]] — 底层晶体管如何实现逻辑门来存储和运算这些比特

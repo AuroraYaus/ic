@@ -44,6 +44,33 @@ SystemVerilog 引入了三个专用的 always 块关键字来替代通用的 `al
 
 DPI 是 SystemVerilog 与 C/C++ 函数双向调用的标准接口。通过 `import "DPI-C" function int my_func(input int a);` 声明，SystemVerilog 代码可以直接调用 C 函数；通过 `export "DPI-C" function my_sv_func;` 声明，C 代码可以回调 SystemVerilog 函数。DPI 是构建仿真模型（如 ISS、Bus Functional Model）、参考模型（Reference Model）和 co-simulation 环境的核心桥梁，使 UVM 验证环境可以复用 C/C++ 黄金模型。
 
+
+### 类型转换与位宽控制
+
+SystemVerilog 提供了远强于 Verilog 的类型转换机制。**静态转换（Static Cast）** 使用 `type'(expr)` 语法——如 `int'(a + b)` 将运算结果强制转换为 int 类型，转换在编译时进行、不检查溢出。**动态转换（Dynamic Cast）** 使用 `$cast(dest, src)`，在仿真时检查转换的合法性并返回成功/失败标志。对于位宽不匹配的赋值，SV 的位宽截断和扩展规则与 Verilog 兼容——宽向窄赋值高位截断，窄向宽赋值时无符号数零扩展、有符号数符号扩展——但 SV 提供了 `$bits()`、`$left()`、`$right()` 等尺寸内省函数使位宽操作更安全。`$clog2()`（Ceiling Log Base 2）是参数化设计中计算地址位宽、FIFO 深度所需比特数的必备函数。SV 还引入了 `let` 声明（编译时宏函数）作为 `define 宏的类型安全替代。
+
+### SVA 断言在 RTL 中的应用
+
+虽然 SVA（SystemVerilog Assertions）主要用于验证，但即时断言（Immediate Assertions）是可综合的——综合工具将它们映射到硬件检查器电路。即时断言 `assert (condition) else $error("msg");` 被综合为组合逻辑，当条件为假时拉高错误输出信号，类似于硬件的在线自检（Built-In Self-Check）。`assume` 断言向综合工具传达环境假设——例如告知综合工具某些时序关系在环境中总是成立，综合工具可利用这些约束进行逻辑优化（去除"不可能发生"的条件逻辑）。集成 SVA 的 RTL 综合产生的 checker 逻辑通常应使用 `ifdef ASSERT_ON` 宏围绕，以便在后端物理设计中剥离断言逻辑。
+
+
+SystemVerilog 通过属性（Attributes）传递综合和仿真的元信息。关键属性包括：`(* ram_style = "block" *)` 指示综合工具使用 Block RAM 而非分布式 RAM；`(* keep = "true" *)` 防止综合工具优化掉特定线网（如调试信号）；`(* dont_touch = "true" *)` 确保关键结构（如 CDC 同步器）不被综合优化或克隆破坏；`(* async_reg = "true" *)` 标记 CDC 同步器第一级触发器，使布局布线工具将其靠近放置以最小化亚稳态窗口。时钟门控指令 `(* clock_gating = "true" *)` 通知综合工具在寄存器组上插入 ICG 单元。综合属性直接影时钟门控插入率，正确的属性标注可降低 20-40% 的时钟树动态功耗。
+
+### 综合属性与指令
+
+SystemVerilog 通过属性（Attributes）传递综合和仿真的元信息。关键属性包括：`(* ram_style = "block" *)` 指示综合工具使用 Block RAM 而非分布式 RAM；`(* keep = "true" *)` 防止综合工具优化掉特定线网（如调试信号）；`(* dont_touch = "true" *)` 确保关键结构（如 CDC 同步器）不被综合优化或克隆破坏；`(* async_reg = "true" *)` 标记 CDC 同步器第一级触发器，使布局布线工具将其靠近放置以最小化亚稳态窗口。时钟门控指令 `(* clock_gating = "true" *)` 通知综合工具在寄存器组上插入 ICG 时钟门控单元。
+
+
+
+### 生成块的高级用法
+
+SystemVerilog 的 **generate** 结构（generate-for、generate-if、generate-case）是可综合的硬件生成语法，用于参数化创建重复电路。`generate-for` 使用 `genvar` 循环变量，在编译时展开为多个并行硬件实例——典型用例包括：N 位总线信号的逐比特 2-FF 同步器组、多通道 FIFO 的并行实例数组、多级流水线寄存器的逐级例化。`generate-if` 根据参数条件选择互斥的硬件结构体——如 `if (DATA_WIDTH < 16) rca_adder #(.W(DATA_WIDTH)) u_adder (...) else cla_adder #(.W(DATA_WIDTH)) u_adder (...)`。generate 块内的信号声明必须是局部作用域（每个 generate 迭代创建独立的信号副本），避免在 generate 块内声明共享信号导致的命名冲突。
+
+### always_comb 与 always @(*) 的关键语义差异
+
+虽然 `always_comb` 和 `always @(*)` 在功能上看似等效（都描述组合逻辑），但 `always_comb` 有三个关键增强：1) **零时刻执行**——`always_comb` 在仿真的时间零自动执行一次以计算初始值，而 `always @(*)` 必须在所有输入经历事件后才首次触发，这意味着 `always_comb` 保证了仿真开始时的输出与输入一致；2) **禁止自身赋值**——`always_comb` 自动禁止块内的信号被同一信号赋值（如 `a = a + 1` 是组合环路错误），而 `always @(*)` 允许这种写法（导致仿真无限循环或综合错误）；3) **函数调用内的灵敏度**——`always_comb` 自动追踪 always 块内调用的函数中使用到的信号（函数内读取的信号也会加入灵敏度列表），而 `always @(*)` 仅追踪 always 块本身直接读取的信号（函数内的信号引用被漏掉）。这些差异使得 `always_comb` 是比 `always @(*)` 更安全、更完整的组合逻辑建模方式。
+
+
 ## 关键要点
 
 - logic 类型统一了 wire/reg，默认单驱动约束，多驱动场景仍需使用 wire 或 tri；logic 默认值为 X，便于仿真时暴露未初始化信号
@@ -56,6 +83,15 @@ DPI 是 SystemVerilog 与 C/C++ 函数双向调用的标准接口。通过 `impo
 - DPI 将 SystemVerilog 仿真与 C/C++ 参考模型连接，是验证环境的关键基础设施，但 DPI 代码不可综合
 - `unique case` 和 `priority case` 提供并行/优先级 case 的语法声明，综合工具可据此优化逻辑，且仿真时可检测违反断言（Violation）
 - `$clog2()` 是 RTL 设计中计算位宽的必备系统函数，替代手动 `define 宏计算，避免了整数对数的舍入错误
+- `assert final` 和 `assume final` 是 SystemVerilog 中的过程性（Procedural）断言——`assert final` 在仿真结束时检查条件（如 FIFO 在仿真结束时为空），`assume final` 向形式化验证（Formal Verification）工具传达最终状态假设
+- `typedef` + `enum` 的状态机定义比裸 `parameter` 状态编码在 debug 和波形查看中更具可读性——波形工具可直接显示状态的符号名（而非数字编码）
+- SystemVerilog 的函数支持输出端口（`function void func(output int result)`）和多返回值，替代了 Verilog 中 task 和 function 只能单一返回值的限制，使组合逻辑的 function 更为灵活
+- `inside` 运算符（`if (state inside {ST_A, ST_B, ST_C})`）提供了集合成员检查的简洁语法，在 RTL 替代冗长的 `(state==ST_A) || (state==ST_B) || ...` 提高了代码可读性和正确性
+
+- `typedef enum logic [1:0] {IDLE, WORK, DONE} state_t;` 比 `localparam IDLE=0, WORK=1, DONE=2;` 更安全——enum 提供了类型检查，综合工具可根据状态数量自动选择最优编码（binary/one-hot/Gray），且波形查看器中可直接显示符号名
+- SystemVerilog 的 `do...while` 循环在 RTL 中不可综合（因无静态展开上限），仅可在仿真和验证代码中使用——RTL 中的重复结构必须用 generate-for 或固定上限的 for 循环
+
+- SystemVerilog 的 `let` 声明为编译时宏函数提供了类型安全的替代——与 `define 宏不同，`let` 表达式有明确的类型并受作用域规则约束，适合用来定义简单的位宽计算或组合表达式，在参数化 RTL 中推荐优先于 `define
 
 ## 与其他概念的关系
 

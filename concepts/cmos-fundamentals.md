@@ -48,7 +48,7 @@ CMOS 电路的功耗分为三部分：**动态功耗（Dynamic Power）** 由信
 
 ## 与其他概念的关系
 
-- [[concepts/semiconductor-basics\|半导体基础]] — CMOS 工艺的物理基础：PN 结、MOSFET 的能带模型和载流子输运
-- [[asic-flow/concepts/synthesis\|逻辑综合（Synthesis）]] — 综合工具将 RTL 映射到标准单元库中的 CMOS 门级网表
-- [[asic-flow/concepts/power-analysis\|功耗分析（Power Analysis）]] — CMOS 动态/静态功耗的工程计算与优化策略
-- [[concepts/number-systems\|数字的数制表示]] — 数字逻辑的数学基础，CMOS 电路的操作对象
+- [[concepts/semiconductor-basics|半导体基础]] — CMOS 工艺的物理基础：PN 结、MOSFET 的能带模型和载流子输运
+- [[asic-flow/concepts/synthesis|逻辑综合（Synthesis）]] — 综合工具将 RTL 映射到标准单元库中的 CMOS 门级网表
+- [[asic-flow/concepts/power-analysis|功耗分析（Power Analysis）]] — CMOS 动态/静态功耗的工程计算与优化策略
+- [[concepts/number-systems|数字的数制表示]] — 数字逻辑的数学基础，CMOS 电路的操作对象

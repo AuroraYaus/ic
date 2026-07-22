@@ -3,54 +3,74 @@ type: concept
 aliases:
   - 分支预测
   - Branch Prediction
+  - 分支预测器
 tags:
   - asic
   - architecture
   - processor
   - branch-prediction
   - microarchitecture
-source_spec: "Hennessy & Patterson, Computer Architecture: A Quantitative Approach, 6th Ed; Seznec & Michaud, 'A Case for (Partially) Tagged GEometric History Length Branch Prediction', JILP, 2006"
+source_spec: "Hennessy & Patterson, Computer Architecture: A Quantitative Approach, 6th Ed; Seznec & Michaud, 'A Case for (Partially) Tagged GEometric History Length Branch Prediction', JILP, 2006; McFarling, 'Combining Branch Predictors', DEC WRL TN-36, 1993"
 ---
 
 # 分支预测（Branch Prediction）
 
-分支预测是现代高性能处理器前端（Front-End）的核心组成部分。条件分支指令在全程序中占比约 15-20%，平均每 5-7 条指令就遇到一次分支。如果无法在取指阶段正确预测分支方向，流水线和乱序执行引擎将被迫等待分支结果确定——在深流水线处理器中这可能造成 15-20 个周期的停滞。分支预测器通过在取指时推测分支的方向和目标地址，持续为处理器后端提供指令流。
+分支预测是现代高性能处理器前端的核心部件。条件分支指令在全程序中占比约 15-20%，平均每 5-7 条指令就遇到一次分支。如果处理器在取指阶段无法正确预测分支的方向和目标地址，流水线和乱序执行引擎将被迫等待分支结果确定——在深流水线处理器中可能造成 15-20 个周期的停滞。分支预测器的作用是在取指的同时推测分支方向和目标地址，持续为处理器后端提供投机性的指令流。
 
 ## 原理
 
-### 静态预测与动态预测
+### 静态预测
 
-静态预测（Static Prediction）不依赖运行时历史：最简单的"永远不跳转"（Always Not Taken）假设分支不改变控制流，编译器辅助的 BTFNT（Backward Taken, Forward Not Taken）策略将向后跳转（通常是循环回边）预测为跳转，向前跳转（通常是 if-else 结构）预测为不跳转。静态预测精度通常在 60-70% 左右。动态预测（Dynamic Prediction）维护运行时分支行为的历史记录，典型预测精度可达 95-97%，远优于静态方案。
+静态预测不维护任何运行时历史。最简单的策略是"永远不跳转"（Always Not Taken）：默认顺序取指，分支实际跳转时冲刷已取指错误路径指令。编译器辅助的 BTFNT（Backward Taken, Forward Not Taken）策略利用程序行为规律：向后跳转（通常是循环回边）预测为 Taken，向前跳转（通常是 if-else）预测为 Not Taken。配合 Profile-Guided Optimization，编译器可在分支指令中直接嵌入静态预测位。静态预测精度通常在 60-70% 左右，适用于面积极端受限的嵌入式小核心。
 
 ### 两位饱和计数器与 BHT
 
-分支历史表（Branch History Table, BHT）是动态预测的基础结构。每个表项包含一个两位饱和计数器（2-bit Saturating Counter），状态编码为：强不跳转（00）、弱不跳转（01）、弱跳转（10）、强跳转（11）。当分支实际跳转时计数器递增（饱和于 11），实际不跳转时递减（饱和于 00）。两位饱和计数器的关键优点是两次连续的方向改变才使预测方向翻转——这对带有规律性抖动的分支（如 TNTNTNTN...）可以提供 100% 的预测精度（一次不预测后仍然保持不预测方向），而对完全随机的分支则限制在 50%。
+分支历史表（Branch History Table, BHT）是动态预测的基础。每个表项包含一个两位饱和计数器，状态编码为：强不跳转（00, SNT）、弱不跳转（01, WNT）、弱跳转（10, WT）、强跳转（11, ST）。分支实际为 Taken 时计数器递增饱和于 11，Not Taken 时递减饱和于 00。
+
+两位饱和计数器相比一位预测的关键优势：对于 TNTNTNTN... 模式，一位计数器 0% 精度——每次方向改变都误预测。两位计数器需要两次连续方向改变才发生预测翻转：面对 TNTNTNTN 模式，SNT 经一次 T 变 WNT（预测仍为 NT），第二次 T 才能变 WT 使预测翻转。BHT 表现受限于别名冲突——不同分支映射到同一 BHT 表项时互相干扰。
 
 ### 全局历史与 GSHARE
 
-全局历史预测器（Global History Predictor）使用全局历史寄存器（Global History Register, GHR）记录最近 N 个分支的实际方向（跳转为 1，不跳转为 0），将 GHR 与分支 PC 异或（XOR）后索引模式历史表（Pattern History Table, PHT）——这种结构被称为 GSHARE（Gshare）。GHR 捕获了分支之间的相关性（Correlation）：例如，前后两个条件分支可能联合判断同一个高层条件，单独看每个分支的行为是随机的，但组合来看具有可预测的模式。GSHARE 的 PHT 位宽通常为 2K-4K 项，GHR 为 8-16 位。
+全局历史预测器捕获分支之间的相关性。两个前后出现的分支可能联合判断同一个高层条件——单独看每个分支可能随机，但组合来看具有可预测的模式。全局历史寄存器记录最近 N 个分支的实际方向（0=NT, 1=T），将 GHR 与分支 PC 通过 XOR 组合后索引模式历史表（PHT）——这种结构称为 GSHARE。
 
-### 锦标赛预测器与 TAGE
+GHR XOR PC 的哈希关键思想：GHR 捕获了"程序执行路径到达当前分支"的上下文信息——同一 PC 在不同执行上下文（如从不同调用点进入同一函数）可能对应不同分支行为。GSHARE 是中小面积处理器的典型方案。
 
-锦标赛预测器（Tournament / Hybrid Predictor）组合多个预测器组件，并通过一个元预测器（Meta-Predictor / Choice Predictor）在它们之间动态选择。经典的 Alpha 21264 锦标赛预测器结合了局部预测器（Local Predictor，按分支 PC 索引局部历史）和全局预测器（Global Predictor，按 GHR 索引），Choice Predictor 使用两位饱和计数器决定当前分支相信哪个预测器。TAGE（TAgged GEometric history length）预测器是现代分支预测的标杆：它使用多个几何长度递增的全局历史（如 2、4、8、16、32、64、128 位），每个历史长度维护一组部分标签（Partial Tag），最长匹配的条目提供预测。TAGE 在 Championship Branch Prediction（CBP）竞赛中验证了超过 99% 的预测精度。
+### 锦标赛预测器
+
+锦标赛预测器组合了局部预测器（按分支 PC 索引局部历史）和全局预测器，通过一个元预测器（Choice Predictor）在两者之间动态选择。元预测器也是两位饱和计数器，但它记录的是"局部预测器正确还是全局预测器正确"的历史。实际测量表明：约 80% 的分支中局部和全局预测器表现一致；在剩余 20% 中，锦标赛预测器比任一单独预测器提高约 5-10% 的绝对精度。Alpha 21264 是锦标赛预测器的经典实现。
+
+### TAGE 预测器
+
+TAGE（TAgged GEometric history length）预测器是现代分支预测的标杆，广泛用于 Intel、AMD 和 ARM 高性能核心。其核心结构是多个预测器表组件，每个使用不同长度的几何历史：2 位、4 位、8 位、16 位、32 位、64 位、128 位、256 位等。每个组件产生一个预测，TAGE 选择最长历史匹配的组件的预测结果——最长历史的组件最"了解"当前执行上下文，信息量最大。TAGE 的标签机制极大减少了别名冲突——两个冲突的分支除非标签也相同否则不互相干扰。TAGE 在 Championship Branch Prediction 比赛中验证了超过 99% 的预测精度。
 
 ### BTB 与 RAS
 
-分支目标缓冲（Branch Target Buffer, BTB）缓存分支指令的 PC 与目标地址的映射关系，在取指阶段同时提供方向预测（来自 BHT）和目标预测（来自 BTB），实现零周期分支（Zero-Cycle Branch）。返回地址栈（Return Address Stack, RAS）专门用于预测函数返回指令（Return）的目标地址：每次调用指令（Call）执行时将返回地址（Call 的 PC + 指令长度）压入 RAS，每次预测到 Return 指令时从 RAS 栈顶弹出目标地址。RAS 的大小（通常 8-32 项）决定了覆盖的调用深度。
+分支目标缓冲（Branch Target Buffer, BTB）缓存分支指令 PC 与目标地址的映射关系，在取指阶段与方向预测并行工作，实现零周期分支。返回地址栈（Return Address Stack, RAS）专门预测函数返回指令的目标地址：每次 CALL 指令执行时将返回地址压入 RAS 栈顶，每次 RET 指令从栈顶弹出目标地址。CALL/RET 在大多数程序中严格配对，RAS 预测精度接近 100%。但 C++ 异常处理或 longjmp 可能破坏配对，需要 RAS 修复机制。
+
+### 分支预测器的性能度量
+
+分支预测器的度量指标包括：预测精度（Prediction Accuracy / Misprediction Rate），直接决定误预测惩罚频率；预测延迟（Prediction Latency），即从取指 PC 输入预测器到输出方向/目标的时间——在高速处理器中必须在一个周期内完成，否则取指流水线需要额外级数；预测器面积（Predictor Area），BTB + BHT + RAS + TAGE 表的总 SRAM 面积在高性能处理器中可达 1-3 mm2（在 5nm 工艺下）。
+
+误预测惩罚公式：Misprediction Penalty = (Branch Resolution Stage - Fetch Stage) × Clock Period。例如，在 16 级流水线（取指第 1 级，分支在第 10 级解决）2GHz 下 = (10-1) × 0.5ns = 4.5ns = 9 个周期。加上乱序恢复开销（ROB 清空 + RAT 回滚 + 发射队列冲刷），总恢复时间可能达到 15-25 个周期。有效 CPI 贡献 = Branch_Frequency × Misprediction_Rate × Misprediction_Penalty。分支频率约 20%，误预测率 3% → CPI_branch = 0.2 × 0.03 × 20 = 0.12，即约增加 12% 的 CPI。
+
+### 智能分支预测研究前沿
+
+现代分支预测研究集中在三个方向：（1）基于感知器的预测器（Perceptron-Based Predictor）——使用神经网络（单层感知器）替代两位饱和计数器进行决策，感知器的权重向量由 GHR 索引，通过在线学习算法（如随机梯度下降）动态调整权重以适应变长的分支模式。感知器预测器在 SimPoint/SPEC 基准上取得了比 TAGE 更高的精度，但硬件开销（乘法器和加法器树）限制了其在工业产品中的应用。（2）BATAGE（Bunched Architecture TAGE）将多个 TAGE 组件打包成束以提高存储效率。（3）结合上下文的分支预测——利用指令的操作码、立即数和地址偏移等更多信息作为预测特征，进一步提高长历史依赖分支的预测精度。
 
 ## 关键要点
 
-- 分支预测精度每提高 1%，在 20 级流水线中约降低 0.5% 的 CPI——因为误预测惩罚很大
-- 两位饱和计数器需要在 1K-4K 项时才达到 85-93% 的精度，项数太少会导致别名冲突（Aliasing）
-- GSHARE 预测器通过 GHR XOR PC 的哈希降低了别名冲突，但仍有破坏性别名（Destructive Aliasing）问题
-- TAGE 的核心洞察是不同分支的最优历史长度不同：循环分支适合长历史，if-else 分支只需短历史
-- BTB 的访问时间在 L1 指令缓存之后——在高速设计中，BTB 访问可能与 L1 I-Cache 访问并行
-- RAS 的 Corruption 修复（异常返回时从 Checkpoint 恢复 RAS 栈顶）是精确异常支持的必要机制
-- 间接跳转（Indirect Jump, jump reg）的预测需要与条件分支不同的预测器——ITTAGE 扩展 TAGE 到间接跳转目标预测
-- 分支预测对功耗有显著影响：错误预测消耗了所有投机执行的指令的功耗，这部分功耗（约 10-20% 的总功耗）是纯浪费
+- 两位饱和计数器在 1K 项时可达 85-92% 精度，4K 项时可达 92-97%，项数增加受面积和访问延迟约束
+- GSHARE 核心公式：Index = (PC >> 2) XOR GHR，PC 最低 2 位去掉（指令按 4 字节对齐），右移后低位与 GHR 异或
+- 锦标赛预测器元预测器在两者预测相同时简单选择任一方，仅在两者预测不同时才需要 Choice Predictor 决定
+- TAGE 的多组件几何历史利用计算级别规律：循环分支周期固定（如 16 次迭代）需至少 16 位 GHR，if-else 只需 4-8 位
+- TAGE 标签机制极大减少别名冲突，标签不匹配的条目不计入投票
+- BTB 容量决定覆盖范围：小 BTB（256-512 项）仅覆盖内层循环分支，大 BTB（4K-8K 项）覆盖全部热点
+- RAS Corruption 修复是精确异常的基础，需要在分支检查点中包含 RAS 栈快照
+- 间接跳转（虚函数、switch-case 跳表）的目标预测需要 ITTAGE 或专用间接跳转预测器
+- 分支预测功耗影响不容忽视：3% 误预测率约浪费 10-15% 的总功耗在无效投机执行上
 
 ## 与其他概念的关系
 
-- [[architecture/concepts/pipelining|流水线（Pipelining）]] — 分支预测直接决定了流水线中控制冒险的处理效率，预测精度决定了误预测惩罚频率
-- [[architecture/concepts/out-of-order|乱序执行（Out-of-Order Execution）]] — 错误预测导致 ROB 中所有指令被清空和 RAT 回滚，恢复代价极大
-- [[concepts/cmos-fundamentals|CMOS 基础]] — BTB 和 BHT 访问的关键路径由 SRAM 读取延迟决定，先进工艺节点的低延迟 SRAM 是缩短分支延迟的物理基础
+- [[architecture/concepts/pipelining|流水线（Pipelining）]] — 分支预测直接决定流水线控制冒险处理效率，预测精度决定误预测惩罚的频率
+- [[architecture/concepts/out-of-order|乱序执行（Out-of-Order Execution）]] — 误预测导致 ROB 中投机指令全部清空和 RAT 回滚，恢复开销巨大
+- [[architecture/concepts/memory-hierarchy|存储层次（Memory Hierarchy）]] — RAS 和 BTB 本质是以 PC 为索引的小型缓存，其替换和访问策略与缓存设计共享原理

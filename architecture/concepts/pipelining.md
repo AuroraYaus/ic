@@ -4,6 +4,7 @@ aliases:
   - 流水线
   - Pipeline
   - 指令流水线
+  - Instruction Pipeline
 tags:
   - asic
   - architecture
@@ -15,41 +16,61 @@ source_spec: "Hennessy & Patterson, Computer Architecture: A Quantitative Approa
 
 # 流水线（Pipelining）
 
-流水线是处理器微架构中最核心的性能提升技术之一。它将一条指令的执行过程划分为多个阶段（Stage），每个时钟周期可以同时处理不同指令的不同阶段，从而在不提高时钟频率的前提下，将指令吞吐率（Throughput）从单周期每 N 个周期完成一条指令提升到每个周期完成一条指令的理想情况。
+流水线是处理器微架构中最核心的性能提升技术之一。它将一条指令的执行过程划分为多个阶段，每个时钟周期可以同时处理不同指令的不同阶段，从而在不提高时钟频率的前提下，将指令吞吐率从单周期每 N 个周期完成一条指令提升到每个周期完成一条指令的理想情况。经典的五级流水线本质上是对单周期处理器数据通路的功能性拆分，通过插入流水线寄存器在组合逻辑中切断长路径，使时钟周期由最长的单个阶段延迟而非整条数据通路延迟决定。
 
 ## 原理
 
 ### 经典 RISC 五级流水线
 
-经典 RISC 五级流水线将指令执行划分为五个阶段：取指（Instruction Fetch, IF）、译码（Instruction Decode, ID）、执行（Execute, EX）、访存（Memory Access, MEM）和写回（Write Back, WB）。每一个阶段由一组流水线寄存器（Pipeline Register）隔开，寄存器在时钟边沿捕获上一阶段的输出作为本阶段的输入。在理想情况下，第 N 个时钟周期时，IF 处理指令 i+4，ID 处理指令 i+3，EX 处理指令 i+2，MEM 处理指令 i+1，WB 处理指令 i。CPI（Cycles Per Instruction）趋近于 1。
+经典 RISC 五级流水线将指令执行划分为五个阶段：取指（Instruction Fetch, IF）、译码（Instruction Decode, ID）、执行（Execute, EX）、访存（Memory Access, MEM）和写回（Write Back, WB）。每一个阶段由一组流水线寄存器隔开，寄存器在时钟边沿捕获上一阶段的输出作为本阶段的输入。在理想情况下，第 N 个时钟周期时，IF 处理指令 i+4，ID 处理指令 i+3，EX 处理指令 i+2，MEM 处理指令 i+1，WB 处理指令 i。CPI（Cycles Per Instruction）趋近于 1，即每个时钟周期完成一条指令。
+
+流水线寄存器是时序的关键组件：IF/ID 寄存器捕获取指结果（指令字和 PC+4），ID/EX 寄存器捕获译码结果（寄存器数据、立即数、控制信号），EX/MEM 寄存器捕获 ALU 计算结果和待存储数据，MEM/WB 寄存器捕获存储器读回的数据或 ALU 结果。每个流水线寄存器不仅传递数据，还传递控制信号——ALUOp、MemRead、MemWrite、RegWrite、MemtoReg、ALUSrc、RegDst 等信号逐级向后传播，形成控制信号的流水线传播路径。控制信号在每一阶段被局部解码和执行。
 
 ### 数据冒险与转发
 
-流水线中指令之间存在数据依赖时会发生数据冒险（Data Hazard）。RAW（Read After Write）是最常见的数据冒险类型：后续指令需要读取前面指令尚未写回的结果。WAR（Write After Read）和 WAW（Write After Write）在乱序执行处理器中才会出现。转发（Forwarding/Bypassing）通过在 EX 阶段直接从流水线寄存器或执行结果中旁路数据到依赖指令的输入，避免了等待 WB 阶段完成再读取寄存器文件的延迟。转发路径由冒险检测单元（Hazard Detection Unit）根据源寄存器和目标寄存器的比较结果生成控制信号。当转发无法解决时（如 Load 指令后的立即使用，即 Load-Use Hazard），流水线必须插入一个流水线气泡（Bubble / Stall）。
+流水线中指令之间存在数据依赖时会发生数据冒险。RAW（Read After Write）是最常见的数据冒险类型：后续指令需要读取前面指令尚未写回的结果。WAR（Write After Read）和 WAW（Write After Write）在顺序流水线中不会出现，因为数据流天然保证不产生这两类伪冒险。
+
+转发（Forwarding/Bypassing）通过在 EX 阶段直接从流水线寄存器或执行结果中旁路数据到依赖指令的输入，避免了等待 WB 阶段寄存器文件写入再读取的延迟。转发路径由冒险检测单元生成控制信号（ForwardA 和 ForwardB，通常 2 位宽编码：00 表示不转发，01 表示从 EX/MEM 转发，10 表示从 MEM/WB 转发）。关键比较逻辑：将 ID/EX 寄存器中的源寄存器号（Rs1, Rs2）与 EX/MEM 和 MEM/WB 寄存器中的目标寄存器号（Rd）进行比较，且仅在 RegWrite 信号有效且 Rd 不为 X0 时使能转发。
+
+### Load-Use Hazard 与流水线互锁
+
+当 Load 指令后紧跟使用其结果的指令时，数据在 MEM 阶段结束时才从存储器读出，而依赖指令在 EX 阶段就需要数据——存在一个周期的无法转发的窗口。此时冒险检测单元必须插入一个流水线气泡（Bubble / Stall）：冻结 PC 写入（PCWrite = 0），冻结 IF/ID 寄存器（IF/IDWrite = 0），将 ID/EX 寄存器的控制信号全部清零（变成 NOP）。Load-Use Hazard 检测条件：ID/EX 的 MemRead 有效，且 ID/EX 的目标寄存器号（Rd）匹配 IF/ID 的源寄存器号（Rs1 或 Rs2）。这一流水线互锁机制使硬件在编译器无法调度的情况下自动保证正确性，代价仅为一个时钟周期的停顿。
 
 ### 控制冒险与分支处理
 
-控制冒险（Control Hazard）由分支指令和跳转指令引起。当处理器遇到条件分支时，下一条指令的地址取决于分支结果，而分支结果在 EX 阶段才能确定——这意味着如果按顺序取指，将浪费 IF 和 ID 两个阶段的指令。常见解决方案包括：流水线冲刷（Flush/Fluish）——在分支确定后 Kill 掉流水线中误取的指令；延迟分支（Delayed Branch）——编译器将独立指令填入分支延迟槽；分支预测（Branch Prediction）——在取指阶段预测分支方向。现代处理器普遍采用分支预测 + 误预测恢复（Misprediction Recovery）的方案。
+控制冒险由分支指令和跳转指令引起。当处理器遇到条件分支时，下一条指令的地址取决于分支结果，而分支结果在 EX 阶段才能确定——这意味着如果按顺序取指，IF 和 ID 阶段的指令在分支跳转时需要作废。简单处理方案是假设不跳转（Assume Not Taken）：继续顺序取指，分支确定后如果实际跳转则冲刷 IF/ID 寄存器。延迟分支方案将独立指令填入分支延迟槽，槽位中的指令无论分支跳转与否都执行。现代处理器的核心方案是分支预测——在取指阶段预测分支方向，后续指令按预测路径执行。误预测时通过清空流水线恢复。
+
+在五级流水线中，分支在 EX 阶段确定，误预测惩罚为 2 个周期（IF 和 ID 的指令作废）。在深流水线中，分支在更晚的阶段确定（如第 8-10 级），误预测惩罚可达 10-20 个周期。部分设计将分支决策提前到 ID 阶段（通过简单的比较器和零检测逻辑），将误预测惩罚降低到 1 个周期。
 
 ### 结构冒险
 
-结构冒险（Structural Hazard）指两条以上指令在同一时钟周期竞争同一硬件资源（如单端口存储器同时服务于 IF 阶段的取指和 MEM 阶段的访存）。解决方案包括：分离指令缓存和数据缓存（Harvard Architecture 的缓存层面实现）、增加资源副本（多端口寄存器文件）、以及时分复用调度。
+结构冒险指两条以上指令在同一时钟周期竞争同一硬件资源。经典五级流水线中的典型场景是单端口指令/数据存储器——IF 阶段的取指和 MEM 阶段的访存同时需要访问存储器。解决方案是采用哈佛架构在缓存层面分离指令和数据：L1 I-Cache 和 L1 D-Cache 独立提供带宽。在多发射处理器中，寄存器文件需要足够的读写端口数：例如 4 发射处理器至少需要 8 个读端口和 4 个写端口。
+
+### 流水线性能分析
+
+流水线的实际性能受多种因素影响。理想加速比等于级数 N（N 级流水线理想加速比为 N 倍），但实际加速比远低于此上限。关键限制包括：流水线寄存器开销（Clock-to-Q 延迟 + Setup 时间，当时钟周期接近寄存器开销时继续增加级数不再有效）；不平衡的阶段划分（木桶效应——最慢的阶段决定时钟频率，如果 EX 阶段比 IF 长 2 倍，即使 IF 快速完成整个流水线也无法提高频率）；以及各种冒险导致的流水线停顿。
+
+CPI（Cycles Per Instruction）是对流水线效率的直接度量。对于理想流水线 CPI = 1.0，实际 CPI 表示为：CPI = 1 + CPI_stall（加法表示每指令流水线停顿周期的期望值）。停顿来源分解：CPI_stall = CPI_load_stall（Load-Use Hazard 导致的停顿）+ CPI_branch_stall（分支误预测导致的停顿）+ CPI_cache_stall（缓存缺失导致的停顿）。对于典型的基准程序测试，Load 占比约 25%，其中约 50% 导致 Load-Use Hazard（即 12.5% 的指令触发一次 stall）；分支占比 15%，误预测率 5% 时的 2 周期惩罚 → CPI_branch_stall = 15% × 5% × 2 = 0.015。因此 CPI_stall ≈ 0.125 + 0.015 = 0.14，CPI ≈ 1.14。
+
+### 精确异常
+
+精确异常（Precise Exception）要求异常发生时的处理器状态等同于所有在异常指令之前的指令都已执行完毕，而异常指令及其之后的指令对架构可见状态没有影响。在顺序流水线中，精确异常相对容易实现——只需在异常发生时冲刷异常指令之后的所有流水线级（将它们变为 NOP），并将异常指令的 PC 保存到异常程序计数器（EPC）中。指令在 WB 阶段才被允许修改状态（寄存器文件、存储器），而在此之前各级的操作仅对流水线寄存器可见，因此异常在 MEM 或 WB 阶段检测到并延迟处理是被允许的。
 
 ## 关键要点
 
-- 流水线的加速比理论上限为流水线级数 N（N 级流水线理想加速比为 N），实际受流水线寄存器开销、冒险处理损失和不平衡的阶段划分限制
-- RAW 冒险在五级流水线中有三条转发路径：EX/MEM → EX、MEM/WB → EX，以及 Load 的 MEM/WB → EX 特殊路径
-- 冒险检测单元（Hazard Detection Unit）比较相邻指令的源寄存器（Rs1/Rs2）与目标寄存器（Rd），生成 PC 冻结（PCWrite）和流水线寄存器冻结（IF/IDWrite）信号
-- 流水线气泡（Bubble）通过插入 NOP 实现：控制信号清零，不写入寄存器文件，不改变 PC
-- Load-Use Hazard 需要插入一个周期的 stall：将 ID/EX 寄存器的控制信号清零（变成 NOP），同时冻结 PC 和 IF/ID 寄存器
-- 分支指令的误预测惩罚（Misprediction Penalty）在五级流水线中为 2 个周期（IF 和 ID 的指令作废），在深流水线中可达 15-20 周期
-- 流水线深度受限于阶段划分的平衡性：某一阶段的关键路径过长会使该阶段成为瓶颈，限制时钟频率提升
-- 超标量（Superscalar）在流水线基础上增加并行发射宽度（每周期发射多条指令），进一步利用指令级并行（ILP）
-- 与 RTL 级流水线（模块间插寄存器切断关键路径）不同，微架构级流水线涉及指令间的数据依赖管理和精确异常（Precise Exception）维护
+- 流水线加速比理论上限为流水线级数 N，实际受流水线寄存器开销、冒险处理损失和阶段不平衡限制
+- RAW 冒险在五级流水线中有三条转发路径：EX/MEM -> EX（上一指令 ALU 结果）、MEM/WB -> EX（上上指令 ALU 结果或 Load 数据），控制信号 2 位宽覆盖四种情况
+- 冒险检测单元比较源寄存器号（Rs1/Rs2）与目标寄存器号（Rd），生成 PC 冻结（PCWrite=0）和流水线寄存器冻结（IF/IDWrite=0）信号
+- Load-Use Hazard 检测条件：`ID/EX.MemRead AND (ID/EX.Rd == IF/ID.Rs1 OR ID/EX.Rd == IF/ID.Rs2)`，需要插入一个周期的 stall
+- 分支指令误预测惩罚在五级流水线中为 2 个周期，在 15 级流水线中可达 10-15 周期，直接由分支决策点与取指阶段之间的级数差决定
+- 流水线深度受限于阶段划分的平衡性：某一阶段关键路径过长会成为瓶颈——有时需要将单级拆分为两级（如 EX 拆为 EX1/EX2）
+- 超标量在流水线基础上增加每周期并行发射宽度，进一步利用 ILP，但冒险检测和转发逻辑复杂度提高 N^2 倍
+- 流水线的排空（Drain）和重新填充（Refill）在上下文切换和异常处理时引入额外开销，深流水线此场景下效率损失更大
+- 与 RTL 级流水线（模块间插寄存器切断关键路径）不同，微架构级流水线涉及指令间数据依赖管理、精确异常维护和处理器状态原子提交
 
 ## 与其他概念的关系
 
-- [[architecture/concepts/out-of-order|乱序执行（Out-of-Order Execution）]] — 乱序执行在流水线基础上通过动态调度进一步提升 ILP，其 Tomasulo 算法本质上是对流水线中 RAW 冒险的动态管理
-- [[architecture/concepts/branch-prediction|分支预测（Branch Prediction）]] — 分支预测是流水线控制冒险的高级解决方案，预测精度直接影响流水线效率
+- [[architecture/concepts/out-of-order|乱序执行（Out-of-Order Execution）]] — 乱序执行在流水线基础上通过动态调度进一步提升 ILP，Tomasulo 算法本质上是对流水线 RAW 冒险的动态化解
+- [[architecture/concepts/branch-prediction|分支预测（Branch Prediction）]] — 分支预测是流水线控制冒险的高级解决方案，预测精度直接影响流水线停滞频率
+- [[architecture/concepts/memory-hierarchy|存储层次（Memory Hierarchy）]] — Load-Use Hazard 的阻塞周期与缓存命中时间直接相关，缓存缺失会成倍延长 Load 的 MEM 阶段
 - [[concepts/cmos-fundamentals|CMOS 基础]] — 时钟频率和流水线级数的物理极限由 CMOS 工艺的晶体管开关速度和连线延迟决定
-- [[rtl-design/concepts/verilog-hdl|Verilog HDL 入门]] — RTL 编码中 always_ff 块描述的寄存器行为直接对应流水线寄存器的硬件实现
