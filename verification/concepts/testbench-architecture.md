@@ -3,178 +3,76 @@ type: concept
 aliases:
   - 验证平台架构
   - Testbench Architecture
-  - 分层验证平台
-  - Layered Testbench
+  - UVM Testbench
+  - 验证环境
 tags:
   - asic
   - verification
   - testbench
-  - architecture
   - uvm
-  - agent
-  - scoreboard
-source_spec: "IEEE 1800.2-2020 UVM LRM; Mentor/Siemens, UVM Cookbook; Synopsys, VIP Development Guide"
+source_spec: "UVM 1.2 User Guide (Accellera); Bergeron, Writing Testbenches Using SystemVerilog; Mentor UVM Cookbook"
 ---
 
 # 验证平台架构（Testbench Architecture）
 
-验证平台（Testbench）架构是功能验证基础设施的骨架，它定义了验证环境各组件之间的结构关系、通信路径和执行顺序。现代数字IC验证采用**分层验证平台（Layered Testbench）**架构，其核心理念是将不同关注点分离到不同的抽象层次：信号层（Signal Layer）处理引脚级时序，命令层（Command Layer）处理事务级交互，场景层（Scenario Layer）处理测试意图，功能层（Functional Layer）处理正确性判断。同一验证平台可以运行无数个不同的测试用例——测试用例只改变激励和配置参数，不改变验证平台结构。这一分层复用架构是 UVM 方法学的物理基础。
+验证平台（Testbench）是用硬件验证语言（Hardware Verification Language, HVL，主要是 SystemVerilog）编写的仿真环境，其目标是在不修改被测设计（Design Under Test, DUT）的前提下，通过施加受控激励、收集响应并与预期值比较来验证 DUT 的功能正确性。现代验证平台的架构遵循分层（Layered）、封装（Encapsulation）和复用（Reuse）的设计原则——通用验证方法学（Universal Verification Methodology, UVM）是 SystemVerilog 验证的事实标准框架，定义了一套完整的类库和架构模板。
 
 ## 原理
 
-### 分层架构的四个抽象层次
+### 分层验证架构
 
-| 层次 | 职责 | 典型组件 | 抽象级别 |
-|:---|:---|:---|:---|
-| **信号层（Signal Layer）** | 引脚级时序、接口协议 | Interface（`interface`/`modport`） | Cycle-Accurate |
-| **命令层（Command Layer）** | 事务级驱动与观测 | Driver, Monitor | Transaction-Level |
-| **功能层（Functional Layer）** | 正确性判断、数据检查 | Scoreboard, Checker, Coverage Collector | Spec-Level |
-| **场景层（Scenario Layer）** | 测试意图、激励编排 | Sequence, Virtual Sequence, Test | Intent-Level |
+现代验证平台采用分层架构，从底层信号级到高层场景级划分为多个抽象层：
 
-这种层次分离使得每一层都可以独立演化和复用。例如，当接口协议从 AXI3 升级到 AXI4 时，只有信号层和命令层的部分代码需要修改，功能层的 Scoreboard 和场景层的 Sequence 保持不变。
+**信号层（Signal Layer）**：虚拟接口（Virtual Interface）将 DUT 的物理引脚映射为 SystemVerilog 的接口对象——UVM 中使用 `virtual interface` 连接 Testbench 的事务级抽象和 DUT 的信号级实体。Virtual Interface 封装了所有信号的驱动和采样时序，将时钟上升沿/下降沿对齐的细节隐藏在接口内部，上层 testbench 组件通过 interface handle 访问 DUT 信号。
 
-### Agent：验证平台的基本构建块
+**命令层（Command Layer）**：Driver（驱动）将抽象的事务（Transaction）转换为引脚级的信号翻转序列。例如将"AXI Write 事务（addr=0x1000, data=0xDEADBEEF, burst=INCR4）"拆解为符合 AXI 协议时序的地址相位信号、数据相位信号和响应采样的信号级波形。Monitor（监视器）执行反向操作——将引脚级信号波形重新组装（Reassemble）为事务级对象，发送到 Scoreboard 进行比对。
 
-Agent 是分层验证平台中的标准验证组件单元，封装了与一个特定接口协议交互所需的所有组件。一个标准 UVM Agent 包含三个子组件：
+**功能层（Function Layer）**：Sequencer（序列器）负责仲裁和调度事务流向 Driver——当多个测试序列同时试图向 Driver 发送事务时，Sequencer 的仲裁算法决定优先级。Initiator/Responder（Agent 角色）——Agent 封装了 Sequencer + Driver + Monitor 的三件套（Triplet），对应 DUT 的一个接口协议（如 AXI Master Agent, AXI Slave Agent）。
 
-```systemverilog
-class my_agent extends uvm_agent;
-    my_sequencer  sqr;    // Sequence仲裁和调度
-    my_driver     drv;    // 事务→引脚信号转换
-    my_monitor    mon;    // 引脚观测→事务提取
+**场景层（Scenario Layer）**：Testcase 使用 Virtual Sequence 协调多个 Agent 的操作序列——例如"配置 DMA 引擎的源地址、目的地址和传输长度，然后启动传输，等待中断完成"需要依次操作配置总线 Agent 和中断 Agent。Virtual Sequencer 不直接连接 Driver，而是调度下层各 Agent 的具体 Sequencer。
 
-    uvm_analysis_port #(my_item) item_collected_port;  // 向Scoreboard广播
+### Agent 组件详解
 
-    function void build_phase(uvm_phase phase);
-        super.build_phase(phase);
-        mon = my_monitor::type_id::create("mon", this);
-        if (get_is_active() == UVM_ACTIVE) begin
-            sqr = my_sequencer::type_id::create("sqr", this);
-            drv = my_driver::type_id::create("drv", this);
-        end
-    endfunction
+Agent 是验证平台的基本构建单元，对应 DUT 的一个外部接口协议。每个 Agent 包含三个核心组件：
 
-    function void connect_phase(uvm_phase phase);
-        if (get_is_active() == UVM_ACTIVE)
-            drv.seq_item_port.connect(sqr.seq_item_export);
-        mon.item_collected_port.connect(item_collected_port);
-    endfunction
-endclass
-```
+**Sequencer（序列器）**：UVM 的 `uvm_sequencer` 类的实例——管理事务队列、仲裁多个 Sequence 的事务发送请求、将事务对象传递给 Driver。Sequencer 本身不产生激励——Sequence 对象（由 `uvm_sequence` 基类派生）定义事务的生成规则（随机约束、顺序、循环），运行在 Sequence 的 body() 任务中。Sequence 从 Testcase 启动（`seq.start(sequencer)`），Sequencer 将 Sequence 产生的事务逐个发送给 Driver，并在 Driver 确认消费（`item_done()`）后请求下一个。
 
-Agent 通过 `is_active`（UVM_ACTIVE 或 UVM_PASSIVE）控制内部结构。Active 模式实例化 Sequencer + Driver + Monitor，用于驱动 DUT 的输入端口；Passive 模式仅实例化 Monitor，用于观测 DUT 的输出端口。Monitor 是 Agent 中唯一的被动组件——不论 Active 还是 Passive 模式都存在。Monitor 的核心职责是观测接口信号并提取事务：
+**Driver（驱动器）**：`uvm_driver` 类——在 `run_phase` 任务中运行无限循环 `forever`：`seq_item_port.get_next_item(req)` 获取下一个事务；根据事务字段驱动 DUT 信号的时序协议；`seq_item_port.item_done()` 通知 Sequencer 事务完成。Driver 中调用的 `get_next_item` 是阻塞调用——Sequencer 没有待发事务时 Driver 阻塞等待，实现了生产者-消费者的自然流控。
 
-```systemverilog
-task my_monitor::run_phase(uvm_phase phase);
-    forever begin
-        my_item item = my_item::type_id::create("item");
-        @(posedge vif.clk);
-        if (vif.valid && vif.ready) begin
-            item.data   = vif.data;
-            item.id     = vif.id;
-            item.is_last = vif.last;
-            item_collected_port.write(item);  // Broadcast to Scoreboard
-        end
-    end
-endtask
-```
+**Monitor（监视器）**：`uvm_monitor` 类——在 `run_phase` 中持续采样 DUT 接口信号，将信号级事件转换为事务对象，通过 UVM 的 `analysis_port` 广播到订阅者（Subscriber, 如 Scoreboard 和 Coverage Collector）。Monitor 是被动组件——只采样不驱动，因此不改变 DUT 的行为。Monitor 和 Driver 共享同一个 Virtual Interface 但逻辑上完全独立。
 
-### Sequencer-Driver 握手协议
+### Scoreboard（计分板）
 
-Sequencer 和 Driver 之间的通信通过 TLM（Transaction Level Modeling）的 `seq_item_port`/`seq_item_export` 连接，遵循标准的请求-完成握手：
+Scoreboard 是从多个 Monitor 接收事务并执行端到端数据比对的核心验证检查器。Scoreboard 的典型结构为：a) 接收输入 Agent 的 Monitor 发出的参考事务（如 AXI Write 事务）并存储在期望队列（Expected Queue）中；b) 接收输出 Agent 的 Monitor 发出的实际事务（如存储器控制器的读写响应）；c) 当输出事务到达时，从期望队列中弹出对应的预期事务并逐字段比对（数据、地址、响应状态等）。Scoreboard 需要处理乱序响应（Out-of-Order Completion）——当 DUT 支持乱序处理时，输出事务可能与输入事务的顺序不同，Scoreboard 必须使用关联数组（Associative Array）或内容寻址存储器（Content-Addressable Memory, CAM）实现乱序匹配而非简单的 FIFO 弹出。
 
-1. Driver 调用 `seq_item_port.get_next_item(req)` —— 阻塞等待直到 Sequencer 有事务可提供
-2. Sequencer 从当前活跃 Sequence 获取下一个事务对象，通过 TLM 传递给 Driver
-3. Driver 将事务转换为接口引脚时序驱动（波形驱动），等待驱动完成后调用 `seq_item_port.item_done()`
-4. Sequencer 将控制权返回给 Sequence，Sequence 继续生成下一个事务
+Reference Model（参考模型）是 Scoreboard 的高阶形式——使用非可综合的高级语言（如 SystemVerilog, Python, C++）实现与 DUT 相同的功能但以更高抽象级别和更简单的算法——将输入事务输入参考模型，将参考模型的输出与 DUT 的 Monitor 输出比对。参考模型的验证质量取决于模型本身与规范的一致性——参考模型和 DUT 共享相同规范，但独立实现。
 
-```systemverilog
-task my_driver::run_phase(uvm_phase phase);
-    forever begin
-        seq_item_port.get_next_item(req);      // Step 1: request item
-        drive_transfer(req);                    // Step 3: drive to pins
-        seq_item_port.item_done();              // Step 4: signal completion
-    end
-endtask
-```
+### Environment 与 Testcase 组织
 
-这一流水线机制确保了事务级抽象（Sequence Item）和信号级实现（Driver）的完全解耦：Sequence 不感知接口协议时序，Driver 不感知测试意图。`try_next_item()` 是 `get_next_item()` 的非阻塞变体，允许 Driver 在不阻塞的情况下检查是否有待处理事务。
+**Environment（环境）**是包含所有 Agent、Scoreboard、Configuration 和 Coverage Collector 的容器——`uvm_env` 类。Environment 在 build_phase 中实例化所有子组件，在 connect_phase 中连接各 Agent 的 analysis_port 到 Scoreboard 和 Coverage Collector 的 analysis_export。
 
-### Scoreboard：功能正确性判断
+**Testcase（测试用例）**继承自 Environment 的具体测试类（`uvm_test`），在 build_phase 中：a) 通过配置数据库（`uvm_config_db`）设置 Environment 和 Agent 的参数（如 Agent 的 Active/Passive 模式——是否包含 Driver）；b) 在 run_phase 中启动顶层 Virtual Sequence（`seq.start(virtual_sequencer)`）；c) 设置仿真超时和结束条件（`raise_objection` / `drop_objection` 控制仿真何时结束）。
 
-Scoreboard 是验证平台中负责功能检查的核心组件，通常由**参考模型（Reference Model / Predictor）**和**比较器（Comparator）**两个子部件组成。
+Testcase 与 Sequence 的分离是 UVM 架构的关键设计——Testcase 决定配置和顶层激励流程；Sequence 定义具体的事务生成规则和约束。一个 Testcase 可以组合多个 Sequence 的不同实例，实现高度灵活的激励复用。
 
-参考模型以更高抽象级别实现与 DUT 等价的功能——参考模型不要求时钟精确，它可以在收到完整输入事务后立即 "计算" 出期望输出，而不模拟内部的流水线延迟。这一抽象层次差异是关键——如果参考模型与 DUT 一样逐周期精确，则参考模型本身可能包含相同的设计 Bug。
+### 回归测试（Regression）
 
-```systemverilog
-class my_scoreboard extends uvm_scoreboard;
-    uvm_analysis_imp #(my_item, my_scoreboard) input_imp;
-    uvm_analysis_imp #(my_item, my_scoreboard) output_imp;
-
-    my_item expected_queue[$];   // Predicted outputs, in order
-    my_item actual_queue[$];     // Actual DUT outputs, in order
-
-    function void write_input(my_item t);
-        my_item predicted = predict(t);   // Reference model
-        expected_queue.push_back(predicted);
-        try_compare();                    // Try matching in-order
-    endfunction
-
-    function void write_output(my_item t);
-        actual_queue.push_back(t);
-        try_compare();
-    endfunction
-endclass
-```
-
-比较器的比对策略分为两种：**顺序比对（In-Order）**——输入输出一一对应按序比较，用于简单流水线、单线程控制器；**乱序比对（Out-of-Order）**——使用关联数组 `expected_pool[id]` 按事务 ID 匹配，用于多线程、乱序返回的复杂设计（如 AXI Out-of-Order transactions）。比较维度包括精确匹配（Exact Match）、延迟容忍（Latency Tolerance）、格式容忍（Format Tolerance）和无关掩码（Don't-Care Mask）。
-
-### 虚拟接口与配置数据库
-
-虚拟接口（Virtual Interface）是 SystemVerilog 中将静态模块域的物理接口引用传递给动态类域验证组件的关键桥梁：
-
-```systemverilog
-// Top module: instantiate physical interface
-module top;
-    my_if dif(clk, rst_n);
-    dut u_dut(.clk(clk), .rst_n(rst_n), .dif(dif));
-
-    initial begin
-        uvm_config_db #(virtual my_if)::set(null, "*", "vif", dif);
-        run_test("my_test");
-    end
-endmodule
-```
-
-config_db 采用层次化通配匹配：`set()` 的第二个参数指定配置作用域，`get()` 从当前组件沿层次树向上追溯查找匹配。通配符 `*` 表示对全部组件可见，这是测试层向整个环境广播配置参数的标准方式。
-
-### 环境分层与测试分层
-
-验证环境（`uvm_env`）的嵌套集成实现验证平台的分层组装：子系统级环境包含多个 IP 级 Agent 和 Scoreboard，系统级包含子系统级环境。测试层（`uvm_test`）在环境之上专注三件事：(1) 通过 `config_db::set()` 配置环境参数；(2) 启动特定 Sequence（包括 Virtual Sequence 编排多接口协同）；(3) 通过工厂覆盖（`set_type_override()`）定制组件实现。
-
-### 回归测试基础设施
-
-回归测试（Regression）在计算集群上并行运行大量测试用例。三个关键维度：**测试用例集**（数百至数千个测试）、**随机种子**（每个测试 5-20 seeds）、**配置参数**（不同配置变体的矩阵）。
-
-回归策略分级：(1) **冒烟回归**（Smoke Regression）——核心测试 + 1-2 seeds，分钟到小时级；(2) **夜间回归**（Nightly Regression）——全部测试 + 5-10 seeds，通宵运行；(3) **完整回归**（Full Regression）——全部测试 + 全部配置组合 + 更多 seeds，周末运行，用于 Signoff 前的最终验证。
-
-回归管理工具（vManager、Verdi Regression Manager）负责作业提交、状态监控、日志自动分类（Pass/Fail）、覆盖率合并和仪表盘报告。90% 的回归失败通常来自环境问题而非设计问题——环境稳定性是回归价值的前提。
+回归测试（Regression）是验证流程的骨干——在每次 RTL 更新后自动重新运行所有测试用例，确保新代码没有破坏已有功能（Regression Bug）。回归基础设施包括：a) 测试列表（Regression List / Test Suite）——按优先级（Smoke -> Sanity -> Full Regression）组织；b) 随机种子管理——每个测试用例使用伪随机数生成器（PRNG），给定相同的种子产生完全相同的激励序列（确定性随机）；c) 覆盖率和通过率追踪——每轮回归后统计功能覆盖率和代码覆盖率的变化趋势，驱动下一轮验证的激励随机化和定向测试开发。大规模回归（数千个测试用例）通常使用计算农场（LSF, Grid Engine）并行分发执行，由回归管理框架（如 Jenkins + 自研 Regression Runner）统一调度和结果汇总。
 
 ## 关键要点
 
-- 分层架构的核心原则是关注点分离：Test 负责"测什么"（What），Sequence 负责"按什么顺序"（When），Driver 负责"怎么给信号"（How），Monitor 负责"怎么观测"（Observe），Scoreboard 负责"怎么判断对错"（Judge）
-- Agent 的 active/passive 模式使同一个代码库既能驱动输入又能监测输出——这是 VIP（Verification IP）可复用的技术基础，也是验证平台工程效率的关键
-- Sequencer-Driver 握手是验证平台的时序心跳——Driver 不应在未完成当前事务时提前获取下一个（流水线除外），否则 Scoreboard 的期望-实际匹配会因事务乱序而失败
-- Scoreboard 参考模型必须与 DUT 行为等价但不要求时钟精确——参考模型抽象层次越高开发维护成本越低，但等价性保证越弱，需在效率和准确性间平衡
-- 虚拟接口是 class-based 验证环境和 module-based DUT 世界的唯一桥梁——Interface 中不应包含过程时序逻辑（task/function 除外），保持 module/class 边界清晰
-- 验证平台本身的验证（Verification of the Verification Environment）是一个经常被忽视但至关重要的问题：伪通过（False Pass，Scoreboard 误判通过）比伪失败（False Fail，环境配置错误导致失败）更危险
-- Virtual Sequence 是多接口协同场景编排的标准手段：在 Virtual Sequence 的 `body()` 中通过 `fork-join` + `wait` 语句实现跨接口的并行激励和同步约束
-- 回归测试中环境稳定性是首要挑战——基于随机种子的测试失败必须能精准复现（保存 seed + wave dump + log），否则无法调试和修复
+- 分层验证架构（信号层 -> 命令层 -> 功能层 -> 场景层）分离关注点——每层可独立开发和调试，减少修改复杂度
+- Agent 是验证平台的基本构建单元（Sequencer + Driver + Monitor），对应 DUT 的一个外部接口协议——Agent 的可复用性直接影响验证环境的生产力
+- Virtual Sequence 协调多个 Agent 实现跨接口场景——通过 Virtual Sequencer 调度下层各 Agent 的具体 Sequencer
+- Scoreboard 使用期望队列实现端到端数据比对——乱序响应要求使用关联数组或 CAM 实现内容寻址匹配
+- UVM Factory 和 Config DB 是实现组件可配置性和可复用性的核心机制——Factory 允许类型覆盖（Override），Config DB 允许环境级参数配置
+- 回归测试是验证流程的骨干——每次 RTL 更新后自动重跑所有测试用例，随机种子确保可重现性
+- Monitor 是被动组件（不驱动 DUT），Driver 是主动组件（驱动 DUT 信号）——这一分离保证功能收集和激励驱动的独立性
+- raise_objection/drop_objection 控制仿真结束——所有 Sequence 在完成前 raise objection（阻止仿真结束），完成后 drop objection（允许仿真结束）
 
 ## 与其他概念的关系
 
-- [[verification/concepts/uvm-methodology|UVM 验证方法学（UVM）]] — UVM 是分层验证平台架构的工业标准实现框架，提供了 Agent、Scoreboard、config_db、Factory、TLM 等完整的构建块集合——Testbench Architecture 定义“结构应该怎样”，UVM 提供“结构如何实现”
-- [[verification/concepts/constrained-random|约束随机验证（CRV）]] — Sequencer-Driver-Sequence 流水线是 CRV 激励注入的执行通道，Sequence Item 的随机化决定了测试空间的覆盖范围
-- [[verification/concepts/coverage-model|覆盖率模型（Coverage Model）]] — Monitor 中采集 Covergroup 样本（观测层），Scoreboard 中检查覆盖率数据的正确性（功能层），回归报告汇总覆盖率收敛态势
-- [[verification/concepts/systemverilog-assertions|SystemVerilog 断言（SVA）]] — SVA 在 Interface（信号层）和 Checker（功能层）中运行，构成验证平台的协议合规性检查层，与 Scoreboard 的功能正确性检查形成互补
-- [[verification/concepts/formal-verification|形式验证（Formal Verification）]] — 形式验证不需要 Testbench 的激励层，但 Assumption 定义（输入约束）通常可以通过分析 Testbench Driver 的合法行为范围来推导提取
+- [[verification/concepts/uvm-methodology|UVM 方法学]] — UVM 是验证平台架构的事实标准框架，定义了 Component/Sequence/Factory/Config DB 等核心基础设施
+- [[verification/concepts/systemverilog-assertions|SystemVerilog 断言（SVA）]] — SVA 嵌入在 Testbench 的 Interface 和 Module 中作为协议检查和时序属性验证
+- [[verification/concepts/coverage-model|覆盖率模型]] — Coverage Collector 从 Monitor 接收事务并采样功能覆盖点，回归结果驱动覆盖率的收敛
+- [[verification/concepts/constrained-random|受约束随机激励]] — Sequence 的随机约束（`rand` 变量 + `constraint` 块）产生受控随机事务，是 CDV（Coverage-Driven Verification）的激励来源
