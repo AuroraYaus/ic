@@ -87,7 +87,7 @@ ic/                                          ← Obsidian Vault 根目录
 | type | 用途 | 示例 |
 |:---|:---|:---|
 | `index` | Vault 级别入口 | `数字IC_入口.md` |
-| `moc` | 领域内容地图 | `rtl-design_MOC.md` |
+| `moc` | 领域内容地图（MOC = Map of Content，Obsidian 社区术语）| `rtl-design_MOC.md` |
 | `concept` | 核心概念笔记 | 所有 `concepts/` 下的文件 |
 | `spec` | 项目规范与规则 | `CLAUDE.md` |
 
