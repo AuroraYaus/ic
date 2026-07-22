@@ -22,6 +22,8 @@ source_spec: "Wakerly, Digital Design; Cummings, SNUG 2000 FSM Coding Styles; IE
 
 ### Moore 与 Mealy 两种模型
 
+![Fsm Moore Mealy](assets/fsm-moore-mealy.svg)
+
 FSM 依据输出函数与当前状态和输入的关系，分为两种基本模型：
 
 **Moore 状态机**：输出**仅**取决于当前状态，与输入无直接关系。输出在状态转换的时钟沿之后改变——输出与状态同步变化。典型用例包括：定时器（状态对应剩余时间）、仲裁器（状态对应当前授权方）、ALU 控制（状态对应操作类型）。Moore 机的输出相对于输入存在天然的过滤效果——输入毛刺仅影响次态，不直接传播到输出，输出毛刺少、时序收敛简单。代价是可能用更多的状态来编码同一行为。

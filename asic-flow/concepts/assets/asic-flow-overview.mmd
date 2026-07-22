@@ -1,0 +1,38 @@
+%%{init: {'theme': 'default', 'themeVariables': { 'fontSize': '14px'}}}%%
+flowchart TD
+    RTL["RTL Design<br/>(Verilog/SystemVerilog)"]
+    SYN["Logic Synthesis<br/>(Design Compiler / Genus)"]
+    DFT["DFT Insertion<br/>(Scan Chain, ATPG, MBIST)"]
+    FP["Floorplan<br/>(Macro Placement, Power Grid)"]
+    PLACE["Placement<br/>(Standard Cell Placement)"]
+    CTS["Clock Tree Synthesis<br/>(H-Tree, Useful Skew)"]
+    ROUTE["Routing<br/>(Global + Detail Route)"]
+    STA["STA Signoff<br/>(PrimeTime / Tempus)"]
+    PV["Physical Verification<br/>(DRC, LVS, ERC)"]
+    POWER["Power Signoff<br/>(IR Drop, EM)"]
+    GDS["GDSII<br/>(Tape-Out)"]
+
+    RTL --> SYN
+    SYN --> DFT
+    DFT --> FP
+    FP --> PLACE
+    PLACE --> CTS
+    CTS --> ROUTE
+    ROUTE --> STA
+    ROUTE --> PV
+    ROUTE --> POWER
+    STA --> GDS
+    PV --> GDS
+    POWER --> GDS
+
+    style RTL fill:#BBDEFB,stroke:#1565C0
+    style SYN fill:#C8E6C9,stroke:#2E7D32
+    style DFT fill:#C8E6C9,stroke:#2E7D32
+    style FP fill:#FFF9C4,stroke:#F9A825
+    style PLACE fill:#FFF9C4,stroke:#F9A825
+    style CTS fill:#FFF9C4,stroke:#F9A825
+    style ROUTE fill:#FFF9C4,stroke:#F9A825
+    style STA fill:#FFCCBC,stroke:#D84315
+    style PV fill:#FFCCBC,stroke:#D84315
+    style POWER fill:#FFCCBC,stroke:#D84315
+    style GDS fill:#E1BEE7,stroke:#7B1FA2

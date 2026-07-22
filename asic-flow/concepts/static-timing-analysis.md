@@ -19,7 +19,11 @@ source_spec: "Synopsys PrimeTime User Guide, Cadence Tempus User Guide, Bhasker 
 
 ## 原理
 
+![Sta Flow](assets/sta-flow.svg)
+
 ### 建立时间与保持时间检查
+
+![Sta Setup Hold](assets/sta-setup-hold.svg)
 
 时序检查的核心是建立时间（Setup Time）和保持时间（Hold Time）验证。建立时间要求数据信号必须在时钟有效沿（Capture Edge）之前的一段最小时间内稳定——这段时间就是寄存器的建立时间要求（T_setup）。如果数据到达太晚，寄存器可能采样到错误的值或进入亚稳态。保持时间要求数据信号在时钟有效沿之后的一段最小时间内必须保持稳定——这段时间就是寄存器的保持时间要求（T_hold）。如果数据变化太早（在上一个值被可靠锁存之前就翻转），寄存器同样可能采样失败。
 

@@ -1,0 +1,40 @@
+%%{init: {'theme': 'default', 'themeVariables': { 'fontSize': '13px'}}}%%
+flowchart LR
+    subgraph TX["TX Clock Domain (clk_tx)"]
+        TX_DATA["TX Data Bus<br/>(N bits)"]
+        TX_CTRL["TX Control<br/>(valid, ...)"]
+    end
+
+    subgraph SYNC["Synchronizer Stage"]
+        SYNC0["2-FF Synchronizer<br/>(D-FF x 2)"]
+        PULSE["Pulse Stretcher<br/>(if needed)"]
+    end
+
+    subgraph RX["RX Clock Domain (clk_rx)"]
+        RX_SYNC["Synchronized Signal"]
+        RX_DATA["RX Data Bus<br/>(N bits)"]
+    end
+
+    TX_CTRL -->|"Single-bit Control"| SYNC0
+    SYNC0 -->|"MTBF >> 100 years"| RX_SYNC
+    TX_DATA -->|"Multi-bit Bus"| RX_DATA
+
+    subgraph AFIFO["Async FIFO (Multi-bit CDC)"]
+        WPTR["Write Pointer<br/>(Gray Code)"]
+        RPTR["Read Pointer<br/>(Gray Code)"]
+        SYNC_W2R["W2R Sync<br/>(2-FF x N)"]
+        SYNC_R2W["R2W Sync<br/>(2-FF x N)"]
+        MEM["Dual-Port RAM"]
+        WPTR --> SYNC_W2R --> RPTR
+        RPTR --> SYNC_R2W --> WPTR
+        MEM --- WPTR
+        MEM --- RPTR
+    end
+
+    TX_DATA --> AFIFO
+    AFIFO --> RX_DATA
+
+    style TX fill:#BBDEFB,stroke:#1565C0
+    style SYNC fill:#FFF9C4,stroke:#F9A825
+    style RX fill:#C8E6C9,stroke:#2E7D32
+    style AFIFO fill:#E1BEE7,stroke:#7B1FA2

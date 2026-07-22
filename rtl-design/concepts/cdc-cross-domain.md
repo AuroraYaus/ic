@@ -19,6 +19,8 @@ source_spec: "Cummings, SNUG 2008 CDC Design & Verification; Ginosar, Fourteen W
 
 ## 原理
 
+![Cdc Synchronizer](assets/cdc-synchronizer.svg)
+
 ### 亚稳态物理机制
 
 亚稳态是 CDC 问题的物理根源。当 D 触发器的数据输入在时钟沿的建立-保持窗口内发生变化时，采样得到的输出可能进入一个介于 0 和 1 之间的非确定电压电平（亚稳态电平）。这个电平需要一段解析时间（Resolution Time）才能最终稳定到 0 或 1 的合法逻辑电平。解析时间是一个服从指数分布的随机变量——$P(t > T) \propto e^{-T/\tau}$，其中 $\tau$ 是与触发器增益带宽积相关的时间常数（典型值数十皮秒）。增加额外的等待时间（即插入额外同步触发器级数）以指数方式降低亚稳态传播到下游逻辑的概率——两级同步器将亚稳态导致的系统故障概率降至十年一遇水平（Mean Time Between Failures, MTBF > 10 years）。

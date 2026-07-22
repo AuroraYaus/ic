@@ -19,6 +19,8 @@ source_spec: "Kleeman & Cantoni, Metastable Behavior in Digital Systems (IEEE De
 
 ## 原理
 
+![Metastability Timing](assets/metastability-timing.svg)
+
 ### 双稳态元件的亚稳态物理机制
 
 数字电路的基本存储单元基于双稳态（Bistable）电路：由两个交叉耦合反相器构成的正反馈系统。一个双稳态系统有两个稳定平衡点（分别对应逻辑 0 和逻辑 1）和一个不稳定的亚稳态平衡点（Metastable Equilibrium Point，通常位于 $V_{DD}/2$ 附近）。在亚稳态点 $V_{in} = V_{out} = V_{mid} \approx V_{DD}/2$ 处，两个反相器均处于线性增益区，正反馈净增益为零——系统无法自主驱动到稳定状态。任何微小噪声扰动最终推动输出走向 0 或 1，但这个过程可能需要任意长的时间。

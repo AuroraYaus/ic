@@ -1,0 +1,40 @@
+%%{init: {'theme': 'default', 'themeVariables': { 'fontSize': '13px'}}}%%
+stateDiagram-v2
+    [*] --> IDLE
+
+    state Moore_FSM {
+        S0 : STATE0 / out=00
+        S1 : STATE1 / out=01
+        S2 : STATE2 / out=10
+        S3 : STATE3 / out=11
+
+        S0 --> S1 : input=1
+        S0 --> S0 : input=0
+        S1 --> S2 : input=1
+        S1 --> S0 : input=0
+        S2 --> S3 : input=1
+        S2 --> S1 : input=0
+        S3 --> S0 : input=1
+        S3 --> S2 : input=0
+    }
+
+    state Mealy_FSM {
+        A : STATE_A
+        B : STATE_B
+
+        A --> B : in=1 / out=1
+        A --> A : in=0 / out=0
+        B --> A : in=0 / out=1
+        B --> B : in=1 / out=0
+    }
+
+    note right of Moore_FSM
+        Output depends on STATE only
+        always_ff for state register
+        always_comb for next_state + output
+    end note
+
+    note right of Mealy_FSM
+        Output depends on STATE + INPUT
+        Faster response to input changes
+    end note

@@ -16,6 +16,8 @@ ASIC 实现流程（Application-Specific Integrated Circuit Flow）是将 RTL �
 
 本 MOC 汇总 ASIC 实现流程的核心概念，按流程推进顺序组织：综合（Synthesis）将 RTL 转为门级网表，DFT（Design for Testability）插入测试结构，物理设计阶段包括布局布线（P&R）和时钟树综合（CTS），最后是功耗分析、物理验证和签核。每一阶段都有严格的质量关卡，前一阶段的输出是后一阶段的输入，任何环节的问题都可能导致流片失败。
 
+![Asic Flow Overview](assets/asic-flow-overview.svg)
+
 ## 核心概念索引
 
 ### 前端实现

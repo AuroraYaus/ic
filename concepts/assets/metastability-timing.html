@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>body { margin: 20px; background: #fff; }</style>
+<script src="file:///tmp/wavedrom-skin.js"></script>
+<script src="file:///tmp/wavedrom.min.js"></script>
+</head><body onload="WaveDrom.ProcessAll()">
+<script type="WaveDrom">
+{
+  "signal": [
+    {
+      "name": "clk",
+      "wave": "p......"
+    },
+    {
+      "name": "data",
+      "wave": "x3.4..",
+      "data": [
+        "Valid",
+        "Changing"
+      ]
+    },
+    {
+      "name": "dff_q",
+      "wave": "x.3mx.",
+      "data": [
+        "Metastable"
+      ]
+    },
+    {
+      "name": "sync_q",
+      "wave": "x..3.4.",
+      "data": [
+        "Resolved",
+        "Stable"
+      ]
+    }
+  ],
+  "head": {
+    "text": "Metastability \u2014 Setup/Hold Violation and 2-FF Synchronizer Recovery"
+  },
+  "foot": {
+    "text": "t=0: data changes within setup/hold window | t=1: DFF enters metastable state | t=2-3: 2nd FF resolves to valid level"
+  },
+  "config": {
+    "hscale": 2
+  }
+}
+</script>
+</body></html>

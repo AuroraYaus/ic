@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>body { margin: 20px; background: #fff; }</style>
+<script src="file:///tmp/wavedrom-skin.js"></script>
+<script src="file:///tmp/wavedrom.min.js"></script>
+</head><body onload="WaveDrom.ProcessAll()">
+<script type="WaveDrom">
+{
+  "signal": [
+    {
+      "name": "clk",
+      "wave": "p........"
+    },
+    {
+      "name": "data",
+      "wave": "x2...3x..",
+      "data": [
+        "Data Stable",
+        "Data Transition"
+      ]
+    },
+    {
+      "name": "setup",
+      "wave": "x.2......",
+      "data": [
+        "Ts_setup"
+      ]
+    },
+    {
+      "name": "hold",
+      "wave": "x..2.....",
+      "data": [
+        "Th_hold"
+      ]
+    },
+    {
+      "name": "clk_q",
+      "wave": "x....2...",
+      "data": [
+        "Tck2q"
+      ]
+    },
+    {
+      "name": "period",
+      "wave": "x2.......",
+      "data": [
+        "T_period"
+      ]
+    }
+  ],
+  "head": {
+    "text": "STA Timing Parameters \u2014 Setup Time, Hold Time, and Clock-to-Q"
+  },
+  "foot": {
+    "text": "Setup check: T_period + T_skew >= Tck2q + T_logic + Ts_setup | Hold check: Tck2q + T_logic >= Th_hold + T_skew"
+  },
+  "config": {
+    "hscale": 2
+  }
+}
+</script>
+</body></html>

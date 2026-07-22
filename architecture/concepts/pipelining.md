@@ -22,6 +22,8 @@ source_spec: "Hennessy & Patterson, Computer Architecture: A Quantitative Approa
 
 ### 经典 RISC 五级流水线
 
+![Five Stage Pipeline](assets/five-stage-pipeline.svg)
+
 经典 RISC 五级流水线将指令执行划分为五个阶段：取指（Instruction Fetch, IF）、译码（Instruction Decode, ID）、执行（Execute, EX）、访存（Memory Access, MEM）和写回（Write Back, WB）。每一个阶段由一组流水线寄存器隔开，寄存器在时钟边沿捕获上一阶段的输出作为本阶段的输入。在理想情况下，第 N 个时钟周期时，IF 处理指令 i+4，ID 处理指令 i+3，EX 处理指令 i+2，MEM 处理指令 i+1，WB 处理指令 i。CPI（Cycles Per Instruction）趋近于 1，即每个时钟周期完成一条指令。
 
 流水线寄存器是时序的关键组件：IF/ID 寄存器捕获取指结果（指令字和 PC+4），ID/EX 寄存器捕获译码结果（寄存器数据、立即数、控制信号），EX/MEM 寄存器捕获 ALU 计算结果和待存储数据，MEM/WB 寄存器捕获存储器读回的数据或 ALU 结果。每个流水线寄存器不仅传递数据，还传递控制信号——ALUOp、MemRead、MemWrite、RegWrite、MemtoReg、ALUSrc、RegDst 等信号逐级向后传播，形成控制信号的流水线传播路径。控制信号在每一阶段被局部解码和执行。

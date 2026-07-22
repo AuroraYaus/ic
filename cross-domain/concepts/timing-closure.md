@@ -21,6 +21,8 @@ source_spec: "Synopsys PrimeTime User Guide; Cadence Tempus Documentation; Bhask
 
 ## 原理
 
+![Timing Closure Flow](assets/timing-closure-flow.svg)
+
 ### 时序收敛的基本流程
 
 时序收敛并非一次性任务，而是一个跨越逻辑综合（Synthesis）、布局（Placement）、时钟树综合（Clock Tree Synthesis, CTS）和布线（Routing）的闭环迭代过程。典型流程从综合开始——综合工具在时序约束（SDC, Synopsys Design Constraints）的驱动下将 RTL 映射到标准单元网表，此时只考虑线负载模型（Wire Load Model, WLM）估算的互联延迟。进入物理设计后，布局阶段获得真实单元位置，CTS 插入时钟缓冲器以平衡时钟偏斜（Clock Skew），布线阶段确定金属层走线并提取精确的寄生参数（RC Extraction），每一个阶段都需要运行静态时序分析（Static Timing Analysis, STA），识别违例路径，根据违例的严重程度和类型决定进入下一个阶段还是回到前一个阶段修复。

@@ -1,0 +1,23 @@
+%%{init: {'theme': 'default', 'themeVariables': { 'fontSize': '14px'}}}%%
+flowchart TD
+    RTL["RTL Design<br/>(Coding + CDC + Constraints)"]
+    SYN["Logic Synthesis<br/>(SDC-driven, WLM estimate)"]
+    FP["Floorplan<br/>(Macro + I/O placement)"]
+    PLACE["Placement<br/>(Std cell + scan reorder)"]
+    CTS["Clock Tree Synthesis<br/>(Real clock latencies)"]
+    ROUTE["Routing<br/>(Real wire delays)"]
+    RC["RC Extraction<br/>(SPEF parasitics)"]
+    STA["STA Analysis<br/>(PrimeTime / Tempus)"]
+
+    STA -->|"Setup/Hold Violations?"| DECIDE{" "}
+    DECIDE -->|"Yes - ECO"| ECO["ECO Fix<br/>(Size / Buffer / Move)"]
+    ECO --> ROUTE
+    DECIDE -->|"Clean"| SIGN["Timing Signoff<br/>(MCMM + OCV/POCV/LVF)"]
+
+    RTL --> SYN --> FP --> PLACE --> CTS --> ROUTE --> RC --> STA --> DECIDE
+
+    style RTL fill:#BBDEFB,stroke:#1565C0
+    style STA fill:#FFF9C4,stroke:#F9A825
+    style ECO fill:#FFCCBC,stroke:#D84315
+    style SIGN fill:#C8E6C9,stroke:#2E7D32
+    style DECIDE fill:#E1BEE7,stroke:#7B1FA2

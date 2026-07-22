@@ -1,0 +1,49 @@
+%%{init: {'theme': 'default', 'themeVariables': { 'fontSize': '13px'}}}%%
+flowchart TD
+    subgraph IF["Instruction Fetch"]
+        PC["PC Register"]
+        IM["Instruction Memory<br/>(L1 I-Cache)"]
+        ADD4["PC + 4"]
+    end
+
+    subgraph ID["Instruction Decode"]
+        RF["Register File<br/>(Read Ports x2)"]
+        DEC["Decoder<br/>+ Control Unit"]
+        IMM["Immediate Gen"]
+    end
+
+    subgraph EX["Execute"]
+        ALU["ALU"]
+        FORWARD["Forwarding MUX<br/>(EX/MEM, MEM/WB)"]
+    end
+
+    subgraph MEM["Memory Access"]
+        DM["Data Memory<br/>(L1 D-Cache)"]
+    end
+
+    subgraph WB["Write Back"]
+        WB_MUX["Write-Back MUX<br/>(MemToReg)"]
+    end
+
+    IF_ID["IF/ID Pipeline Reg"] --> ID
+    ID_EX["ID/EX Pipeline Reg"] --> EX
+    EX_MEM["EX/MEM Pipeline Reg"] --> MEM
+    MEM_WB["MEM/WB Pipeline Reg"] --> WB
+
+    PC --> IM --> IF_ID
+    ADD4 --> PC
+    IF_ID --> RF --> ID_EX
+    DEC --> ID_EX
+    IMM --> ID_EX
+    ID_EX --> FORWARD --> ALU --> EX_MEM
+    EX_MEM --> DM --> MEM_WB
+    MEM_WB --> WB_MUX --> RF
+
+    FORWARD -.->|"ForwardA/B"| EX_MEM
+    FORWARD -.->|"ForwardA/B"| MEM_WB
+
+    style IF fill:#BBDEFB,stroke:#1565C0
+    style ID fill:#C8E6C9,stroke:#2E7D32
+    style EX fill:#FFF9C4,stroke:#F9A825
+    style MEM fill:#FFCCBC,stroke:#D84315
+    style WB fill:#E1BEE7,stroke:#7B1FA2

@@ -1,0 +1,31 @@
+%%{init: {'theme': 'default', 'themeVariables': { 'fontSize': '14px'}}}%%
+flowchart TD
+    SDC["SDC Constraints<br/>(create_clock, set_input_delay, ...)"]
+    NETLIST["Gate-Level Netlist<br/>(.v / .ddc)"]
+    SPEF["Parasitics<br/>(SPEF / DSPF)"]
+    LIB["Timing Libraries<br/>(.lib / .db)"]
+
+    EXTRACT["Timing Path Extraction<br/>(Reg-to-Reg, I/O, ...)"]
+    DELAY["Delay Calculation<br/>(Cell Delay + Wire Delay)"]
+    SETUP["Setup Check<br/>Data arrival < Clock arrival - Tsu"]
+    HOLD["Hold Check<br/>Data arrival > Clock arrival + Thd"]
+    REPORT["Violation Report<br/>(WNS, TNS, Timing Paths)"]
+    ECO["ECO Fix<br/>(Size/Buffer/Move Cells)"]
+
+    SDC --> EXTRACT
+    NETLIST --> EXTRACT
+    EXTRACT --> DELAY
+    SPEF --> DELAY
+    LIB --> DELAY
+    DELAY --> SETUP
+    DELAY --> HOLD
+    SETUP --> REPORT
+    HOLD --> REPORT
+    REPORT -->|"Violations?"| ECO
+    ECO -->|"Re-run"| DELAY
+    REPORT -->|"Clean"| PASS["Timing Signoff"]
+
+    style SDC fill:#BBDEFB,stroke:#1565C0
+    style PASS fill:#C8E6C9,stroke:#2E7D32
+    style REPORT fill:#FFF9C4,stroke:#F9A825
+    style ECO fill:#FFCCBC,stroke:#D84315
