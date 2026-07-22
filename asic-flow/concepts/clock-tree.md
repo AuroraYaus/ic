@@ -55,4 +55,4 @@ CTS 有四个按优先级排列的优化目标。第一优先级是**最小化�
 - [[asic-flow/concepts/place-and-route|布局布线（P&R）]] — CTS 位于全局布局和详细布线之间，CTS 后的时钟走线是详细布线的关键部分
 - [[asic-flow/concepts/power-analysis|功耗分析（Power Analysis）]] — 时钟门控是降低时钟树功耗的核心手段，时钟树功耗分析是签核的必要环节
 - [[asic-flow/concepts/synthesis|逻辑综合（Synthesis）]] — 综合阶段假定时钟理想抵达，CTS 后的真实时钟延迟可能导致时序重新收敛
-- [[cross-domain/timing-closure|时序收敛（Timing Closure）]] — 有用偏斜和 CCD 是跨越 CTS 与 STA 边界实现最终时序闭合的关键技术
+- [[cross-domain/concepts/timing-closure|时序收敛（Timing Closure）]] — 有用偏斜和 CCD 是跨越 CTS 与 STA 边界实现最终时序闭合的关键技术

@@ -26,10 +26,11 @@ source_spec: "Local vault index"
 
 ## 跨领域概念
 
-- [[cross-domain/timing-closure|时序收敛（Timing Closure）]] — 贯穿 RTL到Signoff 的核心闭环
-- [[cross-domain/low-power-design|低功耗设计（Low Power Design）]] — 从架构到物理实现的功耗优化
-- [[cross-domain/clock-domain-crossing|跨时钟域（Clock Domain Crossing）]] — 多时钟 SoC 的同步策略
-- [[cross-domain/reset-methodology|复位策略（Reset Methodology）]] — 复位方案的选择与实现
+- [[cross-domain/cross-domain_MOC|跨领域 MOC]] — 贯穿全流程的系统性工程问题总览
+- [[cross-domain/concepts/timing-closure|时序收敛（Timing Closure）]] — 贯穿 RTL到Signoff 的核心闭环
+- [[cross-domain/concepts/low-power-design|低功耗设计（Low Power Design）]] — 从架构到物理实现的功耗优化
+- [[cross-domain/concepts/clock-domain-crossing|跨时钟域（Clock Domain Crossing）]] — 多时钟 SoC 的同步策略
+- [[cross-domain/concepts/reset-methodology|复位策略（Reset Methodology）]] — 复位方案的选择与实现
 
 ## 基础概念
 

@@ -68,5 +68,5 @@ CDC 验证工具（SpyGlass CDC、Questa CDC）通过静态分析检测以下类
 
 - [[concepts/metastability|亚稳态（Metastability）]] — 亚稳态是 CDC 问题的物理根源，MTBF 量化了同步器可靠性的概率模型
 - [[rtl-design/concepts/sequential-logic|时序逻辑]] — 同步器的行为基于 D-FF 的建立/保持时间窗口和亚稳态解析时间，与触发器结构和工艺直接相关
-- [[cross-domain/clock-domain-crossing|跨时钟域（CDC）]] — 跨域概念整合了 CDC 在 SoC 全芯片层面的策略：时钟域划分、同步点选择和验证流程
-- [[cross-domain/reset-methodology|复位策略]] — 复位同步器是 CDC 中的一个特殊子集，复位释放的跨域同步影响整个芯片的上电序列
+- [[cross-domain/concepts/clock-domain-crossing|跨时钟域（CDC）]] — 跨域概念整合了 CDC 在 SoC 全芯片层面的策略：时钟域划分、同步点选择和验证流程
+- [[cross-domain/concepts/reset-methodology|复位策略]] — 复位同步器是 CDC 中的一个特殊子集，复位释放的跨域同步影响整个芯片的上电序列

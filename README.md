@@ -1,3 +1,15 @@
+---
+type: spec
+aliases:
+  - README
+  - 项目总览
+tags:
+  - asic
+  - readme
+  - overview
+source_spec: "Local vault documentation"
+---
+
 # 数字IC知识库 — Vault 总览
 
 > 数字集成电路（Digital IC）设计全栈知识库，覆盖从 RTL 编码到 GDSII 签核的完整 ASIC 流程。
@@ -63,10 +75,12 @@ ic/                                          ← Obsidian Vault 根目录
 │       └── physical-verification.md         物理验证：DRC、LVS、ERC、Antenna、DFM
 │
 └── cross-domain/                            ← 跨领域交叉概念
-    ├── timing-closure.md                    时序收敛：RTL→Signoff 迭代闭环、OCV→LVF 演进
-    ├── low-power-design.md                  低功耗设计：UPF、Power Domain、Multi-Vth、AVS
-    ├── clock-domain-crossing.md             跨时钟域（CDC）全貌：MTBF、同步器、CDC 验证
-    └── reset-methodology.md                  复位策略：同步 vs 异步复位、Reset Tree、复位域
+    ├── cross-domain_MOC.md                  领域入口：跨领域系统性工程问题总览
+    └── concepts/
+        ├── timing-closure.md                时序收敛：RTL→Signoff 迭代闭环、OCV→LVF 演进
+        ├── low-power-design.md              低功耗设计：UPF、Power Domain、Multi-Vth、AVS
+        ├── clock-domain-crossing.md         跨时钟域（CDC）全貌：MTBF、同步器、CDC 验证
+        └── reset-methodology.md              复位策略：同步 vs 异步复位、Reset Tree、复位域
 ```
 
 ## 文件统计
@@ -79,8 +93,8 @@ ic/                                          ← Obsidian Vault 根目录
 | 功能验证 | 1 MOC + 6 概念 |
 | 体系结构 | 1 MOC + 7 概念 |
 | ASIC 流程 | 1 MOC + 8 概念 |
-| 跨领域 | 4 |
-| **合计** | **45 文件** |
+| 跨领域 | 1 MOC + 4 概念 |
+| **合计** | **46 文件** |
 
 ## 元数据类型
 

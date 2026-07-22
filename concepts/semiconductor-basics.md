@@ -70,5 +70,5 @@ PVT 变异是数字 IC 设计必须面对的物理现实：Process（晶圆间/�
 
 - [[concepts/cmos-fundamentals|CMOS 基础]] — MOSFET 在数字电路中的应用：CMOS 反相器、NAND/NOR 门、静态/动态功耗的物理起源
 - [[concepts/metastability|亚稳态（Metastability）]] — 亚稳态解析时间常数 $\tau$ 取决于晶体管 $g_m$ 和节点电容，器件物理在数字可靠性中的直接体现
-- [[cross-domain/low-power-design|低功耗设计]] — 亚阈值漏电、Multi-Vth 和漏电-速度权衡的器件物理基础
-- [[cross-domain/timing-closure|时序收敛]] — PVT 变异和工艺角的物理来源决定 STA 必须在多个 Corner 下进行分析
+- [[cross-domain/concepts/low-power-design|低功耗设计]] — 亚阈值漏电、Multi-Vth 和漏电-速度权衡的器件物理基础
+- [[cross-domain/concepts/timing-closure|时序收敛]] — PVT 变异和工艺角的物理来源决定 STA 必须在多个 Corner 下进行分析

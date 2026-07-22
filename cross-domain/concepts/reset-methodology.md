@@ -70,8 +70,8 @@ source_spec: "Cummings, 'Asynchronous & Synchronous Reset Design Techniques', SN
 
 ## 与其他概念的关系
 
-- [[cross-domain/clock-domain-crossing|跨时钟域（CDC）]] — 复位同步器与信号 CDC 同步器原理对偶；复位域跨越是 CDC 的特殊子问题
+- [[cross-domain/concepts/clock-domain-crossing|跨时钟域（CDC）]] — 复位同步器与信号 CDC 同步器原理对偶；复位域跨越是 CDC 的特殊子问题
 - [[concepts/metastability|亚稳态（Metastability）]] — 异步复位释放时恢复/移除时序违规导致亚稳态——复位同步器通过同一同步原理解决
 - [[asic-flow/concepts/dft|可测试性设计（DFT）]] — DFT 模式对复位信号的独立控制和同步器旁路是扫描测试的关键需求
-- [[cross-domain/low-power-design|低功耗设计（Low-Power Design）]] — UPF 电源意图中复位与隔离协同定义关电域行为；POR 序列与多电压域的驱动顺序深度耦合
+- [[cross-domain/concepts/low-power-design|低功耗设计（Low-Power Design）]] — UPF 电源意图中复位与隔离协同定义关电域行为；POR 序列与多电压域的驱动顺序深度耦合
 - [[asic-flow/concepts/static-timing-analysis|静态时序分析（STA）]] — 复位路径的恢复/移除时序检查是 STA Signoff 的必要部分

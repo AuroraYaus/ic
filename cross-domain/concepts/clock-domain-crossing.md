@@ -72,6 +72,6 @@ CDC 工具通常生成 waiver 机制——设计者通过手动验证确认某�
 ## 与其他概念的关系
 
 - [[concepts/metastability|亚稳态（Metastability）]] — CDC 的物理根源，亚稳态的 MTBF 公式和解析时间理论是同步器设计的基础
-- [[cross-domain/reset-methodology|复位方法学（Reset Methodology）]] — 复位域跨越是 CDC 的特殊子问题，复位同步器遵循与 CDC 同步器相同的设计原则
+- [[cross-domain/concepts/reset-methodology|复位方法学（Reset Methodology）]] — 复位域跨越是 CDC 的特殊子问题，复位同步器遵循与 CDC 同步器相同的设计原则
 - [[rtl-design/concepts/cdc-cross-domain|RTL CDC 跨时钟域设计]] — RTL 编码层面的 CDC 实施指南，涵盖同步器实例化、FIFO 封装、lint 规则等
 - [[asic-flow/concepts/static-timing-analysis|静态时序分析（STA）]] — CDC 同步器的时序例外（False Path / set_max_delay / set_min_delay）在 STA 中需要特殊的 SDC 约束

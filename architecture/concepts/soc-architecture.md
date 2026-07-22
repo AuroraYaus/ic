@@ -70,4 +70,4 @@ PPA 预算分配遵循"自顶向下"方法论：首先确定总功耗封套（�
 - [[architecture/concepts/on-chip-bus|片上总线（On-Chip Bus）]] — 互连拓扑和协议选择是 SoC 架构的核心决策，AXI/CHI/NoC 各适用于不同规模系统
 - [[architecture/concepts/cache-coherence|缓存一致性（Cache Coherence）]] — CXL 和 CHI 的一致性模式将 I/O 设备和加速器纳入与 CPU 相同的一致性域
 - [[architecture/concepts/memory-hierarchy|存储层次（Memory Hierarchy）]] — SoC 片内 SRAM、多级缓存到片外 DRAM/HBM 的层次划分是 PPA 优化的核心
-- [[cross-domain/low-power-design|低功耗设计（Low-Power Design）]] — 电压域划分、DVFS、电源门控和时钟门控是低功耗方法学的典型应用
+- [[cross-domain/concepts/low-power-design|低功耗设计（Low-Power Design）]] — 电压域划分、DVFS、电源门控和时钟门控是低功耗方法学的典型应用

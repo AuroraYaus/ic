@@ -39,8 +39,8 @@ ASIC 实现流程（Application-Specific Integrated Circuit Flow）是将 RTL �
 
 - [[rtl-design/rtl-design_MOC|RTL 设计（RTL Design）]] — RTL 代码是综合的输入，编码风格直接影响实现质量
 - [[verification/verification_MOC|功能验证（Verification）]] — 验证确保 RTL 功能正确，是流片前的最后防线
-- [[cross-domain/timing-closure|跨领域 — 时序收敛（Timing Closure）]] — 从综合到签核的跨阶段时序优化方法论
-- [[cross-domain/low-power-design|跨领域 — 低功耗设计（Low Power Design）]] — UPF/CPF 驱动的跨流程低功耗技术
+- [[cross-domain/concepts/timing-closure|跨领域 — 时序收敛（Timing Closure）]] — 从综合到签核的跨阶段时序优化方法论
+- [[cross-domain/concepts/low-power-design|跨领域 — 低功耗设计（Low Power Design）]] — UPF/CPF 驱动的跨流程低功耗技术
 
 ## 推荐阅读顺序
 

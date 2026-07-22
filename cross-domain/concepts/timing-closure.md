@@ -89,7 +89,7 @@ STA 中时序路径按起点终点分为四类：Input-to-Register（in2reg，�
 - [[asic-flow/concepts/place-and-route|布局布线（P&R）]] — 宏单元和标准单元的物理位置决定了关键路径的线长和延迟上限
 - [[asic-flow/concepts/clock-tree|时钟树综合（CTS）]] — CTS 直接决定时钟偏斜和不确定性，是 Setup/Hold 违例分析的核心变量
 - [[asic-flow/concepts/signoff|物理签核（Signoff）]] — Timing Signoff 是 Tape-Out 前的最终 STA 检查，包括 Setup、Hold、DRV、Noise 等多维度验证
-- [[cross-domain/low-power-design|低功耗设计]] — 多电压域设计引入 Level Shifter 和多个电压轨，增加了 MCMM 场景数量和时序收敛复杂度
+- [[cross-domain/concepts/low-power-design|低功耗设计]] — 多电压域设计引入 Level Shifter 和多个电压轨，增加了 MCMM 场景数量和时序收敛复杂度
 - [[concepts/semiconductor-basics|半导体基础]] — PVT 变异的物理根源：掺杂浓度偏差、氧化层厚度波动、温度对载流子迁移率的影响
 
 ### 时序Signoff与签核流程

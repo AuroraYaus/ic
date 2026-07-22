@@ -79,4 +79,4 @@ ATPG 覆盖率（Test Coverage）是衡量 DFT 质量的核心指标，定义为
 - [[asic-flow/concepts/clock-tree|时钟树综合（CTS）]] — 扫描模式下时钟树必须满足严格的偏斜要求，否则 at-speed 测试的大量同时翻转会导致 IR 压降失效
 - [[asic-flow/concepts/signoff|签核（Signoff）]] — DFT 覆盖率签核（如 98% SAF + 85% TDF）是流片前的硬性指标，测试向量也需要签核级验证
 - [[asic-flow/concepts/power-analysis|功耗分析（Power Analysis）]] — 扫描移位期间的功耗远高于功能模式，需要专门的测试功耗分析和降低策略
-- [[cross-domain/low-power-design|跨领域 — 低功耗设计]] — 电源门控模块在测试模式下需要特殊处理，保持寄存器和隔离单元影响 DFT 策略
+- [[cross-domain/concepts/low-power-design|跨领域 — 低功耗设计]] — 电源门控模块在测试模式下需要特殊处理，保持寄存器和隔离单元影响 DFT 策略

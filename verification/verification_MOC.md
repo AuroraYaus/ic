@@ -57,10 +57,10 @@ source_spec: "IEEE 1800-2023, IEEE 1800.2-2020, Accellera UVM 1.2"
 
 验证工具和方法论横跨多个领域，以下交叉概念在验证实践中经常被引用：
 
-- [[cross-domain/clock-domain-crossing|跨时钟域（CDC）]] — CDC 验证是形式验证的杀手级应用场景。需要结合 SVA 断言描述跨域协议（如格雷码 FIFO 的指针同步约束），并使用形式工具（JasperGold CDC、Questa CDC）自动检查亚稳态同步结构的正确性。
-- [[cross-domain/timing-closure|时序收敛（Timing Closure）]] — 验证环境（前仿/RTL 仿真）不应依赖具体时序延迟——功能正确性必须在零延迟假设下成立。后仿（Gate-Level Simulation with SDF）中的时序违例需要与 STA（静态时序分析，Static Timing Analysis）结果交叉验证以区分真正的功能 Bug 和时序模型不准确。
-- [[cross-domain/low-power-design|低功耗设计验证]] — UPF/CPF 驱动的功耗状态机（Power State Table）验证需要特殊的仿真序列（Power-Up/Down Sequence）和断言来检查电源域切换的正确性、隔离单元（Isolation Cell）的行为、状态保持寄存器（Retention Register）的保存/恢复。
-- [[cross-domain/reset-methodology|复位策略验证]] — 复位（Reset）是验证中最易遗漏的场景之一。复位序列的正确释放时序、复位域交叉（异步复位跨时钟域）、部分复位的局部复位策略，都需要专门的断言和覆盖率检查。形式验证的 X-Propagation 分析可自动检测复位后未初始化的寄存器。
+- [[cross-domain/concepts/clock-domain-crossing|跨时钟域（CDC）]] — CDC 验证是形式验证的杀手级应用场景。需要结合 SVA 断言描述跨域协议（如格雷码 FIFO 的指针同步约束），并使用形式工具（JasperGold CDC、Questa CDC）自动检查亚稳态同步结构的正确性。
+- [[cross-domain/concepts/timing-closure|时序收敛（Timing Closure）]] — 验证环境（前仿/RTL 仿真）不应依赖具体时序延迟——功能正确性必须在零延迟假设下成立。后仿（Gate-Level Simulation with SDF）中的时序违例需要与 STA（静态时序分析，Static Timing Analysis）结果交叉验证以区分真正的功能 Bug 和时序模型不准确。
+- [[cross-domain/concepts/low-power-design|低功耗设计验证]] — UPF/CPF 驱动的功耗状态机（Power State Table）验证需要特殊的仿真序列（Power-Up/Down Sequence）和断言来检查电源域切换的正确性、隔离单元（Isolation Cell）的行为、状态保持寄存器（Retention Register）的保存/恢复。
+- [[cross-domain/concepts/reset-methodology|复位策略验证]] — 复位（Reset）是验证中最易遗漏的场景之一。复位序列的正确释放时序、复位域交叉（异步复位跨时钟域）、部分复位的局部复位策略，都需要专门的断言和覆盖率检查。形式验证的 X-Propagation 分析可自动检测复位后未初始化的寄存器。
 
 ## 基础知识
 

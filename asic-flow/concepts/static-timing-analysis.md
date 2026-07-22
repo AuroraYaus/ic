@@ -79,4 +79,4 @@ STA 工具默认将所有与同一时钟相关的 reg2reg 路径归类为一个�
 - [[asic-flow/concepts/clock-tree|时钟树综合（CTS）]] — CTS 引入真实的时钟延迟和偏斜，STA 使用反标的时钟树延迟替代综合阶段的理想时钟模型
 - [[asic-flow/concepts/signoff|签核（Signoff）]] — STA 是时序签核的核心，从 OCV 到 AOCV 到 POCV 到 LVF 的演进是签核精度持续提升的体现
 - [[asic-flow/concepts/place-and-route|布局布线（P&R）]] — P&R 中的时钟树实现和互连延迟直接影响 STA 结果，ECO 以 STA 违例为驱动
-- [[cross-domain/timing-closure|时序收敛（Timing Closure）]] — 从综合到签核的跨阶段时序优化方法论，STA 是度量时序收敛的唯一标准
+- [[cross-domain/concepts/timing-closure|时序收敛（Timing Closure）]] — 从综合到签核的跨阶段时序优化方法论，STA 是度量时序收敛的唯一标准

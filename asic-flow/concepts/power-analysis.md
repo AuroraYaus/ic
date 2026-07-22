@@ -58,4 +58,4 @@ source_spec: "Rabaey, Digital Integrated Circuits Ch.5; Synopsys PrimePower User
 - [[asic-flow/concepts/clock-tree|时钟树综合（CTS）]] — 时钟树活动因子 $\alpha = 1$，时钟树功耗占芯片动态功耗 30%-40%，时钟门控是降低时钟树功耗的核心手段
 - [[asic-flow/concepts/synthesis|逻辑综合（Synthesis）]] — 综合阶段执行时钟门控插入（ICG 推断）和多 Vth 优化，RTL 编码风格直接影响门控使能信号的生成质量
 - [[asic-flow/concepts/signoff|签核（Signoff）]] — 功耗签核（Power Signoff）是 Signoff 的必要环节，使用反标寄生参数的门级动态功耗仿真
-- [[cross-domain/low-power-design|低功耗设计（Low Power Design）]] — UPF 电源意图的完整描述贯穿综合、P&R 和 Signoff 全流程
+- [[cross-domain/concepts/low-power-design|低功耗设计（Low Power Design）]] — UPF 电源意图的完整描述贯穿综合、P&R 和 Signoff 全流程

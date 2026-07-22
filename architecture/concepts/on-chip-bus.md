@@ -71,4 +71,4 @@ AXI Interconnect（也称 AXI Fabric）是连接多个主从设备的核心基�
 - [[architecture/concepts/cache-coherence|缓存一致性（Cache Coherence）]] — 目录式协议的四类消息通过 CHI Request/Response/Snoop/Data 通道承载，CHI 序列化点对应归属节点目录查找
 - [[architecture/concepts/memory-hierarchy|存储层次（Memory Hierarchy）]] — 缓存缺失产生的访存请求通过 AXI/CHI 逐级传递至 DRAM 控制器，总线延迟直接贡献 miss_penalty
 - [[architecture/concepts/soc-architecture|SoC 架构（SoC Architecture）]] — 互连拓扑和协议选择是 SoC 架构设计的核心决策，直接影响带宽分配和 IP 集成方案
-- [[cross-domain/clock-domain-crossing|跨时钟域（CDC）]] — NoC 中不同电压/频率域之间的路由器链路需要异步 FIFO 桥接
+- [[cross-domain/concepts/clock-domain-crossing|跨时钟域（CDC）]] — NoC 中不同电压/频率域之间的路由器链路需要异步 FIFO 桥接

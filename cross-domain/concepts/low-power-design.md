@@ -83,8 +83,8 @@ RTL 编码风格对功耗的影响是第一位且最持久的。关键规范：�
 
 - [[concepts/cmos-fundamentals|CMOS 基础]] — Vth、漏电机制（亚阈值/栅隧穿/结漏电）和电压-频率关系的物理基础
 - [[concepts/semiconductor-basics|半导体基础]] — 掺杂浓度和沟道长度对 Vth 的影响，PVT 变异对功耗特征的作用
-- [[cross-domain/timing-closure|时序收敛]] — 多电压域引入多 Corner/Mode 场景，Level Shifter 和 Isolation Cell 增加时序路径复杂度
-- [[cross-domain/clock-domain-crossing|跨时钟域设计]] — DVFS 产生多时钟域，CDC 和低功耗设计在多频场景下高度耦合
+- [[cross-domain/concepts/timing-closure|时序收敛]] — 多电压域引入多 Corner/Mode 场景，Level Shifter 和 Isolation Cell 增加时序路径复杂度
+- [[cross-domain/concepts/clock-domain-crossing|跨时钟域设计]] — DVFS 产生多时钟域，CDC 和低功耗设计在多频场景下高度耦合
 - [[asic-flow/concepts/power-analysis|功耗分析（Power Analysis）]] — RTL 级（无矢量/有矢量）和门级功耗分析的方法论，Signoff 功耗验证
 - [[asic-flow/concepts/power-analysis|功耗分析（Power Analysis）]] — PDN 设计、IR-drop 分析与低功耗策略（尤其是电源门控）的物理实现耦合
 

@@ -40,7 +40,7 @@ source_spec: "IEEE 1364, IEEE 1800, Weste & Harris CMOS VLSI Design"
 
 - [[verification/verification_MOC|功能验证（Verification）]] — UVM、SVA、覆盖率驱动的验证方法论
 - [[asic-flow/asic-flow_MOC|ASIC 实现流程（ASIC Flow）]] — 综合、STA、DFT、布局布线、Signoff
-- [[cross-domain/clock-domain-crossing|跨领域 — 时钟域交叉（CDC）]] — 跨领域的 CDC 理论与实践
+- [[cross-domain/concepts/clock-domain-crossing|跨领域 — 时钟域交叉（CDC）]] — 跨领域的 CDC 理论与实践
 
 ## 推荐阅读顺序
 

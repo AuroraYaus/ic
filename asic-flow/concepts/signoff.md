@@ -65,4 +65,4 @@ IR 压降（IR Drop）是供电网络（Power Delivery Network, PDN）中由于�
 - [[asic-flow/concepts/physical-verification|物理验证（Physical Verification）]] — DRC/LVS 是 Signoff 中的强制物理验证项，使用 Calibre/IC Validator 等专用签核工具
 - [[asic-flow/concepts/power-analysis|功耗分析（Power Analysis）]] — 功耗签核（IR Drop + EM + Total Power）与功耗分析共用数据集但使用签核级精度引擎
 - [[verification/concepts/formal-verification|形式验证（Formal Verification）]] — LEC 等价性检查是形式验证在 ASIC 流程中的关键应用，是签核的必选项
-- [[cross-domain/timing-closure|时序收敛（Timing Closure）]] — Signoff 是时序收敛的最终裁判——Signoff 通过即完成 Timing Closure
+- [[cross-domain/concepts/timing-closure|时序收敛（Timing Closure）]] — Signoff 是时序收敛的最终裁判——Signoff 通过即完成 Timing Closure

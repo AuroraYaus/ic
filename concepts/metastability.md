@@ -55,7 +55,7 @@ $$MTBF = \frac{e^{t_{res}/\tau}}{f_{clk} \cdot f_{data} \cdot T_0}$$
 
 ## 与其他概念的关系
 
-- [[cross-domain/clock-domain-crossing|跨时钟域设计（CDC）]] — CDC 全部同步器方案（2-FF、Gray FIFO、Handshake）以亚稳态理论和 MTBF 公式为物理基础
-- [[cross-domain/reset-methodology|复位策略（Reset Methodology）]] — 异步复位释放触发的亚稳态是复位同步器设计的根本动因
+- [[cross-domain/concepts/clock-domain-crossing|跨时钟域设计（CDC）]] — CDC 全部同步器方案（2-FF、Gray FIFO、Handshake）以亚稳态理论和 MTBF 公式为物理基础
+- [[cross-domain/concepts/reset-methodology|复位策略（Reset Methodology）]] — 异步复位释放触发的亚稳态是复位同步器设计的根本动因
 - [[concepts/cmos-fundamentals|CMOS 基础]] — 双稳态电路的晶体管级实现（交叉耦合反相器）和再生过程的 $g_m/C$ 小信号模型
 - [[concepts/semiconductor-basics|半导体基础]] — $\tau$ 的物理来源：晶体管跨导（载流子迁移率）和节点电容的工艺依赖性
