@@ -47,6 +47,16 @@ L1 缓存面临 TLB 访问延迟与缓存访问时间的关键权衡。PIPT（Ph
 
 硬件预取器监测访存模式，在程序显式请求前主动将数据加载到缓存中掩盖内存延迟。顺序预取器（Next-Line）对顺序访问有效但浪费带宽于随机访问。步幅预取器（Stride Prefetcher）跟踪每个 PC 的连续两次缺失地址差（步幅）。更高级的方案包括 GHB（Global History Buffer）、SMS（Spatial Memory Streaming）、BOP（Best Offset Prefetching）。预取的三个关键控制参数：预取距离（提前多少步）、预取度（每次触发预取几条行）、预取节流（防止过激预取污染缓存）。现代预取器采用"预取共享"模式以避免不必要地拉取 Exclusive 状态触发的无效化广播。
 
+### 内存层次性能建模
+
+存储层次的性能可以用 AMAT 递归建模。对于 N 级存储层次：AMAT = hit_time_L1 + miss_rate_L1 × (hit_time_L2 + miss_rate_L2 × (hit_time_L3 + miss_rate_L3 × miss_penalty_DRAM))。各级缺失率通常是上一级的局部缺失率（Local Miss Rate），而非全局缺失率。缺失惩罚是递进累积的——L1 缺失的惩罚 = L2 命中时间 + L2 缺失率 × L2 缺失惩罚，依此类推。现代 SoC 中，L1 缺失率约 1-3%（32KB 8 路），L2 缺失率约 10-20%（256KB 8 路），L3/SLC 缺失率约 30-50%（4MB 16 路）。
+
+带宽利用率是另一个关键指标。实际有效带宽 = 峰值带宽 × 利用率。典型利用率受限于 DRAM 的 tFAW（Four Activate Window, 限制 bank 激活速率）、tRFC（Refresh Cycle Time）和各种时序参数导致的"气泡"。DDR5 峰值带宽 51.2 GB/s（单通道 64-bit @ 6400 MT/s），但在随机访问模式下有效带宽可能仅 20-30 GB/s（利用率 40-60%）。HBM 通过宽的 1024-bit 接口和更高的 bank 并行度实现更高的利用率。
+
+### 工作集与缓存容量规划
+
+工作集（Working Set）是程序在时间窗口 Δt 内访问的地址集合。当工作集 <= 缓存容量时，程序经历的主要是强制缺失；当工作集超过缓存容量时，容量缺失率急剧上升——这对应 AMAT 曲线的"拐点"（Knee Point）。拐点之后，每增加一倍缓存容量带来的缺失率改善递减。经典的缓存设计经验法则：缓存容量每翻一倍，缺失率减少一半（平方根规则, Square-Root Rule of Thumb）。但这只在工作集小于缓存容量前成立——一旦容量覆盖了工作集的主要部分，进一步增加容量的改善微乎其微。理解目标负载的工作集大小是缓存容量规划的核心。
+
 ## 关键要点
 
 - AMAT = hit_time + miss_rate * miss_penalty，三级缓存需逐级累加

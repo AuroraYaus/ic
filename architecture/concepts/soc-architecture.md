@@ -44,6 +44,16 @@ I/O 一致性通过 IOMMU/SMMU 将 DMA 设备和加速器纳入一致性域—�
 
 SoC 安全架构包含硬件可信根（Root of Trust）、安全启动（Secure Boot）、可信执行环境（TEE，如 ARM TrustZone、RISC-V PMP/IOPMP）、内存加密、侧信道防护。安全启动链验证从 BootROM 到 OS 的每一级签名完整性。TrustZone 通过 NS 位在 AXI 总线上标记事务安全属性划分安全/非安全世界。抗 DPA（Differential Power Analysis）和故障注入（Fault Injection）已成为车规和航空 SoC 的必选防护。
 
+### SoC 设计流程与 PPA 优化
+
+SoC 架构阶段的 PPA 规划是决定最终产品质量的最关键环节。性能（Performance）以目标工作频率、每周期指令数（IPC）和系统带宽来度量；功耗（Power）需区分动态功耗（开关活跃度 × 电容 × 电压² × 频率）和静态泄露功耗，后者在先进工艺节点（如 5nm/3nm）中迅速逼近动态功耗的 20-30%；面积（Area）直接决定制造成本（每个晶圆可容纳的芯片数随芯片面积增加而超线性下降）。PPA 三元约束之间是经典的"只能同时优化两个"的不可能三角——追求极致性能需要大面积和高功耗；追求极致能效（如 IoT SoC）需牺牲峰值性能换取面积和功耗预算。
+
+PPA 预算分配遵循"自顶向下"方法论：首先确定总功耗封套（如移动 SoC 约 3-5W TDP，数据中心 SoC 约 150-300W）和面积目标（由成本模型和目标工艺节点决定）；然后将预算分配到子系统的"料单"（Bill of Materials）：CPU 簇分配约 20-30% 面积和功耗、GPU 分配 25-40%、NPU 分配 10-20%、其他分配在多媒体引擎、IO 和互连上。这个分配需要基于目标负载的特征分析——例如，智能手机 SoC 的 GPU 面积占比逐年增加（从 15% 到 30-40%），因为移动游戏和 AI 推理对 GPU 和 NPU 的需求持续增长。
+
+### 车规与功能安全 SoC 的特殊需求
+
+车规 SoC（如自动驾驶 SoC）引入了功能安全（Functional Safety, FuSa）需求，遵循 ISO 26262 标准。ASIL（Automotive Safety Integrity Level）从 A（最低）到 D（最高，如自动驾驶决策）定义不同安全等级。ASIL-D SoC 需要在硬件层面实现：锁步冗余（Dual-Core Lockstep, DCLS）——两个相同的核心运行相同指令并逐周期比较结果，检测瞬时故障（Soft Error）；ECC/Parity 保护所有关键 SRAM（缓存标签、TLB、BTB）；安全岛（Safety Island）——独立的 ASIL-D 安全控制器，在系统出现故障时接管控制进入安全状态；以及故障注入测试（Fault Injection）以验证安全机制的有效性。这些需求使车规 SoC 的面积和功耗相比同性能的消费级 SoC 增加 30-60%。
+
 ## 关键要点
 
 - 异构多核是 SoC 主流范式——不同处理器针对不同负载优化，Flynn 分类法为并行模型提供理论框架

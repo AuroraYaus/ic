@@ -3,54 +3,59 @@ type: concept
 aliases:
   - Power Analysis
   - 功耗分析
+  - Low Power Design
 tags:
   - asic
   - asic-flow
   - power
-source_spec: "Rabaey Digital Integrated Circuits Ch.5, Keating Low Power Methodology Manual (LPMM), Synopsys PrimePower/PTPX User Guide, IEEE 1801 UPF Standard"
+  - low-power
+source_spec: "Rabaey, Digital Integrated Circuits Ch.5; Synopsys PrimePower User Guide; Cadence Voltus User Guide; IEEE 1801 UPF Standard"
 ---
 
 # 功耗分析（Power Analysis）
 
-功耗分析（Power Analysis）贯穿 ASIC 设计全流程——从 RTL 级功耗估算到 Signoff 级精确功耗签核——其目标是在设计的每个阶段准确评估并优化芯片的能量消耗。功耗已成为先进工艺节点下与性能同等重要的第一级设计约束。
+功耗分析（Power Analysis）贯穿 ASIC 设计全流程——从 RTL 级功耗估算（Early Power Estimation）到 Signoff 级精确功耗签核（Power Signoff）——其目标是在设计的每个阶段准确评估并优化芯片的能量消耗。功耗已成为先进工艺节点下与性能同等重要的第一级设计约束：FinFET 工艺中漏电功耗（Leakage Power）占比随阈值电压降低呈指数增长，7nm 以下工艺中静态功耗可达总功耗的 30%-50%。功耗分析的准确性直接影响芯片热设计（Thermal Design Power, TDP）、封装选型和供电网络（Power Delivery Network, PDN）设计。
 
 ## 原理
 
 ### 动态功耗分解
 
-动态功耗（Dynamic Power）由两部分组成。**开关功耗（Switching Power）**是负载电容充放电所消耗的能量：$P_{switch} = \frac{1}{2} \alpha C_L V^2 f$，其中 $\alpha$ 为活动因子（每周期平均翻转概率），$C_L$ 为负载电容，$V$ 为电源电压，$f$ 为时钟频率。电压项呈平方关系——将电压从 1.0V 降至 0.9V 即可减少约 19% 的开关功耗，这是架构层面最有效的功耗杠杆。**内部功耗（Internal Power / Cell Internal Power）**是标准单元内部在输入跳变时从电源到地的短暂直流通路（Short-Circuit / Crowbar Current）以及内部节点充放电所消耗的能量，在 .lib 中建模为每次翻转的能量乘以翻转率。内部功耗依赖于输入过渡时间（Slew）和输出负载——过渡时间越长，PMOS 和 NMOS 同时导通的时间窗口越大。
+动态功耗（Dynamic Power）由两部分组成。**开关功耗（Switching Power）**是负载电容充放电所消耗的能量：$P_{switch} = \frac{1}{2} \alpha C_L V^2 f$，其中 $\alpha$ 为活动因子（每周期平均翻转概率，典型数据信号 $\alpha \approx 0.1-0.2$），$C_L$ 为负载电容（包括门输出电容和互连线电容），$V$ 为电源电压，$f$ 为时钟频率。电压项呈平方关系——将 VDD 从 1.0V 降至 0.9V 可减少约 19% 的开关功耗，这是架构层面最有效的功耗杠杆。
 
-动态功耗分析需要活动因子数据，可通过仿真波形（VCD: Value Change Dump，记录真实仿真中每个信号的翻转事件，最精确）或 SAIF（Switching Activity Interchange Format，紧凑的翻转统计）反标获得。RTL 级早期估算使用 PowerArtist/PTPX 进行快速功率预算——基于平均活动因子，误差约 20-30% 但速度极快。
+**内部功耗（Internal Power / Cell Internal Power）**是标准单元内部在输入跳变时从电源到地的短暂直流通路（Short-Circuit / Crowbar Current, PMOS 和 NMOS 同时导通形成的 VDD-GND 直通路径）以及内部节点充放电所消耗的能量。在 .lib 工艺库中，内部功耗建模为每次翻转的能量，依赖于输入过渡时间（Input Slew）和输出负载电容——输入过渡时间越长，PMOS 和 NMOS 同时导通的时间窗口越大，短路电流积分越大。功耗分析精度高度依赖于活动因子数据的准确性，可通过 VCD（Value Change Dump, 仿真波形记录每次信号翻转）或 SAIF（Switching Activity Interchange Format, 紧凑的翻转统计）反标获得。
 
-### 静态/漏电功耗
+### 静态功耗与漏电
 
-静态功耗（Static Power / Leakage Power）是电路在无信号跳变时消耗的能量，在先进工艺（28nm 及以下）中已与动态功耗量级相当。三个主要漏电机制为：**亚阈值漏电（Subthreshold Leakage）**——$V_{GS} < V_{th}$ 时仍有微弱源漏电流，随 $V_{th}$ 降低呈指数增长，是先进工艺中最大的漏电来源；**栅极漏电（Gate Leakage）**——电荷隧穿薄栅氧层，在 <45nm 节点显著，通过高 K 金属栅极（HKMG）技术缓解；**结漏电（Junction Leakage）**——源漏与衬底间反向偏置 PN 结产生，通常 <1% 总量。漏电高度依赖温度和工艺角——温度每升高 25 度可翻倍，FF 角 +125 度结温下可达标称值的 5-10 倍。
+静态功耗（Static Power / Leakage Power）是电路在无信号翻转状态下消耗的功耗，在先进工艺中占比越来越高。**亚阈值漏电（Subthreshold Leakage）**是最主要的漏电来源——当 $V_{GS} < V_{th}$ 时晶体管并未完全关断，仍有指数衰减的扩散电流流过沟道，$I_{sub} \propto e^{-V_{th} / nV_T}$，随温度升高呈指数增长。**栅极隧穿漏电（Gate Tunneling Leakage）**——栅氧化层极薄（<2nm）时载流子通过量子隧穿效应穿透栅介质，高 K 金属栅（HKMG）工艺通过物理增厚栅介质可将其降低多个数量级。**结漏电（Junction Leakage）**——反偏 PN 结的漂移-扩散电流和带间隧穿，在高温下显著增加。
 
-### 低功耗技术
+### 低功耗技术体系
 
-**时钟门控（Clock Gating）**是降低动态功耗的最有效片上技术。与门时钟门控（AND-Based）简单但使能信号可能与时钟沿竞争产生毛刺；集成时钟门控单元（ICG-Based）使用锁存器+与门——锁存器在时钟低电平时捕捉使能信号，上升沿后锁存关闭，使能与门输出的时钟沿干净无毛刺——ICG 是标准做法，EDA 工具可自动插入。时钟门控可节省 20-40% 的动态功耗。
+**时钟门控（Clock Gating）**：阻止时钟信号在寄存器不需要更新时翻转，是降低动态功耗最有效且最广泛使用的技术。AND 门控（简单与非门截断时钟）可能引入毛刺；插入式时钟门控单元（Integrated Clock Gating Cell, ICG）内部含锁存器以避免使能信号的毛刺传播到门控时钟输出，提供干净的时钟门控信号。综合工具可自动插入 RTL 级和模块级时钟门控，节省 20%-40% 动态功耗。
 
-**电源门控（Power Gating）**通过关断整个模块的电源网络将漏电降至接近零，由 IEEE 1801 UPF 标准定义三大辅助单元：电源开关（Power Switch）——大尺寸 PMOS/NMOS 作为电源轨开关，分 header 型（VDD 侧）和 footer 型（VSS 侧）；隔离单元（Isolation Cell）——关断域的浮空输出可在常开域造成短路电流，隔离单元钳位输出到确定电平；保持寄存器（Retention Register / SRPG Cell）——关断前保存关键状态到常开供电的保持锁存器，上电后恢复。
+**电源门控（Power Gating）**：使用高阈值电压的电源开关晶体管（Header Switch 在 VDD 侧或 Footer Switch 在 VSS 侧）在模块空闲时完全切断其供电路径，消除亚阈值漏电。UPF（Unified Power Format, IEEE 1801）定义电源域（Power Domain）的电源开关、隔离单元（Isolation Cell, 断电域输出需钳位到已知逻辑值防止不定态传播）、状态保持寄存器（Retention Register, 断电前保存状态、上电后恢复）的插入规则。上电唤醒时的浪涌电流（Inrush Current）控制是电源门控的关键时序挑战。
 
-**多阈值电压（Multi-Vth）**策略：LVT（低 Vth，高速高漏电）用于关键路径，SVT（标准 Vth，平衡）用于常规路径，HVT（高 Vth，低速低漏电）用于非关键路径——典型设计中 HVT 占比 70-80%。**动态电压频率调节（DVFS）**在运行时根据负载动态调整电压和频率（$f_{max} \propto V_{DD}$），需要电平移位器（Level Shifter）处理跨电压域信号。自适应电压调节（AVS）使用工艺监控器 + 温度传感器闭环最小化电压余量。
+**多阈值电压优化（Multi-Vth Optimization）**：工艺库提供多种 Vth 版本的标准单元——低 Vth 单元速度快但漏电大，高 Vth 单元漏电小但速度慢。综合和 P&R 工具自动在非关键路径使用高 Vth 单元，在关键路径使用低 Vth 单元，实现时序和功耗的联合优化——这是面积中性的优化方法。
 
-### 功耗分析流程与精度
+**动态电压频率调节（DVFS）**：根据工作负载动态调整电源电压和时钟频率——轻负载时降低电压和频率以减少功耗，通过 $P \propto V^2 f$ 同时利用电压平方和频率线性的节能效果。自适应电压调节（Adaptive Voltage Scaling, AVS）利用片上工艺监测器（Process Monitor）实时感知芯片工艺偏差并调整电压，比开环 DVFS 更精确。
 
-功耗分析从 RTL 到 Signoff 精度递增：RTL 级（PTPX/PowerArtist 基于平均活动因子的早期功率预算，误差 20-30%）、门级反标 VCD（带寄生参数的精确开关+漏电功耗分析，误差 <10%）、Signoff 级（PrimePower/Voltus 全角全模精确签核，误差 <5%）。IR 压降分析需要基于 VCD 反标翻转数据和提取的电源网格寄生参数进行瞬态仿真（RedHawk、Voltus），目标静态 IR < 2-3%、动态 IR < 5-8% 的 $V_{DD}$。
+### 功耗估算流程
+
+功耗估算精度随设计阶段递进提升。RTL 级：使用综合工具的快速功耗估算，基于活动因子传播和库的统计功耗模型，误差 20%-40%，用于早期架构决策。门级网表级：布局前的精确门级功耗分析，使用 .lib 库的详细功耗表查表法，误差 10%-15%。布局后：反标寄生参数（SPEF, Standard Parasitic Exchange Format）的精确互连线电容，误差 5%-10%。Signoff 级：完整的门级动态功耗仿真（使用 VCD/SAIF 驱动，对每个门查表计算每次翻转的能量并积分），工具如 PrimePower, Voltus。
 
 ## 关键要点
 
-- 开关功耗 $P_{switch} = \frac{1}{2} \alpha C_L V^2 f$，电压项平方关系——降低电压是最有效的架构级功耗控制手段
-- 亚阈值漏电是先进工艺静态功耗最大来源，栅极漏电通过 HKMG 缓解，结漏电占比最小
-- 时钟门控（ICG，非 AND）是降低动态功耗的最有效技术——时钟 $\alpha=1$ 功耗占比极高
-- 电源门控通过关断电源网络将漏电降至零，需要 UPF 定义的 Power Switch、Isolation Cell、Retention Register
-- Multi-Vth 混合使用（LVT 关键路径 / HVT 非关键路径，HVT 占比 70-80%）是速度-漏电平衡的核心手段
-- DVFS + AVS 在运行时调节电压和频率，需要 Level Shifter 处理跨电压域信号
-- 功耗估计从 RTL 到 Signoff 精度递增：RTL 级（误差 20-30%）-> 门级 VCD 反标（<10%）-> Signoff 级全角全模（<5%）
+- 动态功耗 $P_{switch} = \frac{1}{2} \alpha C_L V^2 f$——电压平方关系使降压成为最有效的节电手段，频率线性关系使降频也有直接收益
+- 时钟门控（Clock Gating）是实现成本最低、效果最显著的动态功耗优化——ICG 单元优于简单 AND 门控，综合工具可自动插入
+- 电源门控（Power Gating, UPF）消除待机漏电，但需要隔离单元和保持寄存器，引入唤醒延迟和浪涌电流控制问题
+- 多 Vth 优化在非关键路径使用高 Vth 低漏电单元、关键路径使用低 Vth 高速单元——是面积中性的优化
+- 亚阈值漏电随 Vth 降低呈指数增长——FinFET/GAA 栅控将亚阈值斜率从 ~100mV/dec 降至 ~65mV/dec，大幅抑制短沟道漏电
+- VCD 提供逐周期精确翻转信息但文件巨大（GB 级），SAIF 提供统计汇总但丢失时序相关性——精度与文件大小存在本质权衡
+- DVFS 和 AVS 是系统级功耗管理策略，DVFS 依赖软件预测负载，AVS 依赖硬件工艺监测器反馈闭环调压
+- 功率密度（W/mm²）决定局部热点（Hotspot）——高功率密度区域需要局部散热设计和温度感知的 IR 分析
 
 ## 与其他概念的关系
 
-- [[asic-flow/concepts/clock-tree|时钟树综合（CTS）]] — 时钟树功耗占芯片动态功耗的 30-40%，时钟门控是降低时钟功耗的核心手段
-- [[asic-flow/concepts/synthesis|逻辑综合（Synthesis）]] — 综合工具自动插入 ICG 并执行 Multi-Vth 单元替换，是功耗优化的第一战场
-- [[asic-flow/concepts/signoff|签核（Signoff）]] — IR Drop 签核和功耗签核是流片前的关键步骤
-- [[cross-domain/low-power-design|低功耗设计]] — IEEE 1801 UPF 标准定义了跨流程的低功耗意图描述，从 RTL 到 Signoff 统一表达
+- [[asic-flow/concepts/clock-tree|时钟树综合（CTS）]] — 时钟树活动因子 $\alpha = 1$，时钟树功耗占芯片动态功耗 30%-40%，时钟门控是降低时钟树功耗的核心手段
+- [[asic-flow/concepts/synthesis|逻辑综合（Synthesis）]] — 综合阶段执行时钟门控插入（ICG 推断）和多 Vth 优化，RTL 编码风格直接影响门控使能信号的生成质量
+- [[asic-flow/concepts/signoff|签核（Signoff）]] — 功耗签核（Power Signoff）是 Signoff 的必要环节，使用反标寄生参数的门级动态功耗仿真
+- [[cross-domain/low-power-design|低功耗设计（Low Power Design）]] — UPF 电源意图的完整描述贯穿综合、P&R 和 Signoff 全流程
