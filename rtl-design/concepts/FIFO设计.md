@@ -210,3 +210,4 @@ assign rd_data = mem[rd_ptr[$clog2(DEPTH)-1:0]];
 - [[rtl-design/concepts/跨时钟域设计|跨时钟域设计（CDC）]] — 异步 FIFO 中的格雷码指针同步、2-FF 同步器和亚稳态处理
 - [[rtl-design/concepts/SystemVerilog|SystemVerilog]] — SV 的 interface、parameter、enum 等特性简化了复杂 FIFO 控制器的设计和验证
 - [[rtl-design/concepts/流水线设计|流水线设计（Pipelining）]] — FIFO 是流水线级间缓冲的标准实现方式，FWFT 模式实现了零周期穿透延迟
+- [[concepts/亚稳态|亚稳态（Metastability）]] — 异步 FIFO 的指针同步（格雷码+2-FF）依赖亚稳态理论和 MTBF 公式保证可靠性——格雷码的单比特翻转特性将多比特同步降级为单比特亚稳态问题

@@ -93,6 +93,8 @@ end
 
 **4. 复位策略：同步 vs 异步，及各自的综合行为**
 
+复位策略（同步/异步选择、异步断言+同步释放模式、复位同步器、复位树分布、多时钟域复位排序）的完整方法论参见 [[cross-domain/concepts/复位策略|复位策略（Reset Methodology）]]。本节仅展示两种复位模式在 `always_ff` 中的 RTL 编码模板及综合差异。
+
 ```systemverilog
 // ===== 同步复位（Synchronous Reset）=====
 // 复位信号作为 D 输入端的 MUX 选择条件，不在灵敏度列表中
