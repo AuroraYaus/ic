@@ -53,3 +53,14 @@ ASIC 实现流程（Application-Specific Integrated Circuit Flow）是将 RTL �
 4. 进入物理设计阶段：[[asic-flow/concepts/布局布线|布局布线]] → [[asic-flow/concepts/时钟树综合|时钟树综合]]
 5. 分析功耗与签核：[[asic-flow/concepts/功耗分析|功耗分析]] → [[asic-flow/concepts/签核|签核]]
 6. 进行最终的物理验证：[[asic-flow/concepts/物理验证|物理验证]]
+
+## 高频查询（易忘知识点排名）
+
+| 排名 | 概念 | 查询次数 | 最后查询 |
+|:---|:---|:---|:---|
+| 1 | [[asic-flow/concepts/静态时序分析\|静态时序分析（STA / Critical Path / Skew & Jitter / Multi-Cycle / False Path / Fmax / Clock Uncertainty / OCV / Max Transition / Setup & Hold Check）]] | 12 | 2026-07-23 |
+| 2 | [[asic-flow/concepts/逻辑综合\|逻辑综合（面积速度权衡 / 资源共享 / Retiming / 综合流程）]] | 3 | 2026-07-23 |
+| 3 | [[asic-flow/concepts/布局布线\|布局布线（Floorplan / Placement / CTS / Routing / 时序影响）]] | 2 | 2026-07-23 |
+| 4 | [[asic-flow/concepts/时钟树综合\|时钟树综合（CTS / Skew vs Latency / CTS前vs后时序差异）]] | 1 | 2026-07-23 |
+| 4 | [[asic-flow/concepts/时钟树综合\|时钟树综合（CTS）]] | 1 | 2026-07-23 |
+| 5 | [[asic-flow/concepts/功耗分析\|功耗分析（Power Analysis）]] | 1 | 2026-07-23 |

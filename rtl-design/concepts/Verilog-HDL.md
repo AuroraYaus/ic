@@ -13,6 +13,7 @@ tags:
   - hdl
   - ieee
 source_spec: "IEEE 1364-2001 / 1364-2005, Verilog HDL Language Reference Manual; Palnitkar, Verilog HDL: A Guide to Digital Design and Synthesis"
+queries: 2
 ---
 # Verilog HDL
 
@@ -27,6 +28,19 @@ Verilog 的基本设计单元是模块（Module），通过端口（Port）与�
 ### 赋值语义与综合
 
 Verilog 中最关键的编码差异是阻塞赋值（`=`, Blocking Assignment）与非阻塞赋值（`<=`, Non-Blocking Assignment）的选择。阻塞赋值在仿真时按顺序立即执行，后续语句必须等待当前赋值完成；非阻塞赋值在仿真时先计算右侧表达式（RHS），在 always 块所有语句的 RHS 计算完成后，统一在时间步末尾更新左侧（LHS）。这一差异直接决定了综合结果：**组合逻辑 always 块使用阻塞赋值**（`always @(*)`），**时序逻辑 always 块使用非阻塞赋值**（`always @(posedge clk)`）。混合使用两种赋值在同一个 always 块中是 RTL 编码的大忌，会同时导致仿真与综合语义不一致（Simulation-Synthesis Mismatch），且综合工具通常会报错。阻塞赋值在时序 always 块中会导致意外的串行化，而非阻塞赋值在组合 always 块中可能导致灵敏度列表不完备时产生锁存器推断。
+
+**仿真调度队列与 NBA Region**：IEEE 1364 / IEEE 1800 标准定义了分层事件队列（Stratified Event Queue），每个仿真时间步划分为多个调度区域（Region）：
+
+| Region | 名称 | 执行内容 |
+|:---|:---|:---|
+| Active | 激活区 | 阻塞赋值 `=`、`$display`、连续赋值 `assign` 的 RHS 计算 |
+| Inactive | 非激活区 | `#0` 零延迟事件 |
+| **NBA** | **非阻塞更新区** | **`<=` 的左侧（LHS）更新——RHS 已在 Active 区计算完毕** |
+| Observed | 观测区 | 并发断言求值 |
+| Re-Active | 反应区 | program 块代码执行 |
+| Postponed | 推迟区 | `$strobe`、`$monitor` 打印 |
+
+非阻塞赋值（`<=`）的两阶段执行机制是 Verilog 仿真语义的基石：**Active 区**计算所有 `<=` 右侧表达式并暂存，**NBA 区**将所有暂存结果统一更新到左侧。这精确建模了物理 D 触发器的行为——所有触发器在时钟沿同时采样数据输入端，并统一更新输出。如果用时序 always 块中用 `=`（阻塞赋值），当前语句之后的所有读操作将读到"刚写入的新值"而非"当前周期保持的旧值"——仿真波形与硬件行为脱节，综合工具可能合并寄存器。
 
 ### 仿真与综合语义差异
 
@@ -45,57 +59,126 @@ Verilog 中最关键的编码差异是阻塞赋值（`=`, Blocking Assignment）
 **编码示例**——可综合参数化同步 FIFO 的部分关键逻辑：
 
 ```systemverilog
-// 参数化同步 FIFO 的读写指针与空满判断（可综合）
+// ============================================================
+// 参数化同步 FIFO（Synchronous FIFO）—— 可综合 RTL 实现
+// ============================================================
+// 功能：带空满标志的同步 FIFO，读写共用同一时钟
+//
+// ===== 模块端口声明 =====
+// #(parameter ...) ：Verilog-2001 ANSI 风格参数声明
+//   DEPTH = 16 —— FIFO 深度（存储条目数），默认 16
+//   WIDTH = 8  —— 数据位宽（每条目比特数），默认 8
+// input  logic ：输入端口，logic 类型（SystemVerilog 统一 wire/reg）
+// output logic ：输出端口，logic 类型
+// [WIDTH-1:0]  ：位宽声明——WIDTH 位向量，最高位 WIDTH-1，最低位 0
+//
 module sync_fifo #(
-    parameter DEPTH = 16,
-    parameter WIDTH = 8
+    parameter DEPTH = 16,                         // FIFO 深度（可被实例化时覆盖）
+    parameter WIDTH = 8                           // 数据位宽（可被实例化时覆盖）
 ) (
-    input  logic             clk, rst_n,
-    input  logic             wr_en, rd_en,
-    input  logic [WIDTH-1:0] wr_data,
-    output logic [WIDTH-1:0] rd_data,
-    output logic             empty, full
+    input  logic             clk,                 // 时钟（上升沿有效）
+    input  logic             rst_n,               // 复位（低电平有效，_n 后缀约定）
+    input  logic             wr_en,               // 写使能（1=写入有效）
+    input  logic             rd_en,               // 读使能（1=读出有效）
+    input  logic [WIDTH-1:0] wr_data,             // 写入数据（WIDTH 位宽）
+    output logic [WIDTH-1:0] rd_data,             // 读出数据（WIDTH 位宽）
+    output logic             empty,               // 空标志（1=FIFO 为空，不可读）
+    output logic             full                 // 满标志（1=FIFO 为满，不可写）
 );
+    // ===== 内部信号声明 =====
+    // mem 二维数组：存储器阵列——WIDTH 位宽，DEPTH 个条目
+    // 语法：logic [W-1:0] mem_name [0:DEPTH-1]; —— unpacked 维度在后
     logic [WIDTH-1:0] mem [0:DEPTH-1];
-    logic [$clog2(DEPTH):0] wr_ptr, rd_ptr;  // 额外 1 位区分空/满
 
+    // $clog2()：系统函数，返回以 2 为底的对数向上取整（Ceiling Log Base 2）
+    //   $clog2(16) = 4 —— 需要 4 位二进制编码 0-15
+    //   wr_ptr/rd_ptr 位宽为 $clog2(DEPTH)+1 即 5 位，多出的最高位（MSB）
+    //   用于区分 FIFO 是"空"还是"满"——当低 4 位相等时：
+    //     MSB 相同 → 读写指针完全一致 → 空
+    //     MSB 不同 → 写指针比读指针多绕一整圈 → 满
+    logic [$clog2(DEPTH):0] wr_ptr, rd_ptr;
+
+    // ===== 进程：时序逻辑 —— 读写指针与数据存储器更新 =====
+    //
+    // always_ff：SystemVerilog 专用的时序逻辑块
+    //   - 强制敏感列表仅含边沿事件（posedge/negedge），不能出现电平敏感信号
+    //   - 综合工具会验证输出确实映射到触发器，否则报错
+    //
+    // @(posedge clk or negedge rst_n)：异步复位 + 时钟上升沿触发的敏感列表
+    //   - posedge clk    → 时钟上升沿：每个上升沿触发一次 always_ff 执行
+    //   - or negedge rst_n → 异步复位下降沿：rst_n 下降沿立即复位（不等时钟）
+    //   - 这种写法综合为带异步复位引脚的 D 触发器（D-FF with async reset）
+    //
+    // <= ：非阻塞赋值（Non-Blocking Assignment）
+    //   - 所有 <= 语句在当前时间步结束时统一更新左侧变量
+    //   - 时序逻辑 always_ff 中必须使用 <=，确保所有触发器同时更新
+    //   - 错误混用 =（阻塞赋值）会导致综合前后仿真不一致
     always_ff @(posedge clk or negedge rst_n) begin
+        // rst_n=0 时：异步复位，所有寄存器清零
+        // '0 ：全零填充（自动匹配左侧位宽——wr_ptr 为 5 位 '0 = 5'b00000）
         if (!rst_n) begin
-            wr_ptr <= '0;
-            rd_ptr <= '0;
+            wr_ptr <= '0;                          // 写指针复位为 0
+            rd_ptr <= '0;                          // 读指针复位为 0
         end else begin
+            // ===== 写操作 =====
+            // wr_en && !full：写使能有效 且 FIFO 未满时执行写操作
+            //   - wr_en=1：外部请求写入
+            //   - !full=1：FIFO 未满，有空间接收数据
+            // wr_ptr[$clog2(DEPTH)-1:0]：取指针的低 $clog2(16)=4 位
+            //   作为 SRAM 地址索引——高 1 位（MSB）仅用于空满判断
             if (wr_en && !full) begin
-                mem[wr_ptr[$clog2(DEPTH)-1:0]] <= wr_data;
-                wr_ptr <= wr_ptr + 1'b1;
+                mem[wr_ptr[$clog2(DEPTH)-1:0]] <= wr_data;  // 写入数据到存储器
+                wr_ptr <= wr_ptr + 1'b1;                     // 写指针自增（自动循环——溢出回绕）
             end
+            // ===== 读操作 =====
+            // rd_en && !empty：读使能有效 且 FIFO 非空时执行读操作
             if (rd_en && !empty) begin
-                rd_data <= mem[rd_ptr[$clog2(DEPTH)-1:0]];
-                rd_ptr <= rd_ptr + 1'b1;
+                rd_data <= mem[rd_ptr[$clog2(DEPTH)-1:0]];   // 从存储器读出数据
+                rd_ptr <= rd_ptr + 1'b1;                      // 读指针自增（自动循环）
             end
         end
     end
+
+    // ===== 组合逻辑：空满标志生成 =====
+    //
+    // assign：连续赋值语句（Continuous Assignment）
+    //   - 右侧表达式任何信号变化时，立即重新计算并更新左侧
+    //   - 等价于组合逻辑——无存储状态
+    //   - 被综合为与门、或门等组合逻辑门
+    //
+    // empty：读写指针完全相等 → FIFO 为空
+    //   写指针追上读指针 = 全部被读出
     assign empty = (wr_ptr == rd_ptr);
+
+    // full：写指针比读指针多绕一整圈
+    //   判断条件分两部分：
+    //   1. 低 $clog2(16)=4 位相等（读写地址相同）
+    //   2. 最高位（MSB）不相等（写指针多绕一圈，MSB 取反）
+    //   两者同时成立 → FIFO 写满 DEPTH 个条目后追上读指针
     assign full  = (wr_ptr[$clog2(DEPTH)-1:0] == rd_ptr[$clog2(DEPTH)-1:0])
                  && (wr_ptr[$clog2(DEPTH)] != rd_ptr[$clog2(DEPTH)]);
+    //   ^                             ^
+    //   低地址位相等                   最高位（圈数标记）不相等
+    //   （读到写的位置）               （写比读多绕了一圈）
 endmodule
 ```
 
 ## 关键要点
 
-- Verilog 的 wire/reg 类型命名具有误导性：reg 可能综合为组合逻辑输出，关键在于 always 块的敏感性列表和赋值方式，而非类型名称
-- 阻塞赋值（`=`）用于组合 always 块，非阻塞赋值（`<=`）用于时序 always 块；同一 always 块中混用两者是 RTL 严重设计错误，导致仿真-综合不匹配
-- `always @(*)` 自动推断组合逻辑的完整灵敏度列表（Verilog-2001 新增），优于手动书写 `always @(a or b or c)` 的易错写法
-- 不完备的 if/case（缺少 else/default）在组合 always 块中会导致锁存器（Latch）推断，锁存器对 FPGA/ASIC 设计的时序分析和 DFT 都是有害的
-- generate 语句（generate-for、generate-if、generate-case）是可综合的硬件生成语法，用于参数化地创建重复电路结构，但不能在 generate 体内使用不可综合语句
-- `define 是预处理宏（文本替换，作用域为整个编译单元），parameter 是模块级编译时常量（局部作用域，可被实例化参数重载 override）
-- 仿真语义是事件驱动的（Event-Driven），所有 always 块在仿真引擎的调度下"伪并行"执行，综合语义则是真实的物理并行
-- 复位信号在 Verilog 中通常编写在 always 块的 if 语句中优先判断，异步复位写在灵敏度列表中，同步复位写在 posedge clk 之后的第一个 if 中
-- Verilog-2001 引入了 ANSI C 风格的端口声明（模块名后跟 `(input clk, input rst_n, output reg [7:0] data)` ），比旧版的端口列表 + 方向声明两步式风格更为简洁
-- `signed` 关键字在 Verilog 中需谨慎使用：wire/reg 默认无符号，算术运算在有/无符号混合时规则复杂，建议始终显式声明 `$signed()` 或使用 `signed` 类型
-- `if-else` 综合为优先级 MUX 链（延迟 $\mathcal{O}(N)$），`case` 综合为并行 MUX 树（延迟 $\mathcal{O}(\log N)$）——对于互斥条件应使用 `case` 显式告知综合工具消除虚假优先级
-- 二维数组在 always_ff 中被推断为同步 SRAM 宏单元或触发器阵列，取决于 DEPTH 和 WIDTH 的阈值——综合工具的 `syn_ramstyle` 属性可显式控制映射选择
-- 模块实例化的 `defparam` 方式已被 IEEE 1800 弃用——应使用命名参数关联（`#(.PARAM(value))`），可读性更好且支持参数重载检查
-- Verilog 的 `tri` 类型（等同于 `wire`）用于标识多驱动信号——综合工具在顶层 I/O 端口上使用 `tri` 声明三态总线，内部逻辑禁止多驱动
+- **wire/reg 命名具有误导性**：reg 可能综合为组合逻辑输出，关键在于 always 块的敏感性列表和赋值方式，而非类型名称
+- **阻塞/非阻塞赋值不可混用**：阻塞赋值（`=`）用于组合 always 块，非阻塞赋值（`<=`）用于时序 always 块；同一 always 块中混用两者是 RTL 严重设计错误，导致仿真-综合不匹配
+- **`always @(*)` 自动推断灵敏度**：自动推断组合逻辑的完整灵敏度列表（Verilog-2001 新增），优于手动书写 `always @(a or b or c)` 的易错写法
+- **不完备条件导致锁存器推断**：不完备的 if/case（缺少 else/default）在组合 always 块中会导致锁存器（Latch）推断，锁存器对 FPGA/ASIC 设计的时序分析和 DFT 都是有害的
+- **generate 语句可综合硬件生成**：generate-for、generate-if、generate-case 用于参数化地创建重复电路结构，但不能在 generate 体内使用不可综合语句
+- **`define 宏与 parameter 核心区别**：`define 是预处理宏（文本替换，作用域为整个编译单元），parameter 是模块级编译时常量（局部作用域，可被实例化参数重载 override）
+- **仿真与综合语义本质不同**：仿真语义是事件驱动的，所有 always 块在仿真引擎的调度下"伪并行"执行，综合语义则是真实的物理并行
+- **复位信号优先判断规则**：复位信号在 Verilog 中通常编写在 always 块的 if 语句中优先判断，异步复位写在灵敏度列表中，同步复位写在 posedge clk 之后的第一个 if 中
+- **ANSI C 风格端口声明更简洁**：Verilog-2001 引入了 ANSI C 风格的端口声明，比旧版的端口列表 + 方向声明两步式风格更为简洁
+- **signed 关键字需谨慎使用**：wire/reg 默认无符号，算术运算在有/无符号混合时规则复杂，建议始终显式声明 `$signed()` 或使用 `signed` 类型
+- **if-else 优先级链 vs case 并行树**：`if-else` 综合为优先级 MUX 链（延迟 $\mathcal{O}(N)$），`case` 综合为并行 MUX 树（延迟 $\mathcal{O}(\log N)$），互斥条件应使用 `case` 显式消除虚假优先级
+- **二维数组推断 SRAM 宏单元**：在 always_ff 中被推断为同步 SRAM 宏单元或触发器阵列，取决于 DEPTH 和 WIDTH 的阈值，`syn_ramstyle` 属性可显式控制映射选择
+- **defparam 已弃用应使用命名参数**：模块实例化应使用命名参数关联（`#(.PARAM(value))`），可读性更好且支持参数重载检查
+- **tri 类型标识多驱动信号**：Verilog 的 `tri` 类型（等同于 `wire`）用于标识多驱动信号，综合工具在顶层 I/O 端口上使用 `tri` 声明三态总线，内部逻辑禁止多驱动
 
 ## 与其他概念的关系
 

@@ -1,3 +1,7 @@
 {
-  "theme": "moonstone"
+  "theme": "system",
+  "enabledCssSnippets": [
+    "wide-page"
+  ],
+  "nativeMenus": false
 }

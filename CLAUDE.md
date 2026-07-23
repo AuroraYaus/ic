@@ -37,6 +37,56 @@ source_spec: "Local project instructions — inherited from obsidian vault rules
 - 脚本标注：```tcl / ```python / ```shell
 - 代码块上方必须有简短注释说明用途
 
+#### 3.1 知识库代码可读性（新手友好）
+
+**本项目是知识库，不是工程手册——代码块必须能让初学者独立理解每一行。**
+
+- **逐行解释**：任何代码块（SystemVerilog / Verilog / TCL / Python / Shell / Perl / C / Makefile 等）中的关键关键字、运算符、系统函数必须有行内中文注释，解释"这是什么、为什么这样写"
+- **语法拆解**：复杂语法结构（如 `assert property (@(posedge clk) disable iff (rst_n) ...)`）必须逐层拆解，说明每个子句的语义
+- **禁止裸代码**：代码块不能仅有上方一段概述性注释——行内细节解释是强制要求
+- **DOXYGEN 风格注释（函数/任务）**：所有 `function` 和 `task` 声明必须使用 `/** ... */` 风格的完整 DOXYGEN 注释，包含：
+  - `@brief` 或首行一句话描述（必需）
+  - 详细功能说明段落（必需，≥2 段：原理 + 注意事项）
+  - `@param` 每个参数的名称、方向、类型、用途（必需）
+  - `@return` 返回值说明（function 有返回值时必需）
+  - `@note` / `@warning` / `@see`（推荐）
+- **注释语言**：所有行内注释和 DOXYGEN 注释使用**中文**（知识库面向中文读者）
+
+**示例 — 好的注释 vs 不好的注释：**
+
+```systemverilog
+// ❌ 不好：只有一句英文概述，初学者看不懂 |-> 和 ##[1:3] 的含义
+// Concurrent assertion: req must be followed by ack within 1-3 cycles
+assert property (@(posedge clk) disable iff (rst_n)
+    $rose(req) |-> ##[1:3] $rose(ack)
+) else $error("Handshake protocol violated");
+
+// ✅ 好的：逐层拆解每个语法元素，中文解释语义
+// @(posedge clk)     — 时钟边沿说明符：每个 clk 上升沿采样
+// disable iff (rst_n) — 复位条件：rst_n=0 时暂停检查
+// $rose(req)          — 边沿检测：req 从 0/X/Z 跳变为 1
+// |->                 — 交叠蕴含：先行条件为真时，同周期开始检查后续
+// ##[1:3]            — 延迟范围：1-3 个时钟周期内
+assert property (@(posedge clk) disable iff (rst_n)
+    $rose(req) |-> ##[1:3] $rose(ack)
+) else $error("Handshake protocol violated");
+```
+
+#### 3.2 可综合代码约束（RTL 铁律）
+
+**知识库中所有 RTL 代码示例必须是可综合的（Synthesizable）。禁止在知识库文档中展示或教授不可综合的写法。**
+
+- **禁止不可综合结构**：所有 RTL 代码块不得包含以下不可综合结构：
+  - 时序控制：`#N` 延迟、`wait`、`forever`
+  - 仿真过程：`initial`、`final`、`fork/join`、`disable`
+  - 系统任务：`$display`、`$monitor`、`$random`、`$stop`、`$finish` 等（`$clog2` 除外）
+  - 层次引用：XMR、`force`/`release`
+  - 动态类型：`class`、`dynamic array`、`queue`、`string`、`real`
+  - 验证专用：`mailbox`、`semaphore`、`virtual interface`
+  - 无界循环：`while`、`do...while`
+- **可综合但危险的模式也需警示**：锁存器推断（不完整 if/case）、组合环路、多驱动、混合赋值的代码在综合工具中不会报错但行为错误——如展示则必须加 `// ❌ 不可综合` 或 `// ⚠️ 综合通过但行为错误` 标注
+- **区分设计代码与验证代码**：如果文档中必须出现不可综合的代码（如验证平台的 `initial` 块或 `class`），必须用 `// 仅仿真` 或 `// Testbench only` 明确标注，并在上下文说明这是仿真专用
+
 ### 4. Wikilink 与节点规范
 
 - 概念间引用使用 Obsidian wikilink：`领域/文件名` — 路径相对于 vault 根目录
@@ -67,6 +117,7 @@ source_spec: "Local project instructions — inherited from obsidian vault rules
 - "关键要点" 至少 5 条
 - "与其他概念的关系" 至少 2 个 wikilink
 - 禁止空壳文件（仅标题 + 一句话 + 无实质内容的占位符）
+- **元指令不入正文**：用户对写作方式的要求（如"先润色"、"加注释"、"按要求回答"）是后台操作指令，严禁以任何标签形式出现在最终文档中。包括但不限于："润色后的问题"、"用户问"、"根据要求"、">  **润色后**："等暴露写作过程的元标签。知识库文档的读者只看到知识本身，不看到"这个知识是怎么被写出来的"
 
 ### 8. 图谱配置
 
@@ -84,6 +135,19 @@ Obsidian 全局 Graph 视图按 `type` 元数据分组着色：
 ### 9. 问答与知识沉淀机制（Q&A Pipeline）
 
 收到数字IC相关问题后，必须执行以下流程：
+
+#### 9.0 问题润色（Question Refinement）—— 回答前必做
+
+**收到用户原始问题后，不得直接按原问逐条回答。** 必须先执行两步润色：
+
+1. **提炼核心议题**：将用户的口语化/碎片化提问，提炼为一个完整、专业的知识库主题标题，作为回答的入口锚点。例如：
+   - 用户问：*"SVA编写checker的方法（入口信号全是input？bind的使用（层级问题））"*
+   - 润色后：**"Checker 编写方法论：端口设计、信号连接与 Bind 层级绑定"**
+   - 润色后的标题作为 `###` 章节标题自然融入文档，**不得出现"润色后的问题"这类元信息标签**——读者不关心写作过程，只关心内容
+
+2. **超越原问边界**：回答不能仅限用户明确提到的几个点。应以提炼后的议题为中心，覆盖其嵌入的更大知识语境。用户问"为什么全是 input？"，回答应涵盖端口方向决策表、output 例外场景、Checker vs Driver 分工、三种信号连接策略的对比——因为这才构成"端口设计"的完整知识，而非孤立的"原因"。
+
+**核心原则**：用户的问题定义了回答的**入口**，不是**边界**。知识库回答的价值在于把读者可能不知道但应该知道的关联知识一并给出，形成可供反复查阅的完整条目，而非一次性的 Q&A 片段。
 
 #### 9.1 检索（Search First）
 
@@ -135,3 +199,11 @@ queries: 3
 - 涉及电路的给出 Mermaid 框图或 Wavedrom 时序图
 - 涉及代码的给出 ```systemverilog 或 ```verilog 标注的示例
 - 解答后必须更新对应 MOC 的易忘排名表
+
+#### 9.6 终端回答输出（Terminal Answer Display）
+
+**问题回答完、内容写入项目文件后，必须在终端向用户展示归纳总结后的答案。** 不能只告诉用户"已写入文件"就结束。
+
+- **结构**：润色后的标题 + 核心原理（2-3 段浓缩） + 关键要点列表 + 与其他概念的关系
+- **原则**：终端输出是文件内容的归纳版而非重复版——读者扫一眼就能抓住核心，细节去文件里看
+- **禁止**：只写"已更新 XX 文件，请查看"而不展示答案本身
