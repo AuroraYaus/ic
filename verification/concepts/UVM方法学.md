@@ -2208,7 +2208,7 @@ task run_phase(uvm_phase phase);
     forever begin
         seq_item_port.get_next_item(req);   // ① 伸手: "给我一个事务"
         drive_tx(req);                      // ② 干活: 事务→引脚波形
-        seq_item_port.item_done();          // ③ 交回: "搞定了，下一个"
+        seq_item_port.item_done();          // ③ 交回：事务完成，通知 Sequencer 发送下一个
     end
 endtask
 ```

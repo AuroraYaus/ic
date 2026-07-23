@@ -136,7 +136,7 @@ ic/                                          ← Obsidian Vault 根目录
 
 ## 相关资源
 
-- **数字IC设计常见面试题**：`~/Downloads/数字IC设计常见面试题.md`
+- **数字IC设计常见问答**：`~/Downloads/数字IC设计常见面试题.md`
 - **3GPP LTE/NR 译码链路**：独立 Obsidian vault（`~/AGENT/obsidian/3gpp/`）
 - **Gitee 仓库**：[https://gitee.com/aurorayaus/ic](https://gitee.com/aurorayaus/ic)
 
