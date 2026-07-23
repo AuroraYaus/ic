@@ -69,30 +69,6 @@ RAL 前门访问的完整流程为：`uvm_reg::write()` → `uvm_reg_map::do_wri
 
 UVM RAL 提供了一套面向对象的寄存器建模和访问框架。用户通过 `uvm_reg_field`、`uvm_reg`、`uvm_reg_block` 等类构建与硬件寄存器映射（Register Map）一一对应的镜像模型。RAL 提供 `read()`/`write()` 前门访问（通过 Bus Sequencer 发送总线事务）和后门访问（通过 HDL 路径直接读写）两种方式，并自动维护期望值（Desired Value）和镜像值（Mirror Value），通过 `mirror()` 或 `update()` 方法实现硬件状态与模型的一致性检查和同步。RAL 内建 Coverage（寄存器域覆盖率收集）和 Memory 建模（`uvm_mem`）以支持配置空间验证和存储控制器验证。
 
-## 关键要点
-
-- **OVM 继承与标准化演进**：UVM 继承自 OVM（Open Verification Methodology），吸收了 VMM 和 eRM 的经验教训，于 2011 年由 Accellera 发布 1.0 版本，当前工业界主流为 UVM 1.2
-- **工厂机制 `create()` 替代 `new()`**：工厂机制通过类型注册和 `create()` 替代 `new()` 的构造方式，使得在 `build_phase` 中创建的每一个组件都可以被外部 override，这是验证 IP 重用的关键技术
-- **config_db 通配符谨慎使用**：config_db 的路径匹配支持正则通配符：`set("*", "key", val)` 可被所有组件的 `get()` 匹配到，但生产代码中应谨慎使用通配以避免隐蔽的耦合
-- **Phase objection 是最易误用的特性**：Phase objection 机制是 UVM 最容易被误解和误用的特性：若 Sequencer 或 Driver 中遗漏 `drop_objection`，仿真会永远挂起在 `run_phase`；若过早 drop，仿真可能在 Scoreboard 完成检查前结束
-- **TLM FIFO 广播语义实现时序解耦检查**：TLM FIFO 与 analysis port 的广播语义使得 Scoreboard 的"独立于时序的检查"成为可能：Monitor 不需要知道哪些 Scoreboard 在监听，Scoreboard 也不需要关心数据何时到达
-- **Register Adapter 是 RAL 前门访问的关键**：Register Adapter（`uvm_reg_adapter`）是 RAL 前门访问的关键，它将 `uvm_reg_bus_op` 抽象操作转换为具体的总线 Sequence Item，是实现 RAL 协议无关性的适配层
-- **Factory/config_db 性能开销不可忽视**：UVM 框架的性能开销不可忽视：factory 查找和 config_db 遍历在大型 SoC 验证环境中可能贡献 5-15% 的仿真时间，适度使用直接赋值可优化性能
-- **Report 机制分级日志与 verbosity 控制**：UVM 并不规定 Report 机制的具体实现，但 `uvm_info`、`uvm_warning`、`uvm_error`、`uvm_fatal` 宏提供了分级日志，结合 verbosity 控制（`UVM_LOW` 到 `UVM_DEBUG`）实现运行时可调的日志详细度
-- **Sequence 三层分层设计复用激励**：Sequence 分层设计（API Layer → Functional Layer → Scenario Layer）是 UVM 推荐的激励复用策略——底层 API Sequence 封装单次总线操作，中层组合成功能单元，顶层定义完整测试场景
-- **`grab_lock` 独占 Sequencer 访问权**：`grab_lock` 和 `ungrab_lock` 机制实现对 Sequencer 的独占访问——当某个 Sequence 需要在无干扰的情况下完成一组原子操作（如配置-启动-等待完成）时可调用 `grab()` 阻止其他 Sequence 插入事务
-- **`set_max_quit_count()` 控制 fail-fast 行为**：UVM 的 `set_max_quit_count()` 是控制仿真"fail fast"行为的关键——设为 5-10 可在回归测试中发现首个致命错误后快速终止当前测试，节省仿真机时
-- **`resource_db` 与 `config_db` 互补**：UVM 1.2 中 `uvm_resource_db` 是对 `uvm_config_db` 的补充——前者提供全局平面化的键值存储（无层次约束），后者提供层次化作用域查找（沿组件树向上追溯），set() 内部同时写入两者
-- **初始化顺序决定环境正确性**：UVM 环境的正确初始化顺序至关重要——通常为：`run_test()` → Build Phase（自顶向下 create 组件 + config_db get）→ Connect Phase（自底向上连接 TLM port/export）→ End of Elaboration（最终配置调整）→ Start of Simulation → Run Phase（并行执行 run_phase 和各 sub-phase）→ Cleanup Phase
-- **Register Adapter 适配层协议无关转换**：Register Adapter（`uvm_reg_adapter`）是实现 RAL 协议无关性的关键适配层——它将 `uvm_reg_bus_op` 的抽象寄存器操作（读/写、地址、数据）转换/反向转换为具体总线协议的 Sequence Item（如 AXI-Lite、APB、I2C），一个适配器服务于一种总线协议
-- **Callback 机制非侵入式扩展组件**：UVM 的 Callback 机制支持非侵入式扩展——用户通过 `` `uvm_register_cb`` 注册回调类，在 Driver/Monitor 的关键执行点注入错误或附加检查而不修改组件代码
-- **`uvm_heartbeat` 看门狗检测组件卡死**：`uvm_heartbeat` 组件提供看门狗功能——配置为检查特定 uvm_component 是否在指定时间窗口内被"心跳触发"，超时则报 `UVM_FATAL`，适用于检测 Driver 或 Sequencer 卡死的场景
-- **事件回调降低轮询 CPU 开销**：UVM 1.2 引入的 `uvm_event_callback` 允许在事件触发时注册回调——与纯 `uvm_event` 的 `wait_trigger()` 相比，callback 方式不需要轮询等待，降低 CPU 开销
-- **Factory Override 支持实例级细粒度替换**：Factory Override 可以细粒度到实例级别——`set_inst_override_by_type()` 允许替换特定路径下的某个组件实例而不是该类型的所有实例，这使得在同一个 Testbench 中可以为不同 Agent 使用不同的子类变体
-- **Base Test 注册 + 自动实例化扩展模式**：工厂 Override 的典型 SystemVerilog 模式：先在 Base Test 的 `build_phase()` 中调用 `set_type_override_by_type(base_type::get_type(), ext_type::get_type())`，然后在 `build_phase()` 中所有组件的 `create()` 调用自动实例化扩展类型——用户无需修改 Environment 或 Agent 代码即可替换任意组件的实现
-
-## 常见问题详解
-
 ### UVM Phase 机制
 
 UVM 将仿真生命周期划分为一组严格有序的 Phase（阶段），确保所有验证组件在统一的时间点上执行初始化、连接和运行操作。Phase 机制的设计目的是解决 OVM 中组件初始化顺序不确定导致的环境构建竞态问题。
@@ -1077,6 +1053,28 @@ endclass
 **Callback 机制的工程价值：**
 
 在大型 SoC 验证项目中，UVM Agent 通常以 VIP（Verification IP）的形式由第三方提供。Callback 机制使得项目验证工程师可以在**不修改 VIP 源码**的前提下注入定制行为——这对于 IP License 合规和 VIP 升级兼容性至关重要。
+
+## 关键要点
+
+- **OVM 继承与标准化演进**：UVM 继承自 OVM（Open Verification Methodology），吸收了 VMM 和 eRM 的经验教训，于 2011 年由 Accellera 发布 1.0 版本，当前工业界主流为 UVM 1.2
+- **工厂机制 `create()` 替代 `new()`**：工厂机制通过类型注册和 `create()` 替代 `new()` 的构造方式，使得在 `build_phase` 中创建的每一个组件都可以被外部 override，这是验证 IP 重用的关键技术
+- **config_db 通配符谨慎使用**：config_db 的路径匹配支持正则通配符：`set("*", "key", val)` 可被所有组件的 `get()` 匹配到，但生产代码中应谨慎使用通配以避免隐蔽的耦合
+- **Phase objection 是最易误用的特性**：Phase objection 机制是 UVM 最容易被误解和误用的特性：若 Sequencer 或 Driver 中遗漏 `drop_objection`，仿真会永远挂起在 `run_phase`；若过早 drop，仿真可能在 Scoreboard 完成检查前结束
+- **TLM FIFO 广播语义实现时序解耦检查**：TLM FIFO 与 analysis port 的广播语义使得 Scoreboard 的"独立于时序的检查"成为可能：Monitor 不需要知道哪些 Scoreboard 在监听，Scoreboard 也不需要关心数据何时到达
+- **Register Adapter 是 RAL 前门访问的关键**：Register Adapter（`uvm_reg_adapter`）是 RAL 前门访问的关键，它将 `uvm_reg_bus_op` 抽象操作转换为具体的总线 Sequence Item，是实现 RAL 协议无关性的适配层
+- **Factory/config_db 性能开销不可忽视**：UVM 框架的性能开销不可忽视：factory 查找和 config_db 遍历在大型 SoC 验证环境中可能贡献 5-15% 的仿真时间，适度使用直接赋值可优化性能
+- **Report 机制分级日志与 verbosity 控制**：UVM 并不规定 Report 机制的具体实现，但 `uvm_info`、`uvm_warning`、`uvm_error`、`uvm_fatal` 宏提供了分级日志，结合 verbosity 控制（`UVM_LOW` 到 `UVM_DEBUG`）实现运行时可调的日志详细度
+- **Sequence 三层分层设计复用激励**：Sequence 分层设计（API Layer → Functional Layer → Scenario Layer）是 UVM 推荐的激励复用策略——底层 API Sequence 封装单次总线操作，中层组合成功能单元，顶层定义完整测试场景
+- **`grab_lock` 独占 Sequencer 访问权**：`grab_lock` 和 `ungrab_lock` 机制实现对 Sequencer 的独占访问——当某个 Sequence 需要在无干扰的情况下完成一组原子操作（如配置-启动-等待完成）时可调用 `grab()` 阻止其他 Sequence 插入事务
+- **`set_max_quit_count()` 控制 fail-fast 行为**：UVM 的 `set_max_quit_count()` 是控制仿真"fail fast"行为的关键——设为 5-10 可在回归测试中发现首个致命错误后快速终止当前测试，节省仿真机时
+- **`resource_db` 与 `config_db` 互补**：UVM 1.2 中 `uvm_resource_db` 是对 `uvm_config_db` 的补充——前者提供全局平面化的键值存储（无层次约束），后者提供层次化作用域查找（沿组件树向上追溯），set() 内部同时写入两者
+- **初始化顺序决定环境正确性**：UVM 环境的正确初始化顺序至关重要——通常为：`run_test()` → Build Phase（自顶向下 create 组件 + config_db get）→ Connect Phase（自底向上连接 TLM port/export）→ End of Elaboration（最终配置调整）→ Start of Simulation → Run Phase（并行执行 run_phase 和各 sub-phase）→ Cleanup Phase
+- **Register Adapter 适配层协议无关转换**：Register Adapter（`uvm_reg_adapter`）是实现 RAL 协议无关性的关键适配层——它将 `uvm_reg_bus_op` 的抽象寄存器操作（读/写、地址、数据）转换/反向转换为具体总线协议的 Sequence Item（如 AXI-Lite、APB、I2C），一个适配器服务于一种总线协议
+- **Callback 机制非侵入式扩展组件**：UVM 的 Callback 机制支持非侵入式扩展——用户通过 `` `uvm_register_cb`` 注册回调类，在 Driver/Monitor 的关键执行点注入错误或附加检查而不修改组件代码
+- **`uvm_heartbeat` 看门狗检测组件卡死**：`uvm_heartbeat` 组件提供看门狗功能——配置为检查特定 uvm_component 是否在指定时间窗口内被"心跳触发"，超时则报 `UVM_FATAL`，适用于检测 Driver 或 Sequencer 卡死的场景
+- **事件回调降低轮询 CPU 开销**：UVM 1.2 引入的 `uvm_event_callback` 允许在事件触发时注册回调——与纯 `uvm_event` 的 `wait_trigger()` 相比，callback 方式不需要轮询等待，降低 CPU 开销
+- **Factory Override 支持实例级细粒度替换**：Factory Override 可以细粒度到实例级别——`set_inst_override_by_type()` 允许替换特定路径下的某个组件实例而不是该类型的所有实例，这使得在同一个 Testbench 中可以为不同 Agent 使用不同的子类变体
+- **Base Test 注册 + 自动实例化扩展模式**：工厂 Override 的典型 SystemVerilog 模式：先在 Base Test 的 `build_phase()` 中调用 `set_type_override_by_type(base_type::get_type(), ext_type::get_type())`，然后在 `build_phase()` 中所有组件的 `create()` 调用自动实例化扩展类型——用户无需修改 Environment 或 Agent 代码即可替换任意组件的实现
 
 ## 与其他概念的关系
 

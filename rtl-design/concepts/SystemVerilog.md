@@ -927,8 +927,7 @@ priority casez (irq)
 endcase
 ```
 
-## 阻塞赋值（=）与非阻塞赋值（<=）的深度解析
-
+## 阻塞赋值（=）与非阻塞赋值（<=）
 ### 仿真调度队列（Stratified Event Queue）
 
 Verilog/SystemVerilog 仿真器采用分层事件队列（IEEE 1800-2017 Section 4），每个时间步划分为多个调度区域（Region）：
@@ -949,7 +948,7 @@ Verilog/SystemVerilog 仿真器采用分层事件队列（IEEE 1800-2017 Section
 1. **Active 区**：计算所有 `<=` 语句的右侧表达式（RHS），将结果暂存于临时队列
 2. **NBA 区**：将所有暂存的 RHS 值统一更新到左侧变量（LHS）
 
-### 为什么时序逻辑必须用非阻塞赋值？
+### 时序逻辑必须使用非阻塞赋值的原理
 
 物理 D 触发器在时钟沿同时采样输入端——非阻塞赋值的两阶段机制精确建模了这一行为：
 
