@@ -237,7 +237,7 @@ endclass
 
 **`uvm_transaction` 和 `uvm_sequence_item` 的关系：**
 
-```
+```text
 uvm_object
   └── uvm_transaction           ← 事务基类：定义了记录和比较接口
         └── uvm_sequence_item    ← 序列项：在 transaction 基础上增加了 sequencer 关联
@@ -467,6 +467,107 @@ endtask
 - 双向请求-响应（需要同步等待返回值）→ `transport()`
 - 非关键路径不想阻塞 → 使用 `try_*` 或 `nb_*` 变体
 
+### connect_phase — TLM 端口的连接时机与机制
+
+`connect_phase` 是 UVM Build Phases 中的第二个阶段，在 `build_phase` 之后执行。它的唯一职责是**连接 TLM 端口**——将 Port 连到 Export，将 Export 连到 Imp，建立组件间的通信通道。
+
+**1. 为什么需要 connect_phase？**
+
+组件在 `build_phase` 中被创建（`create()`），但在 `build_phase` 结束前，子组件的内部端口尚未完全构建好。因此 UVM 设计了第二个阶段——`connect_phase`——专用于建立连接，且执行方向与 `build_phase` 相反：
+
+```text
+build_phase (自顶向下)              connect_phase (自底向上)
+─────────────────────────          ─────────────────────────
+env.build_phase()                   driver.connect_phase()
+  ├─ agent.create()                    └─ seq_item_port.connect(sequencer.seq_item_export)
+  ├─ agent.build_phase()           monitor.connect_phase()
+  │   ├─ driver.create()              └─ ap.connect(agent.ap)
+  └─ scoreboard.create()           agent.connect_phase()
+                                       └─ (子组件已连好，此层通常为空)
+                                   env.connect_phase()
+                                       └─ agent.ap.connect(scoreboard.analysis_export)
+```
+
+**connect_phase 的关键特性：**
+
+| 特性 | 说明 |
+|:---|:---|
+| **执行方向** | **自底向上**（Bottom-Up）——叶子组件先完成连接，父组件后完成。与 build_phase 的自顶向下相反 |
+| **执行性质** | `function`（非 task，0 仿真时间） |
+| **唯一职责** | 连接 TLM 端口（`port.connect(export)` 调用） |
+| **不可做的事** | 不可 `create()` 组件；不可 `raise_objection`；不可消耗仿真时间 |
+
+**2. Port/Export/Imp 的连接规则**
+
+TLM 端口连接有严格的类型和方向约束，且必须在 `connect_phase` 中完成：
+
+```
+连接链（单向）：
+  Port ──connect()──► Export ──connect()──► Imp
+  发起端              中间转发              最终实现
+
+约束：
+  - Port 可以连接到 Export 或 Imp
+  - Export 只能连接到 Imp（不能连回 Port）
+  - Imp 是终端——不能再连接到其他端口
+  - 连接必须在 connect_phase 中完成（运行时不可改变）
+  - 端口类型必须匹配（put_port → put_export/put_imp，不能连到 get 端口）
+  - 参数化类型必须一致（#(my_item) 不能连 #(other_item)）
+```
+
+**3. connect_phase 的典型代码模式**
+
+```systemverilog
+// ===== Agent: 连接 Driver 到 Sequencer =====
+class my_agent extends uvm_agent;
+    my_driver    driver;         // 在 build_phase 中 create()
+    my_sequencer sequencer;      // 在 build_phase 中 create()
+    my_monitor   monitor;        // 在 build_phase 中 create()
+
+    function void connect_phase(uvm_phase phase);
+        super.connect_phase(phase);
+        // ── seq_item_port (Port) → sequencer.seq_item_export (Export) ──
+        // Driver 通过此连接从 Sequencer 阻塞拉取事务
+        driver.seq_item_port.connect(sequencer.seq_item_export);
+
+        // ── monitor.ap (Port) → agent 自身 ap (转发 Export) ──
+        // Monitor 广播事务到 Agent 的分析端口，供外部 Env 连接
+        monitor.ap.connect(this.ap);
+    endfunction
+endclass
+
+// ===== Env: 跨层次连接 Agent 到 Scoreboard =====
+class my_env extends uvm_env;
+    my_agent      agent;         // 在 build_phase 中 create()
+    my_scoreboard scoreboard;    // 在 build_phase 中 create()
+
+    function void connect_phase(uvm_phase phase);
+        super.connect_phase(phase);
+        // ── agent.ap (Port) → scoreboard.analysis_export (Imp) ──
+        // Monitor 发出的每个 write() 都到达 Scoreboard 的 FIFO
+        agent.ap.connect(scoreboard.analysis_export);
+    endfunction
+endclass
+```
+
+**4. connect_phase 的常见错误**
+
+| 错误 | 现象 | 修复 |
+|:---|:---|:---|
+| **在 build_phase 中做 connect** | 子组件端口尚未构造 → Null Handle → 仿真崩溃 | 移到 connect_phase |
+| **忘记 super.connect_phase()** | 父类连接逻辑丢失——UVM 内建的 seq_item_port 等连接失效 | 确保每层调用 `super.connect_phase(phase)` |
+| **在 connect_phase 中 create() 组件** | 违反 Build Phases 的职责分离——行为不可预测 | 移到 build_phase |
+| **connect 方向写反** | `export.connect(port)` → 编译错误 | 始终 `port.connect(export)` |
+| **类型不匹配** | 编译报错——参数化类型检查失败 | 检查 `#(type)` 是否一致 |
+
+**5. 三个 Build Phase 的职责对比**
+
+| 阶段 | 方向 | 职责 |
+|:---|:---|:---|
+| `build_phase` | 自顶向下 | `create()` 组件 + `config_db::get()` |
+| `connect_phase` | 自底向上 | 连接 TLM 端口（`port.connect()`） |
+| `end_of_elaboration_phase` | 自底向上 | 检查连接完整性——确认所有端口都已正确连接，虚拟接口不为 null |
+
 ### Sequence、Sequencer 与 Driver 的交互
 
 Sequence 是激励的**生产者**，Sequencer 是激励的**仲裁器和调度器**，Driver 是激励的**消费者和执行者**。三者形成 UVM 激励生成的流水线（Pipeline）。
@@ -634,13 +735,20 @@ class my_scoreboard extends uvm_scoreboard;
     // write_output(): 当输出 Monitor 发送事务时调用
     function void write_output(axi_item item);
         axi_item expected;
+        bit matched = 1'b0;                // 匹配标志：防止 null 解引用
         // 从期望队列中查找对应的事务（支持乱序——查找而非简单 pop_front）
         foreach (expected_queue[i]) begin
             if (expected_queue[i].id == item.id) begin  // 用事务 ID 匹配
                 expected = expected_queue[i];
                 expected_queue.delete(i);    // 匹配后从队列中移除
+                matched = 1'b1;
                 break;
             end
+        end
+        // 未匹配到期望事务——报错并返回，避免 null 解引用
+        if (!matched) begin
+            `uvm_error("SB", $sformatf("No matching expected transaction for id=%0d", item.id))
+            return;
         end
         // 比对：实际值 vs 期望值
         if (expected.data != item.data)

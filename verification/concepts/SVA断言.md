@@ -463,7 +463,7 @@ endmodule
 
 **5.3 Checker 的物理分离层级**
 
-```
+```text
 Checkers/                        # 独立的 git 仓库
 ├── protocols/
 │   ├── axi4_chk.sv              # AXI4 协议检查器（可独立发布）
@@ -774,7 +774,7 @@ bind tb_top.dut arbiter_checker #(.N_REQ(4)) arb_chk (.*);
 
 **assume vs assert vs cover 的协作闭环**：
 
-```
+```text
 assume req 稳定 ──→ 约束输入空间 ──→ 形式验证只考虑合法序列
                                        ↓
 assert 互斥/一致/优先 ──→ 检查设计不变量 ──→ 在此空间内证明 property 恒成立
@@ -813,7 +813,7 @@ SVA 中的五个核心构造——sequence、property、assert、assume 和 cove
 
 **层次关系总结**：
 
-```
+```text
 Sequence ──(组合)──> Property ──(声明意图)──> ┌─ assert property  ── 检查恒成立（设计不变量）
                                                ├─ assume property  ── 约束输入空间（环境假设）
                                                └─ cover property   ── 检查可达性（覆盖率目标）

@@ -8,6 +8,7 @@ tags:
   - readme
   - overview
 source_spec: "Local vault documentation"
+queries: 1
 ---
 # 数字IC知识库总览
 
@@ -15,7 +16,7 @@ source_spec: "Local vault documentation"
 
 ## 目录结构与用途
 
-```
+```text
 ic/                                          ← Obsidian Vault 根目录
 ├── README.md                                ← 本文件：vault 总览与导航
 ├── 数字IC_入口.md                           ← 知识库总入口，MOC 辐射六大领域

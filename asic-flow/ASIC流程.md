@@ -8,6 +8,7 @@ tags:
   - asic-flow
   - moc
 source_spec: "Synopsys ICC/DC/PrimeTime Reference, Cadence Innovus/Genus Reference, Weste & Harris CMOS VLSI Design"
+queries: 1
 ---
 # ASIC 实现流程总览
 
@@ -58,8 +59,8 @@ ASIC 实现流程（Application-Specific Integrated Circuit Flow）是将 RTL �
 
 | 排名 | 概念 | 查询次数 | 最后查询 |
 |:---|:---|:---|:---|
-| 1 | [[asic-flow/concepts/静态时序分析\|静态时序分析（STA / Critical Path / Skew & Jitter / Multi-Cycle / False Path / Fmax / Clock Uncertainty / OCV / Max Transition / Setup & Hold Check）]] | 12 | 2026-07-23 |
-| 2 | [[asic-flow/concepts/逻辑综合\|逻辑综合（面积速度权衡 / 资源共享 / Retiming / 综合流程）]] | 3 | 2026-07-23 |
-| 3 | [[asic-flow/concepts/布局布线\|布局布线（Floorplan / Placement / CTS / Routing / 时序影响）]] | 2 | 2026-07-23 |
-| 4 | [[asic-flow/concepts/时钟树综合\|时钟树综合（CTS / Skew vs Latency / CTS前后时序差异）]] | 1 | 2026-07-23 |
-| 5 | [[asic-flow/concepts/功耗分析\|功耗分析（Power Analysis）]] | 1 | 2026-07-23 |
+| 1 | [[asic-flow/concepts/静态时序分析|静态时序分析（STA / Critical Path / Skew & Jitter / Multi-Cycle / False Path / Fmax / Clock Uncertainty / OCV / Max Transition / Setup & Hold Check）]] | 12 | 2026-07-23 |
+| 2 | [[asic-flow/concepts/逻辑综合|逻辑综合（面积速度权衡 / 资源共享 / Retiming / 综合流程）]] | 3 | 2026-07-23 |
+| 3 | [[asic-flow/concepts/布局布线|布局布线（Floorplan / Placement / CTS / Routing / 时序影响）]] | 2 | 2026-07-23 |
+| 4 | [[asic-flow/concepts/时钟树综合|时钟树综合（CTS / Skew vs Latency / CTS前后时序差异）]] | 1 | 2026-07-23 |
+| 5 | [[asic-flow/concepts/功耗分析|功耗分析（Power Analysis）]] | 1 | 2026-07-23 |

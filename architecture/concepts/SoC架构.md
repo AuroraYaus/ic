@@ -10,6 +10,7 @@ tags:
   - architecture
   - soc
 source_spec: "Wolf, Modern VLSI Design: IP-Based Design, 4th Ed; ARM AMBA CHI Specification (IHI0050); Keating et al., Low Power Methodology Manual (LPMM); UCIe Specification Rev 1.1; Flynn, 'Very High-Speed Computing Systems', Proc. IEEE 1966"
+queries: 1
 ---
 # SoC 架构
 
