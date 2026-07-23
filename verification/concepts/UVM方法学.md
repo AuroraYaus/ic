@@ -492,7 +492,6 @@ TLM 端口连接有严格的类型和方向约束，且必须在 `connect_phase`
   - 连接必须在 connect_phase 中完成（运行时不可改变）
   - 端口类型必须匹配（put_port → put_export/put_imp，不能连到 get 端口）
   - 参数化类型必须一致（#(my_item) 不能连 #(other_item)）
-```
 
 **3. connect_phase 的典型代码模式**
 
@@ -1245,7 +1244,7 @@ endclass
 | 层次管理方法 | 无 | `get_parent()` / `get_full_name()` / `get_child()` 等 |
 | 适用类 | `uvm_object` 及其派生类 | `uvm_component` 及其派生类 |
 
-##### 为什么需要 parent 参数
+**为什么需要 parent 参数**
 
 UVM 组件必须在仿真时间 0 之前形成一棵有根有叶的**组件树（Component Tree）**。`parent` 参数是三件事的基础：
 
@@ -1253,7 +1252,7 @@ UVM 组件必须在仿真时间 0 之前形成一棵有根有叶的**组件树�
 2. **自动内存管理**：父组件在其析构时自动释放所有子组件，不需要手动 `delete`
 3. **config_db 查找锚点**：`uvm_config_db::get()` 的层次查找从当前组件开始沿 parent 链向上追溯到 root
 
-##### 怎么用
+**用法**
 
 在所有 `uvm_component` 派生类的声明内部调用：
 
@@ -1547,7 +1546,6 @@ class axi_seq_item extends uvm_sequence_item;
         `uvm_field_array_int(data,   UVM_ALL_ON)         // 动态数组 → _array_int
     `uvm_object_utils_end
 endclass
-```
 
 如果对 `burst` 错用了 `uvm_field_int`，`tr.print()` 会输出 `burst: 'h1` 而非 `burst: INCR`——看到十六进制值你得去翻头文件才知道它代表哪种 burst 类型。这看似小事，但当你在波形里 debug 几百个事务时，每一次都要手动查表，体验极差。
 
@@ -1555,13 +1553,11 @@ endclass
 
 UVM 所有类从 `uvm_void` 出发，到 `uvm_object` 处分叉成两条路：
 
-```
 uvm_void → uvm_object ─┬─→ uvm_transaction → uvm_sequence_item → uvm_sequence
                        │         (对象分支：数据容器，无 Phase，无 parent)
                        │
                        └─→ uvm_component → uvm_driver / uvm_monitor / ...
                             (组件分支：有 Phase，有 parent，有层次)
-```
 
 ![UVM 类层级](assets/uvm-class-diagram.svg)
 
@@ -1846,7 +1842,6 @@ ap_h.write(tx);  // tx 被同时推送给所有连接的订阅者
 mem_mon_h.ap_h.connect(mem_cov_h.analysis_export);  // → Coverage
 // Env connect_phase：跨层次扩展广播
 mem_agent_h.mem_mon_h.ap_h.connect(mem_sbd_h.analysis_export); // → Scoreboard
-```
 
 **为什么不用 FIFO？** `analysis_port` 是非阻塞广播——如果 Scoreboard 处理慢，它不会阻塞 Monitor 继续采样。需要缓冲的场景用 `uvm_tlm_analysis_fifo`。
 
@@ -1854,7 +1849,6 @@ mem_agent_h.mem_mon_h.ap_h.connect(mem_sbd_h.analysis_export); // → Scoreboard
 
 Memory Design phase4 的完整调用链：
 
-```
 top.sv
   ├─ [精化前] uvm_config_db::set("MEM_PIF", pif)       // 传递接口
   │
@@ -1934,13 +1928,11 @@ mem_wr_rd_seq_h = mem_wr_rd_seq::type_id::create("mem_wr_rd_seq_h");
 mem_wr_rd_seq_h.start(m_sequencer);
 // m_sequencer: 当前 Sequence 所在的 Sequencer 句柄，
 //   由 UVM 在 start() 时自动设置
-```
 
 **为什么 `uvm_do` 是阻塞的** —— `finish_item` 内部等待 Driver 的 `item_done()` 返回，在此之前 Sequence 的 `body()` 不会继续执行下一行。
 
 `uvm_do` 是**阻塞**宏，执行后暂停调用代码直到以下条件全部满足：
 
-```
 Sequence.body()                Sequencer                     Driver
      │                              │                            │
      ├─ start_item(req) ───────────►│ 仲裁：分配发送权          │
@@ -2062,11 +2054,9 @@ if (!req.randomize() with { req.wr_rd == 1; }) begin
 end
 
 finish_item(req);                             // ④ 发送并等待完成
-```
 
 **内联约束的语义：**
 
-```
 类内 constraint c_default:                   内联 with {req.wr_rd == 1;}
   wr_rd inside {0, 1};                       wr_rd == 1;
   addr inside {[0:15]};                      
@@ -2273,11 +2263,9 @@ class mem_drv extends uvm_driver#(mem_tx);
         vif.drv_cb.wdata_i  <= 0;
     endtask
 endclass
-```
 
 **时序分析——一次完整的握手周期：**
 
-```
 时间 ──────────────────────────────────────────────────────────►
 
 clk     ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐
@@ -2380,28 +2368,11 @@ task run_phase(uvm_phase phase);
     seq_h.start(env_h.agent_h.sqr_h);          // 启动 Sequence（阻塞等待完成）
     phase.drop_objection(this);                // 放下：工作完成
 endtask
-```
 
 `drain_time` 是 objection 放下后的额外等待时间——给流水线中还在传输的最后几个事务留出完成窗口。如果你刚 drop 就关仿真，Scoreboard 可能还没来得及检查最后几笔数据。
 **Objection 两种管理模式：** Test 层管理（`run_phase` 中包围 `start()`）和 Sequence 层管理（`pre_body`/`post_body` 通过 `get_starting_phase()`）。手动 `start(sqr)` 时 `starting_phase` 非 null，`default_sequence` 方式为 null 需判空。
 
-```
-run_phase 启动
-     │
-     ├── 检查 objection 计数器 == 0 ?
-     │     YES → 立即结束（仿真立即终止——这是初学者常见的配置遗漏）
-     │     NO  → 进入等待循环
-     │
-     ├── 所有 objection 都被 drop ?
-     │     YES → run_phase 结束 → Cleanup Phases
-     │     NO  → 继续等待（时间前推进）
-     │
-     └── 如果所有组件都忘了 drop，仿真永远挂起
-```
-
-#### 为什么——不 raise 会怎样（最常见的初学者错误根源）
-
-**场景 A：忘记 raise objection**
+不 raise objection 的后果：`run_phase` 进入后立即检查 objection 计数器，为 0 则直接结束仿真——Sequence 的 `body()` 从未被调用。忘了 drop 则计数永不归零，仿真永远挂起。这是 UVM 初学者最常见的两个配置错误，恰好对称。
 
 ```systemverilog
 // ===== 错误：没有 raise objection =====
@@ -2434,7 +2405,7 @@ endtask
 
 **症状：** 仿真看起来完成了所有预期工作，但就是不结束——simulation time 无限增长而不进入 report_phase。
 
-#### 怎么用——实际代码中的两种管理模式
+**怎么用**：实际代码中的两种管理模式
 
 来自 `/home/yys/AGENT/ic/projects/uvm-memory/phase4/code/test_lib.sv` 和 `seq_lib.sv`：
 
@@ -2500,7 +2471,7 @@ class mem_n_wr_rd_seq extends uvm_sequence#(mem_tx);
 endclass
 ```
 
-#### 为什么 Sequence 里要判断 phase != null
+**为什么 Sequence 里要判断 phase != null
 
 这是 UVM 中一个重要的防御性编码模式：
 
@@ -2570,7 +2541,7 @@ UVM 的报告机制通过四个核心宏提供分级日志系统。它们不仅�
 - `MSG`：消息正文（字符串）——描述发生了什么
 - `VERBOSITY`：详细级别（仅 `uvm_info` 有此参数）——控制消息是否被打印
 
-#### 为什么——分级日志和 verbosity 过滤
+**为什么**：分级日志和 verbosity 过滤
 
 **verbosity 过滤的设计目的：**
 
@@ -2601,7 +2572,7 @@ UVM 的报告机制通过四个核心宏提供分级日志系统。它们不仅�
 | `UVM_FULL` | 400 | 每个信号触发的详细信息 |
 | `UVM_DEBUG` | 500 | 调试级——包含内部状态变化 |
 
-#### 怎么用——实际代码中的典型模式
+**怎么用**：实际代码中的典型模式
 
 来自 `/home/yys/AGENT/ic/projects/uvm-memory/phase4/code/mem_drv.sv`：
 
@@ -2749,7 +2720,6 @@ endfunction
 
 **Memory Design 项目的完整链路：**
 
-```
 top.sv:  set(null, "*", "MEM_PIF", pif)         → 全局放置 interface
 top.sv:  set(null, "*", "INT_NUM_TX", num_tx)    → 全局放置事务数量
 
@@ -2757,10 +2727,6 @@ mem_drv.build_phase():  get(this, "", "MEM_PIF", vif)    → 获取 interface
 mem_mon.build_phase():  get(this, "", "MEM_PIF", vif)    → 获取 interface（同一个 pif）
 mem_n_wr_rd_seq.body(): get(null, "", "INT_NUM_TX", N)  → Sequence 是 object，
                          //  ^^^^                          没有 parent，用 null 全局查找
-```
-  │ ⑤ uvm_root     → 到顶了——返回 0（未找到）
-  └─────────────────────────────────────────────────────┘
-
 匹配规则：set 的 cntxt + inst_name 必须匹配 get 的 cntxt + inst_name
 ```
 
@@ -2840,7 +2806,6 @@ endclass
 
 这是 config_db 使用中**最关键也最容易出错**的约束：
 
-```
 时间线 ─────────────────────────────────────────────────────────────►
 
 [精化前]                      [仿真时间 0]          [仿真时间 >0]
