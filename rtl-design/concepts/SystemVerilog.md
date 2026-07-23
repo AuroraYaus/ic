@@ -480,7 +480,7 @@ end
 
 **核心原则**：如果你不确定一个写法能不能综合，查 LRM 可综合子集文档，或者问自己"这个写法对应什么硬件？"——如果答不上来，它就是不可综合的。RTL 的每一行代码都必须有清晰的硬件映射意图。
 
-### 不可综合语句面试速查（Q3 补充）
+### 不可综合语句速查
 
 | 语句/结构 | 类别 | 为何不可综合 |
 |:---|:---|:---|
@@ -497,7 +497,7 @@ end
 
 **记忆口诀**：无 delay、无 initial、无 fork、无 wait/force、无 class/mailbox/dynamic、无 while——这些都是仿真专属语法。
 
-## wire 与 reg 的深层辨析及 logic 的统一（Q2）
+## wire 与 reg 的深层辨析及 logic 的统一
 
 ### tri 类型与多驱动场景
 
@@ -553,7 +553,7 @@ endmodule
 
 **判断规则**：reg 在边沿敏感的 always 块（`posedge clk`）中被赋值 → 寄存器；reg 在电平敏感的 always 块（`@(*)`）中被赋值且所有输入组合都有确定的输出 → 组合逻辑；reg 在电平敏感的 always 块中被赋值但存在未覆盖的输入组合 → 锁存器。SystemVerilog 的 `logic` 类型遵循相同的推断规则——logic 本身也不决定硬件实现。
 
-## task 与 function 的区别及使用场景（Q4）
+## task 与 function 的区别及使用场景
 
 task（任务）和 function（函数）是 Verilog/SystemVerilog 中过程代码复用的两种机制，核心区别在于**时序控制能力**和**返回方式**：
 
@@ -627,7 +627,7 @@ increment_counter(data, result);
 
 task 可综合的**充分必要条件**：1) 无时序控制（无 `#`/`@`/`wait`/`fork`）；2) 所有路径在有限时间内完成（无无限循环）；3) 输入输出信号映射到可综合硬件（无动态对象）。满足这些条件的 task 本质上是"能同时返回多个输出的 function"——综合工具将其展开为独立的硬件逻辑块。
 
-## interface 与 module 的区别（Q6）
+## interface 与 module 的区别
 
 | 维度 | module | interface |
 |:---|:---|:---|
@@ -690,7 +690,7 @@ endinterface
 
 **关键收益**：一个 interface 实例替代了 N 个独立端口的声明。增加一个信号只需修改 interface 定义——所有使用该 interface 的模块自动同步，告别了逐个模块修改端口列表的噩梦。
 
-## initial 与 always 的区别（Q7）
+## initial 与 always 的区别
 
 | 维度 | initial | always |
 |:---|:---|:---|
@@ -731,7 +731,7 @@ end
 
 **核心认知**：如果你在 RTL 中写 `initial`——停下来，这是错误的。RTL 中没有"仿真时间 0"这个概念——硬件上电后所有 always 块同时启动并永久运行。复位逻辑必须用 `always_ff @(posedge clk or negedge rst_n)` 实现，不能期望 `initial` 完成初始化。
 
-## `$display`、`$monitor`、`$strobe` 的区别（Q9）
+## `$display`、`$monitor`、`$strobe` 的区别
 
 三者都是仿真打印系统任务，**均不可综合**，但调度时机和触发机制截然不同：
 
@@ -778,7 +778,7 @@ endmodule
 
 **核心区别**：`$display` 看到的是"瞬时值"（Active 区）、`$strobe` 看到的是"最终值"（Postponed 区）、`$monitor` 是"持续监控"——一旦设置，每当监控信号变化就自动打印。在调试 race condition 时，`$strobe` 比 `$display` 更能反映信号在时间步结束后的真实状态。**三者均不可综合——综合时会自动被忽略。**
 
-## SystemVerilog 中 program 与 module 的区别（Q10）
+## SystemVerilog 中 program 与 module 的区别
 
 `program` 块是 SystemVerilog 引入的**测试平台专用容器**，旨在解决 Verilog 测试平台中经典的**竞争条件（Race Condition）**问题。
 
@@ -809,7 +809,7 @@ endprogram
 
 **为什么需要 program？** 在传统 Verilog 中，测试平台的 `initial` 块和 RTL 的 `always` 块都在 Active 区执行——执行顺序不确定。同一个时钟沿，测试平台可能在 RTL 更新前采样（读到旧值）或更新后采样（读到新值）——这是 race condition。program 的 Re-Active 区解决方案保证了：RTL 所有信号在一个时间步内完全稳定后，测试平台才进行采样和驱动。
 
-## parameter 与 `define 宏的区别（Q11）
+## parameter 与 `define 宏的区别
 
 | 维度 | `define | parameter |
 |:---|:---|:---|
@@ -852,7 +852,7 @@ localparam IDLE = 2'b00;                       // 状态编码——模块内部
 localparam TIMEOUT_CYCLES = 1000;              // 超时阈值——内部常量
 ```
 
-## case、casez、casex 的区别及使用注意事项（Q12）
+## case、casez、casex 的区别及使用注意事项
 
 | 特性 | `case` | `casez` | `casex` |
 |:---|:---|:---|:---|
@@ -927,7 +927,7 @@ priority casez (irq)
 endcase
 ```
 
-## 阻塞赋值（=）与非阻塞赋值（<=）的深度解析（Q1 + Q8）
+## 阻塞赋值（=）与非阻塞赋值（<=）的深度解析
 
 ### 仿真调度队列（Stratified Event Queue）
 

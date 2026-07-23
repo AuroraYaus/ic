@@ -91,9 +91,9 @@ UVM RAL 提供了一套面向对象的寄存器建模和访问框架。用户通
 - **Factory Override 支持实例级细粒度替换**：Factory Override 可以细粒度到实例级别——`set_inst_override_by_type()` 允许替换特定路径下的某个组件实例而不是该类型的所有实例，这使得在同一个 Testbench 中可以为不同 Agent 使用不同的子类变体
 - **Base Test 注册 + 自动实例化扩展模式**：工厂 Override 的典型 SystemVerilog 模式：先在 Base Test 的 `build_phase()` 中调用 `set_type_override_by_type(base_type::get_type(), ext_type::get_type())`，然后在 `build_phase()` 中所有组件的 `create()` 调用自动实例化扩展类型——用户无需修改 Environment 或 Agent 代码即可替换任意组件的实现
 
-## 面试常见问答
+## 常见问题详解
 
-### Q1: UVM的Phase机制有哪些？各自作用？
+### UVM Phase 机制
 
 UVM 将仿真生命周期划分为一组严格有序的 Phase（阶段），确保所有验证组件在统一的时间点上执行初始化、连接和运行操作。Phase 机制的设计目的是解决 OVM 中组件初始化顺序不确定导致的环境构建竞态问题。
 
@@ -191,7 +191,7 @@ endtask
 | **标准规范** | Accellera 内部标准 | IEEE 1800.2-2020 国际标准 |
 | **工厂宏** | 非标准，各供应商不同 | `` `uvm_component_utils`` / `` `uvm_object_utils`` 统一标准 |
 
-### Q2: `uvm_component` 和 `uvm_object` 的区别？
+### uvm_component 和 uvm_object 的区别
 
 `uvm_component` 和 `uvm_object` 是 UVM 类库层次的两个根类，它们决定了 UVM 中所有类的本质行为。
 
@@ -300,7 +300,7 @@ if (!uvm_config_db #(my_config)::get(m_sequencer, "", "cfg", cfg))
 uvm_resource_db #(my_config)::set("GLOBAL", "shared_cfg", cfg_obj);
 ```
 
-### Q5: UVM 中 Factory 机制的作用？
+### UVM Factory 机制
 
 Factory（工厂）是 UVM 最核心的设计模式之一。它的本质是用一个全局注册表（Registry）替代直接构造函数调用，实现类型的动态替换——这是验证 IP 可配置性和可复用性的技术基础。
 
@@ -390,7 +390,7 @@ endclass
 
 这就是为什么 UVM 组件的实例化**必须**使用 `create()` 而非 `new()`——使用 `new()` 等于放弃了 Factory Override 能力，破坏了验证 IP 的可配置性。
 
-### Q6: 什么是 TLM？put/get/transport 接口区别？
+### TLM — put/get/transport 接口
 
 TLM（Transaction Level Modeling，事务级建模）是 UVM 组件间通信的标准方式，其核心思想是：**组件之间不通过信号线连接，而是通过传递事务对象（Transaction）来通信**。TLM 将通信从信号级抽象提升到事务级。
 
@@ -491,7 +491,7 @@ endtask
 - 双向请求-响应（需要同步等待返回值）→ `transport()`
 - 非关键路径不想阻塞 → 使用 `try_*` 或 `nb_*` 变体
 
-### Q8: 什么是 Sequence 和 Sequencer？Driver 和 Sequencer 怎么交互？
+### Sequence、Sequencer 与 Driver 的交互
 
 Sequence 是激励的**生产者**，Sequencer 是激励的**仲裁器和调度器**，Driver 是激励的**消费者和执行者**。三者形成 UVM 激励生成的流水线（Pipeline）。
 
@@ -592,7 +592,7 @@ uvm_config_db #(uvm_object_wrapper)::set(
 );
 ```
 
-### Q9: UVM 中的 Monitor 和 Scoreboard 分别做什么？
+### Monitor 和 Scoreboard 的职责
 
 Monitor（监视器）和 Scoreboard（计分板）是验证平台中两个职责截然不同的组件——Monitor 负责**观测**，Scoreboard 负责**判断**。
 
@@ -692,7 +692,7 @@ endclass
 | **实例数** | 每个 Agent 至少一个 | 整个验证环境通常一个（但可分层） |
 | **对象基类** | `uvm_monitor` | `uvm_scoreboard` |
 
-### Q10: 什么是虚接口（Virtual Interface）？为什么需要？
+### 虚接口（Virtual Interface）
 
 虚接口（Virtual Interface）是 SystemVerilog 中的一个语言特性，用于在类（Class）内部引用接口（Interface）实例。在 UVM 中，它是连接事务级抽象世界（Testbench 类）和信号级物理世界（DUT 引脚）的唯一桥梁。
 
@@ -780,7 +780,7 @@ endclass
 | **驱动竞争** | 直接驱动在 Active Region，可能与 DUT 赋值冲突 | `output #1` 后延迟驱动——DUT 的所有更新完成后才驱动新值 |
 | **时序可移植性** | 依赖工具和版本的默认行为 | clocking block 语义由 IEEE 1800 标准精确定义 |
 
-### Q11: 什么是寄存器模型（Register Model）？作用？
+### 寄存器模型（Register Model）
 
 寄存器模型（Register Abstraction Layer, RAL）是 UVM 提供的一套面向对象的寄存器建模和访问框架。它构建了一个与 DUT 硬件寄存器映射一一对应的软件镜像，使得验证环境可以在事务级（而不是信号级）操作 DUT 的寄存器。
 
@@ -887,7 +887,7 @@ class config_sequence extends uvm_sequence #(uvm_sequence_item);
 endclass
 ```
 
-### Q12: 什么是后门访问（Backdoor）和前门访问（Frontdoor）？
+### 后门访问与前门访问
 
 前门访问和后门访问是 UVM RAL 提供的两种寄存器访问路径，分别对应不同的硬件访问机制和验证需求。
 
@@ -970,7 +970,7 @@ endclass
 | 寄存器复位值检查 | **后门读**（peek）检查复位后的初始值 | 不需要启动总线即可验证芯片上电默认状态 |
 | 覆盖率驱动测试 | **前门** 为主 | 前门访问计入总线覆盖率，后门访问不产生协议覆盖率 |
 
-### Q13: UVM 中 Callback 机制有什么用？
+### UVM Callback 机制
 
 Callback（回调）机制是 UVM 提供的一种**非侵入式扩展**方式——在不修改原始组件代码的前提下，在组件的关键执行点注入自定义行为。
 

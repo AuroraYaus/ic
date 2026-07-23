@@ -11,7 +11,7 @@ tags:
   - fifo
   - verilog
   - systemverilog
-source_spec: "Cummings, Simulation and Synthesis Techniques for Asynchronous FIFO Design (SNUG 2002); IEEE 1800-2017; Xilinx UG473 FIFO Generator; 数字IC面试题集"
+source_spec: "Cummings, Simulation and Synthesis Techniques for Asynchronous FIFO Design (SNUG 2002); IEEE 1800-2017; Xilinx UG473 FIFO Generator"
 queries: 1
 ---
 # FIFO 设计
