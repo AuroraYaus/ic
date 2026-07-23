@@ -1371,7 +1371,7 @@ class axi_agent extends uvm_component;
 endclass
 ```
 
-##### 注意事项
+#**注意事项**：
 
 1. **仅用于 `uvm_component` 派生类**：Driver、Monitor、Sequencer、Agent、Scoreboard、Coverage Collector、Environment（Env）、Test 等所有静态结构组件使用此宏。如果在 `uvm_object` 派生类（如 `uvm_sequence`）上错误使用了 `uvm_component_utils`，会导致 `create()` 调用签名不匹配的编译错误。
 
@@ -1936,7 +1936,7 @@ mem_wr_rd_seq_h.start(m_sequencer);
 //   由 UVM 在 start() 时自动设置
 ```
 
-#### 为什么是阻塞的——finish_item 等待 Driver 完成 item_done()
+**为什么 `uvm_do` 是阻塞的** —— `finish_item` 内部等待 Driver 的 `item_done()` 返回，在此之前 Sequence 的 `body()` 不会继续执行下一行。
 
 `uvm_do` 是**阻塞**宏，执行后暂停调用代码直到以下条件全部满足：
 
@@ -2032,7 +2032,7 @@ endtask
 | **适用场景** | 需要在随机化前后做特殊处理（如手动设置确定性值覆盖随机结果） | 标准的事务生成流程 |
 | **错误处理** | 可自定义 randomize 失败的异常处理 | 使用默认的 warning 处理 |
 
-#### 注意事项
+**注意事项**：
 
 - **不要在使用 `uvm_do` 之前手动 `new()` 或 `create()` 对象**：`uvm_do` 内部已经包含了 `create()` 调用，如果先创建再传入会导致内存泄漏（旧对象被覆盖）。
 - **`uvm_do` 的阻塞性质可能导致死锁**：如果 Driver 的 `run_phase` 中忘记调用 `item_done()`，`finish_item` 将永远阻塞，仿真不报错但挂起不动。
@@ -2197,7 +2197,7 @@ endclass
 | 分布约束 | `req.addr dist {0:=1, [1:15]:/1};` | 加权随机分布 |
 | 蕴含约束 | `(req.is_read) -> req.len < 4;` | 条件约束 |
 
-#### 注意事项
+**注意事项**：
 
 - **`uvm_do_with` 的参数必须是 Sequence Item**（不能用子 Sequence）——子 Sequence 使用 `uvm_do`。
 - **内联约束不会覆盖类内约束**——两者取交集，如果内联约束指定的值超出类内约束范围，`randomize()` 返回 0。
@@ -2352,7 +2352,7 @@ endtask
 | `try_next_item(req)` | **非阻塞**: FIFO 为空时立即返回 0 | Driver 需要在没有事务时做其他工作（如发送 IDLE 周期） |
 | `get(req)` | 阻塞拉取但**不返回 item_done 的响应给 Sequence** | 高级用法——需要精确控制响应时机时 |
 
-#### 注意事项
+**注意事项**：
 
 - **永远在 `get_next_item` 和 `item_done` 之间放 `drive_tx`**——这是驱动的黄金法则。如果顺序错了（先 item_done 再 drive），数据驱动时事务状态已标记为"完成"。
 - **如果 drive_tx 内部有 `@(posedge clk)` 等待**——`item_done()` 在这些等待之后才调用。这保证 Driver 在 Transaction 真正完成前不会拉取下一个事务。
@@ -2547,7 +2547,7 @@ phase.phase_done.set_drain_time(this, 100);    // 单位：仿真时间单位（
 
 如果不在 drain_time 内完成这些操作，Scoreboard 可能对最后一笔事务报告"missing expected"错误。
 
-#### 注意事项
+**注意事项**：
 
 - **raise 和 drop 必须配对**——每个 raise 必须有对应的 drop。如果 Sequence 中 raise 了但没有 drop，仿真挂起——`run_phase` 永远不结束。
 - **不要在不同的 Phase 中共享 objection 逻辑**——每个 Phase（`run_phase`、`main_phase`、`reset_phase` 等）有独立的 objection 计数器。
@@ -2559,7 +2559,7 @@ phase.phase_done.set_drain_time(this, 100);    // 单位：仿真时间单位（
 
 UVM 的报告机制通过四个核心宏提供分级日志系统。它们不仅输出消息，还控制仿真的行为（继续、计数、或终止）和日志的详细程度过滤。
 
-#### 是什么——四个报告宏的严重级别和默认行为
+**四个报告宏的严重级别和默认行为
 
 | 宏 | 严重级别 | 默认行为 | 对仿真的影响 |
 |:---|:---|:---|:---|
@@ -2716,7 +2716,7 @@ if (!uvm_config_db#(axi_env_cfg)::get(this, "", "cfg", cfg))
 //   ^^^^^^^^^  FATAL——环境配置缺失，运行无意义
 ```
 
-#### 注意事项
+**注意事项**：
 
 - **`uvm_error` 不会立即终止仿真**——默认 `max_quit_count` 为 0（永不终止）。生产环境通常设为 5-10。
 - **`uvm_fatal` 立即调用 `$finish`**——不可恢复。只用于"继续仿真无意义"的场景（如 Virtual Interface 为空）。
@@ -2725,86 +2725,42 @@ if (!uvm_config_db#(axi_env_cfg)::get(this, "", "cfg", cfg))
 - **不要用 `uvm_error` 替代 `uvm_fatal`**——如果环境配置错误（如没有 Virtual Interface），后续的 `get_next_item` 会崩溃。此时应该用 `uvm_fatal` 立即停止，避免无意义的诊断信息。
 - **ID 字符串应该短而有意义**——如 `"CFG"`（配置）、`"CHK"`（检查）、`"DRV"`（驱动）、`"MON"`（监测）。长 ID 字符串会撑宽日志列。
 
-### config_db::set/get 详解
+### config_db：UVM 的"全局配置中心"
 
-配置数据库（Configuration Database, config_db）是 UVM 中最重要的组件间通信机制之一。它允许验证环境的任意两个节点之间通过键值对传递数据，而无需直接的句柄连接。Driver 获取虚拟接口、Agent 获取配置信息、Sequence 获取测试参数——全部依赖 config_db。
+验证环境里有两个世界：静态的 `module` 世界（DUT、interface、top）和动态的 `class` 世界（Driver、Monitor、Sequence）。它们之间没有直接的句柄可以引用彼此——你需要一个桥梁。config_db 就是这个桥梁。
 
-#### 是什么——一个全局的层次化键值存储
-
-`uvm_config_db #(T)` 是一个参数化的配置数据库类，其中 `T` 是存储值的类型。它提供了两个静态方法：
+它本质上是一个全局键值存储。顶层在 `module` 世界 `set`，子组件在 `class` 世界 `get`。最常见的使用场景：将 `virtual interface` 从 `top.sv` 传递到 Driver 和 Monitor。
 
 ```systemverilog
-// set: 存储一个键值对到数据库中
-//   参数 1 (cntxt)：上下文组件——set 的作用范围起点（null 表示全局）
-//   参数 2 (inst_name)：实例路径——相对于 cntxt 的层次路径
-//   参数 3 (field_name)：键名——标识这条数据的名称
-//   参数 4 (value)：值——实际存储的数据
-uvm_config_db #(T)::set(uvm_component cntxt,
-                         string inst_name,
-                         string field_name,
-                         T value);
+// top.sv — module 世界：把 interface 放入 config_db
+initial begin
+    uvm_config_db #(virtual mem_intf)::set(null, "*", "MEM_PIF", pif);
+    //            ^^^^^^^^^^^^^^^^^^^        ^^^^  ^^^^^^^^^^  ^^^
+    //            类型参数: virtual interface 全局   键名       值
+end
 
-// get: 从数据库中检索一个键值对
-//   参数 1 (cntxt)：起始搜索组件（从该组件开始向根追溯）
-//   参数 2 (inst_name)：实例路径——相对于 cntxt 的层次路径
-//   参数 3 (field_name)：键名
-//   参数 4 (variable)：接收变量——检索到的值写入此变量
-//   返回值：1 = 找到，0 = 未找到
-uvm_config_db #(T)::get(uvm_component cntxt,
-                         string inst_name,
-                         string field_name,
-                         ref T variable);
+// mem_drv.sv — class 世界：从 config_db 取出 interface
+function void build_phase(uvm_phase phase);
+    if (!uvm_config_db #(virtual mem_intf)::get(this, "", "MEM_PIF", vif))
+        `uvm_error(...)  // get 返回 0 → interface 未正确传递，无法继续
+endfunction
 ```
 
-#### 为什么——解决验证环境的配置传递问题
+**路径匹配的直觉。** `set` 的第一个参数 `null` 表示"从顶层可见"，`"*"` 表示"所有子路径都能匹配"。所以 `set(null, "*", "KEY", val)` 是最宽松的组合——任何人都能找到。但当环境中有多个 Agent 需要不同配置时，就需要更精确的路径：`set(this, "agent_0.drv", "vif", pif_0)` 只为 agent_0 的 driver 设置。
 
-在没有 config_db 的验证环境中，配置传递通常通过以下方式：
-- **全局变量**：难以管理，多测试并发时相互覆盖
-- **层次路径引用（Hierarchical Reference）**：`top.env.agent.driver.vif = top.dut_if` —— 耦合严重，环境结构变化时全部失效
-- **构造函数参数传递**：每层组件都要显式传递，当层次深达 5-6 层时参数列表不可维护
+**时序约束。** `set` 必须在 `build_phase` 之前或之中完成，`get` 在 `build_phase` 之中进行。自顶向下的 `build_phase` 顺序保证：父组件先 `set`，子组件后 `get`。如果你在 `connect_phase` 中 `set`，子组件的 `build_phase` 已经执行完毕——`get` 不到任何东西。
 
-config_db 解决了这些问题：**set 在顶层设置一次，各级子组件各自 get 所需的键值**，无需显式的层次路径引用。
-
-#### 怎么用——类型参数化的 set/get 实例
-
-**set 和 get 的类型参数化：**
-
-```systemverilog
-// ===== config_db 支持多种类型的 set/get =====
-
-// 1. Virtual Interface（最常用的类型）
-uvm_config_db #(virtual mem_intf)::set(null, "*", "MEM_PIF", pif);
-//                             ^^^^^                   ^^^
-//                             类型参数 T               值
-
-// 2. 整数标量
-uvm_config_db #(int)::set(this, "*", "INT_NUM_TX", 20);
-
-// 3. 对象句柄（配置对象）
-uvm_config_db #(axi_env_cfg)::set(this, "*", "cfg", cfg_obj);
-
-// 4. uvm_object_wrapper（Sequence 类型——default_sequence 模式）
-uvm_config_db #(uvm_object_wrapper)::set(
-    this, "env.agent.sqr.main_phase",
-    "default_sequence", mem_n_wr_rd_seq::get_type()
-);
-```
-
-**get 的层次查找策略：**
+**Memory Design 项目的完整链路：**
 
 ```
-假设组件层次为：uvm_test_top.env.agent.driver
+top.sv:  set(null, "*", "MEM_PIF", pif)         → 全局放置 interface
+top.sv:  set(null, "*", "INT_NUM_TX", num_tx)    → 全局放置事务数量
 
-driver 中调用 uvm_config_db #(T)::get(this, "", "vif", vif)：
-  this = driver（当前组件）
-  inst_name = ""（空字符串——匹配任意路径）
-
-查找顺序（从当前组件向根追溯）：
-  ┌─────────────────────────────────────────────────────┐
-  │ ① driver 节点 → 检查是否有 set 的 cntxt+inst_name 匹配
-  │ ② agent 节点   → 沿 parent 向上
-  │ ③ env 节点     → 继续向上
-  │ ④ test 节点    → 继续向上
+mem_drv.build_phase():  get(this, "", "MEM_PIF", vif)    → 获取 interface
+mem_mon.build_phase():  get(this, "", "MEM_PIF", vif)    → 获取 interface（同一个 pif）
+mem_n_wr_rd_seq.body(): get(null, "", "INT_NUM_TX", N)  → Sequence 是 object，
+                         //  ^^^^                          没有 parent，用 null 全局查找
+```
   │ ⑤ uvm_root     → 到顶了——返回 0（未找到）
   └─────────────────────────────────────────────────────┘
 
@@ -2982,16 +2938,7 @@ task body();
 endtask
 ```
 
-#### 注意事项
-
-- **set 和 get 的类型参数 `#(T)` 必须完全一致**——`set #(virtual mem_intf)` 和 `get #(virtual mem_intf)` 必须匹配。如果类型不匹配（如 set 用 `mem_intf` 而 get 用 `virtual mem_intf`），get 返回 0。
-- **通配符 `"*"` 谨慎使用**——全局通配看似方便，但当多个地方 set 相同的键名时会产生覆盖冲突（最后 set 的值生效）。生产代码中推荐使用精确路径。
-- **get 返回值必须检查**——如果 `get` 返回 0（未找到），必须用 `uvm_error` 或 `uvm_fatal` 报告。静默忽略可能导致 Driver 的 vif 为 null → 仿真崩溃（难以定位根因）。
-- **`void'(...)` 忽略返回值**——对于非关键配置（如 midx），获取失败时有合理的默认值，可用 `void'(uvm_config_db#(int)::get(...))` 忽略返回值。
-- **config_db 有性能开销**——每次 `get` 调用会从当前组件向根遍历层次树进行字符串路径匹配。对于高频调用的场景（如 Sequence 的 `body()` 中每次循环都 `get`），应把值缓存到局部变量中。
-- **config_db 内部同时写入 resource_db**——`uvm_config_db::set()` 内部同时向 `uvm_resource_db` 写入，而 `get()` 优先查 config_db 再查 resource_db。
-
-```
+config_db 的几个关键约束：类型参数 `#(T)` 在 set 和 get 之间必须完全一致；`get` 返回值必须检查——返回 0 说明配置未正确传递，应报错而非静默忽略；`"*"` 通配方便但多 set 同键名时会相互覆盖；高频调用场景（如 Sequence 的 `body()` 内每次循环都 get）应将值缓存到局部变量以避免重复的层次树遍历开销。
 
 ## 关键要点
 
