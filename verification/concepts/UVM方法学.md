@@ -237,15 +237,7 @@ endclass
 
 **`uvm_transaction` 和 `uvm_sequence_item` 的关系：**
 
-```text
-uvm_object
-  └── uvm_transaction           ← 事务基类：定义了记录和比较接口
-        └── uvm_sequence_item    ← 序列项：在 transaction 基础上增加了 sequencer 关联
-```
-
-- `uvm_transaction`：提供了 `accept_tr()`/`begin_tr()`/`end_tr()` 等事务记录方法（用于波形和日志中的事务可视化追踪）
-- `uvm_sequence_item`：继承自 `uvm_transaction`，增加了 `set_sequencer()` / `get_sequencer()` 方法，使 item 能关联到产生它的 sequencer；增加了 `set_item_context()` 用于序列层次上下文传递
-- **工程实践**：几乎所有自定义 Transaction 类都继承自 `uvm_sequence_item`（而非 `uvm_transaction`），因为需要与 Sequencer-Driver 流水线集成
+`uvm_transaction` 继承自 `uvm_object`，是事务基类，定义了 `accept_tr()`/`begin_tr()`/`end_tr()` 等事务记录方法，用于波形和日志中的事务可视化追踪。`uvm_sequence_item` 继承自 `uvm_transaction`，增加了 `set_sequencer()` / `get_sequencer()` 方法，使 item 能关联到产生它的 sequencer，以及 `set_item_context()` 用于序列层次上下文传递。工程实践中，几乎所有自定义 Transaction 类都继承自 `uvm_sequence_item`（而非 `uvm_transaction`），因为需要与 Sequencer-Driver 流水线集成。
 
 **Sequence 是 component 还是 object？**
 
@@ -473,20 +465,7 @@ endtask
 
 **1. 为什么需要 connect_phase？**
 
-组件在 `build_phase` 中被创建（`create()`），但在 `build_phase` 结束前，子组件的内部端口尚未完全构建好。因此 UVM 设计了第二个阶段——`connect_phase`——专用于建立连接，且执行方向与 `build_phase` 相反：
-
-```text
-build_phase (自顶向下)              connect_phase (自底向上)
-─────────────────────────          ─────────────────────────
-env.build_phase()                   driver.connect_phase()
-  ├─ agent.create()                    └─ seq_item_port.connect(sequencer.seq_item_export)
-  ├─ agent.build_phase()           monitor.connect_phase()
-  │   ├─ driver.create()              └─ ap.connect(agent.ap)
-  └─ scoreboard.create()           agent.connect_phase()
-                                       └─ (子组件已连好，此层通常为空)
-                                   env.connect_phase()
-                                       └─ agent.ap.connect(scoreboard.analysis_export)
-```
+组件在 `build_phase` 中被创建（`create()`），但在 `build_phase` 结束前，子组件的内部端口尚未完全构建好。因此 UVM 设计了第二个阶段——`connect_phase`——专用于建立连接，且执行方向与 `build_phase` 相反：`build_phase` 自顶向下执行（父组件先于子组件），`connect_phase` 自底向上执行（叶子组件先完成连接，父组件后完成）。例如 `driver` 在自身的 `connect_phase` 中将 `seq_item_port` 连接到 `sequencer.seq_item_export`，`monitor` 将 `ap` 连接到 `agent.ap`，最后 `env` 将 `agent.ap` 连接到 `scoreboard.analysis_export`。
 
 **connect_phase 的关键特性：**
 
