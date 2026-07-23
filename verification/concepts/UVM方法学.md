@@ -2383,10 +2383,7 @@ endtask
 ```
 
 `drain_time` 是 objection 放下后的额外等待时间——给流水线中还在传输的最后几个事务留出完成窗口。如果你刚 drop 就关仿真，Scoreboard 可能还没来得及检查最后几笔数据。
-endclass
-```
-
-**Objection 与 Phase 生命周期：**
+**Objection 两种管理模式：** Test 层管理（`run_phase` 中包围 `start()`）和 Sequence 层管理（`pre_body`/`post_body` 通过 `get_starting_phase()`）。手动 `start(sqr)` 时 `starting_phase` 非 null，`default_sequence` 方式为 null 需判空。
 
 ```
 run_phase 启动
@@ -2399,7 +2396,7 @@ run_phase 启动
      │     YES → run_phase 结束 → Cleanup Phases
      │     NO  → 继续等待（时间前推进）
      │
-     └── (如果所有组件都忘了 drop → 仿真永远挂起)
+     └── 如果所有组件都忘了 drop，仿真永远挂起
 ```
 
 #### 为什么——不 raise 会怎样（最常见的初学者错误根源）
