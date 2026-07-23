@@ -469,29 +469,29 @@ endtask
 
 **connect_phase 的关键特性：**
 
-| 特性 | 说明 |
-|:---|:---|
-| **执行方向** | **自底向上**（Bottom-Up）——叶子组件先完成连接，父组件后完成。与 build_phase 的自顶向下相反 |
-| **执行性质** | `function`（非 task，0 仿真时间） |
-| **唯一职责** | 连接 TLM 端口（`port.connect(export)` 调用） |
-| **不可做的事** | 不可 `create()` 组件；不可 `raise_objection`；不可消耗仿真时间 |
+| 特性        | 说明                                                          |
+| :-------- | :---------------------------------------------------------- |
+| **执行方向**  | **自底向上**（Bottom-Up）——叶子组件先完成连接，父组件后完成。与 build_phase 的自顶向下相反 |
+| **执行性质**  | `function`（非 task，0 仿真时间）                                   |
+| **唯一职责**  | 连接 TLM 端口（`port.connect(export)` 调用）                        |
+| **不可做的事** | 不可 `create()` 组件；不可 `raise_objection`；不可消耗仿真时间              |
 
 **2. Port/Export/Imp 的连接规则**
 
 TLM 端口连接有严格的类型和方向约束，且必须在 `connect_phase` 中完成：
 
-```
 连接链（单向）：Port 发起端 → Export 中间转发 → Imp 最终实现
 
 ![TLM 端口连接](assets/tlm-port-connection.svg)
 
-约束：
-  - Port 可以连接到 Export 或 Imp
-  - Export 只能连接到 Imp（不能连回 Port）
-  - Imp 是终端——不能再连接到其他端口
-  - 连接必须在 connect_phase 中完成（运行时不可改变）
-  - 端口类型必须匹配（put_port → put_export/put_imp，不能连到 get 端口）
-  - 参数化类型必须一致（#(my_item) 不能连 #(other_item)）
+**约束：**
+
+- Port 可以连接到 Export 或 Imp
+- Export 只能连接到 Imp（不能连回 Port）
+- Imp 是终端——不能再连接到其他端口
+- 连接必须在 connect_phase 中完成（运行时不可改变）
+- 端口类型必须匹配（`put_port` → `put_export`/`put_imp`，不能连到 `get` 端口）
+- 参数化类型必须一致（`#(my_item)` 不能连 `#(other_item)`）
 
 **3. connect_phase 的典型代码模式**
 
