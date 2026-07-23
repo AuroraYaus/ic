@@ -1662,90 +1662,54 @@ endclass
 
 ---
 
-#### Sequence 宏
+#### `uvm_do` 和 `uvm_do_with` — 激励的"一键生成"
 
-##### `uvm_do` — 启动一个 Sequence（全自动）
+UVM 把 Sequence 分层：底层 Sequence 封装单次操作（一次写、一次读），高层 Sequence 像搭积木一样组合它们（N 次随机读写、满深度遍历）。但每次调用子 Sequence 都要写"创建→配置→启动"三行代码，又啰嗦又容易漏步骤。
 
-`` `uvm_do`` 宏用于在当前 Sequencer 上创建并启动一个子 Sequence。它是 Sequence 分层设计中串联不同层级 Sequence 的主要方式。
-
-**是什么**：一个宏，封装为单次宏调用完成"创建子 Sequence → 在父 Sequence 的 Sequencer 上启动 → 阻塞等待完成"。`uvm_do` 支持两种参数形式：(1) 传入 Sequence Item——等价于 `create_item → start_item → randomize → finish_item`；(2) 传入 Sequence（子 Sequence）——等价于 `type_id::create → start(m_sequencer)`。
-
-**为什么需要**：在分层 Sequence 设计中，高层 Sequence 的 `body()` 需要反复启动低层 Sequence。`mem_n_wr_rd_seq`（N 次读写 Sequence）在 `body()` 中调用 `mem_wr_rd_seq`（单次读写 Sequence）N 次——每次都手动 `create + start` 写 3-4 行代码，而 `uvm_do` 封装为单次宏调用完成。
-
-```systemverilog
-// ===== 用法 A：启动子 Sequence（常用形式）=====
-task body();
-    repeat (num_tx) begin
-        `uvm_do(mem_wr_rd_seq_h)  // 创建并启动子 Sequence，阻塞等待完成
-    end
-endtask
-
-// 宏展开后等价于：
-task body();
-    repeat (num_tx) begin
-        mem_wr_rd_seq_h = mem_wr_rd_seq::type_id::create("mem_wr_rd_seq_h");
-        mem_wr_rd_seq_h.start(m_sequencer);  // 在父的 Sequencer 上启动
-        // start() 内部完成 start_item → randomize → finish_item 全流程
-        // 阻塞直到子 Sequence 的 body() 执行完毕
-    end
-endtask
-```
-
-**实际项目中的角色**（Memory Design — `seq_lib.sv`）：
+`uvm_do` 把这三行压缩成一个词。Memory Design 项目的 `mem_n_wr_rd_seq` 直观展示了它的威力：
 
 ```systemverilog
 class mem_n_wr_rd_seq extends uvm_sequence #(mem_tx);
-    `uvm_object_utils(mem_n_wr_rd_seq)
-
-    mem_wr_rd_seq mem_wr_rd_seq_h;  // 子 Sequence 句柄
+    mem_wr_rd_seq mem_wr_rd_seq_h;     // 子 Sequence 句柄——尚未实例化
     int num_tx;
 
     task body();
         if (!uvm_config_db #(int)::get(null, "", "INT_NUM_TX", num_tx))
-            `uvm_error(get_type_name(), "RETRIVAL_FAILED FROM CONFIG_DB")
+            `uvm_error(get_type_name(), "CONFIG_DB FAILED")
 
         repeat (num_tx) begin
-            `uvm_do(mem_wr_rd_seq_h)  // 每次启动一个基础读写 Sequence
-            // `uvm_do 阻塞直到 mem_wr_rd_seq_h.body() 完成
-            // 循环 + 阻塞 = 严格串行执行 N 次读写对
+            `uvm_do(mem_wr_rd_seq_h)   // 一行：创建 + 启动 + 阻塞等待完成
         end
     endtask
 endclass
 ```
 
-##### `uvm_do_with` — 启动一个 Sequence Item（带内联约束）
-
-`` `uvm_do_with`` 在 `uvm_do` 的基础上增加了一个内联约束块 `{...}`，允许在 Sequence Item 随机化时附加额外的约束条件。内联约束不会覆盖类内定义的 `constraint` 块——两者取交集（逻辑 AND），必须同时满足。
+展开后等价于：
 
 ```systemverilog
-// ===== 来自 seq_lib.sv —— mem_wr_rd_seq::body() =====
+mem_wr_rd_seq_h = mem_wr_rd_seq::type_id::create("mem_wr_rd_seq_h");
+mem_wr_rd_seq_h.start(m_sequencer);
+```
+
+`start()` 内部走完了 Sequence Item 的完整生命周期——`start_item → randomize → finish_item`——并且是阻塞的：`uvm_do` 之后的代码要等到子 Sequence 的 `body()` 全部执行完毕才会继续。所以 `repeat(num_tx)` 保证 N 次读写是**严格串行**的，不会乱序。
+
+**`uvm_do_with` — 给随机化下指令。** 很多时候你不想要"完全随机"——你要写操作、要指定地址。`uvm_do_with` 在 `uvm_do` 的基础上加了一个内联约束块：
+
+```systemverilog
+// seq_lib.sv — 先写后读同一地址
 task body();
-    // 写操作：约束 wr_rd == 1（写）
-    `uvm_do_with(req, {req.wr_rd == 1;})       // 内联约束：强制写方向
-    addr_q.push_back(req.addr);                 // 记录写入地址
+    `uvm_do_with(req, {req.wr_rd == 1;})          // 写：随机地址
+    addr_q.push_back(req.addr);
 
     addr_t = addr_q.pop_front();
-    // 读操作：约束 wr_rd == 0（读）+ 指定同一地址
-    `uvm_do_with(req, {req.wr_rd == 0;          // 内联约束：强制读方向
-                        req.addr == addr_t;})    // 内联约束：指定确切地址
+    `uvm_do_with(req, {req.wr_rd == 0;             // 读：必须读刚才写的地址
+                        req.addr == addr_t;})
 endtask
 ```
 
-**宏展开后等价于**：
+展开后 `with {}` 的内容直接拼接到 `randomize() with {}` 里。关键是**内联约束和类内约束是交关系**——如果 `mem_tx` 内部有 `constraint c_addr { addr < 16; }`，而你写了 `{req.addr == 20;}`，随机化会失败（无解），宏内部直接报 `UVM_FATAL`。
 
-```systemverilog
-req = mem_tx::type_id::create("req");
-start_item(req);
-req.randomize() with { req.wr_rd == 1; };  // 内联约束合并到随机化
-finish_item(req);
-```
-
-**内联约束与类内约束的关系**：假设 `mem_tx` 类内定义了 `constraint c_addr { addr < 16; }`（DUT 深度为 16），同时 `uvm_do_with` 中写了 `{req.wr_rd == 0; req.addr == addr_t;}`。随机化时，UVM 会同时满足类内约束（`addr < 16`）和内联约束（`addr == addr_t`）——结果是一个确定性的地址值，但前提是 `addr_t` 本身也在 0-15 范围内。如果 `addr_t >= 16`，随机化失败，`uvm_do_with` 内部会报 `UVM_FATAL`。
-
-**注意事项**：
-1. `` `uvm_do_with`` 仅用于 Sequence Item（创建单个事务），不能像 `uvm_do` 那样传入子 Sequence
-2. 内联约束语法是标准的 SystemVerilog `with {}` 约束——大括号内可以有多条约束语句，每条以分号结束
-3. 如果随机化失败（约束冲突导致无解），宏内部调用 `uvm_report_fatal` 终止仿真
+**两个宏的分工。** `uvm_do` 用于启动子 Sequence，`uvm_do_with` 用于创建单个 Sequence Item 并附加约束。这是 UVM 里使用频率最高的两个宏——Memory Design 项目的所有 Sequence 代码几乎都由它们构建。
 
 ---
 
@@ -1928,15 +1892,9 @@ top.sv
            └─ `uvm_info(...)                            // Report 宏
 ```
 
-### `uvm_do` 宏详解
-
-`uvm_do` 是 UVM 中最高频使用的 Sequence 宏，用于**单行代码完成** Sequence Item 或子 Sequence 的创建、随机化和发送全流程。它封装了 `start_item`/`randomize`/`finish_item` 三步操作，使测试激励的编写从繁琐的手动流程封装为单行代码。
-
-#### 是什么——宏展开后的完整等价代码
+### `uvm_do` 宏展开后的完整等价代码
 
 `uvm_do(item_or_seq)` 根据参数类型有两种展开方式：
-
-**参数为 Sequence Item 时**——创建并发送一个事务对象：
 
 ```systemverilog
 // `uvm_do(req) 的宏展开等价代码（简化版）：
@@ -2247,66 +2205,29 @@ endclass
 - **内联约束不能引用不在作用域内的变量**：`with {}` 的作用域是 `randomize()` 调用所在的作用域，可以访问当前 task/function 的局部变量和类的成员变量。
 - **分号是分隔符不是终止符**：内联约束块 `{constraint1; constraint2;}` 中每条约束以分号分隔，最后一条后面可以有分号也可以没有。
 
-### get_next_item / item_done 握手协议
+### 握手协议：Driver 和 Sequencer 之间的一次"交接"
 
-`get_next_item` 和 `item_done` 是 UVM Driver 与 Sequencer 之间的事务握手协议，它们是 Sequence → Sequencer → Driver 流水线的**末端通信机制**。这两个方法定义了 Driver 如何从 Sequencer 拉取事务、驱动完成后如何通知 Sequencer、以及 Sequencer 如何将完成信号传回给等待中的 Sequence。
-
-#### 是什么——两只手之间的同步握手
+`get_next_item` 和 `item_done` 是 Driver 和 Sequencer 之间的事务握手。一块数据从 Sequence 到达 DUT 引脚，中间经历了三次交接——这是最核心的那一次。
 
 ![Sequence-Sequencer-Driver 握手协议](assets/uvm-seq-driver-handshake.svg)
 
-这个协议在 `mem_drv.sv` 的 `run_phase` 中以最简形式呈现：
+Driver 的 `run_phase` 是一个 `forever` 循环，Driver 的整个生命周期就是不断地"取→驱动→确认→取→驱动→确认"。Memory Design 项目的 Driver 代码是这个协议最干净的示范：
 
 ```systemverilog
-// ===== mem_drv.sv — 标准的 forever 循环 =====
-// 来自 /home/yys/AGENT/ic/projects/uvm-memory/phase4/code/mem_drv.sv
 task run_phase(uvm_phase phase);
     forever begin
-        // ① get_next_item(req)：阻塞等待 Sequencer 将事务放入输出 FIFO
-        //   如果 Sequencer FIFO 为空（没有 Sequence 发出事务），Driver 在此阻塞
-        //   req 句柄在 uvm_driver 基类中已声明，无需在子类中声明
-        seq_item_port.get_next_item(req);
-
-        // ② drive_tx(req)：将事务字段转换为 DUT 接口信号时序
-        //   这是 Driver 的核心工作——事务级抽象 → 信号级实现
-        drive_tx(req);
-
-        // ③ item_done()：通知 Sequencer 当前事务已完成
-        //   此调用：
-        //   a) 将 req 发送回 Sequencer（作为响应，如果有的话）
-        //   b) 唤醒在 finish_item() 中阻塞等待的 Sequence
-        //   c) 允许 Sequencer 将下一个事务出队给 Driver
-        //   如果不调用——Driver 永远拿不到第二个事务！
-        seq_item_port.item_done();
+        seq_item_port.get_next_item(req);   // ① 伸手: "给我一个事务"
+        drive_tx(req);                      // ② 干活: 事务→引脚波形
+        seq_item_port.item_done();          // ③ 交回: "搞定了，下一个"
     end
 endtask
 ```
 
-#### 为什么——阻塞等待和完成通知缺一不可
+三步都是阻塞的，缺一个就卡死整条流水线。
 
-**get_next_item 为什么阻塞？**
+**`get_next_item` 为什么必须阻塞？** Sequencer 的 FIFO 不是永远有数据。如果 Sequence 还没产生下一个事务（比如还在等上次读回的数据），Driver 必须挂起，不能往 DUT 上送垃圾。阻塞等待就是背压在事务层的体现。
 
-Driver 是事务的消费者，它的工作速度可能远快于 Sequence 的生成速度。如果 Sequencer 的 FIFO 中没有待发事务而 Driver 不阻塞，Driver 将驱动无效数据到 DUT（或空指针崩溃）。阻塞等待保证 Driver 只在有实际激励时才工作。
-
-**item_done 为什么不能跳过？**
-
-```
-如果不调用 item_done()：
-  Driver 侧：get_next_item() 会返回什么？
-  ─────────────────────────────────
-  第一次 get_next_item → 返回 item_1（FIFO 中有数据）
-  Driver 驱动 item_1，但不调用 item_done()
-  第二次 get_next_item → 永远阻塞！
-  ─────────────────────────────────
-  原因：Sequencer 内部维护一个"当前事务正在处理"标志。
-  只有 item_done() 才会清除这个标志并释放下一笔事务。
-  不调用 item_done() 等价于告诉 Sequencer"第一个事务还没完成"——
-  Sequencer 不会发送第二个事务。
-
-  Sequence 侧：finish_item() 什么时候返回？
-  ─────────────────────────────────
-  finish_item() 在 Sequence 侧阻塞等待 Sequencer 收到 item_done()。
-  Sequence 发完 10 个事务后调用 drop_objection。
+**`item_done` 为什么绝对不能跳过？** Sequencer 内部有一个标志位——"当前事务是否已被 Driver 取走并完成"。只有 `item_done()` 才清除这个标志，允许下一个事务出队。不调用它，第二次 `get_next_item` 永远等不到任何东西。Sequence 侧的 `finish_item()` 也同时锁死——它正等着 `item_done` 的信号才能返回。一条流水线上三个组件一起卡住，仿真时间停在原地，波形永远空白。
   但如果第一个事务的 item_done() 就从未被调用——
   第一个 Sequence 的 finish_item() 永远阻塞，
   测试的 run_phase 永远不会结束，
@@ -2438,28 +2359,30 @@ endtask
 - **item_done 可以带参数**：`item_done(rsp)` 将响应对象回传给 Sequencer，Sequence 侧可通过 `get_response(rsp)` 获取。但多数设计不用此特性——数据比对在 Scoreboard 中完成。
 - **AXI 中 `get_next_item` 返回的是整个 Burst**——不是单个 beat。Driver 在 item_done 前必须完成所有 beat 的驱动和响应接收。
 
-### raise_objection / drop_objection 机制
+### Objection：谁来决定仿真什么时候结束
 
-Objection（异议）机制是 UVM 控制仿真生命周期的核心：它决定 `run_phase` 何时可以结束。简单来说——**只要有任何组件 raise 了 objection，仿真就继续运行；当所有 objection 都被 drop 后，`run_phase` 结束，仿真进入 Cleanup Phase**。
+`run_phase` 没有"执行完就结束"的概念——它是一个无限循环的 task。那仿真怎么知道什么时候该停？答案是 Objection 机制。
 
-#### 是什么——一个全局的"未完成工作"计数器
+可以把它理解成一个"未完成工作"计数器。`raise_objection(this)` = +1（"我还有活要干"），`drop_objection(this)` = -1（"我干完了"）。当计数归零，所有组件都宣布完成，`run_phase` 才结束，仿真进入 Cleanup Phase。
 
-UVM 在每个 Phase 中维护一个挂起 objection 计数器。组件通过 `phase.raise_objection(this)` 告诉 UVM"我还有工作要做"，通过 `phase.drop_objection(this)` 告诉 UVM"我完成了"。
+**两个经典错误，刚好对称。**
+
+第一个：**忘了 raise**。`run_phase` 进来，没人举手说有工作 → UVM 认为无事可做 → 仿真在时间 0 立即终止。波形为空，覆盖率为零。这是 UVM 初学者最常见的困惑——明明写了完整的 Sequence 和 Driver，为什么什么都没执行？
+
+第二个：**忘了 drop**。所有工作都做完了，但有人忘了说"我完成了" → 计数永远不为零 → 仿真永远挂起。CPU 空转，回归服务器上的仿真作业超时被杀。
+
+Memory Design 项目展示了标准的解决方式——在 `run_phase` 中，`raise` 和 `drop` 包围着 Sequence 的执行：
 
 ```systemverilog
-// ===== Phase Objection 的计数机模型 =====
-class uvm_phase;
-    uvm_objection objection;                   // 内部 objection 管理器
+task run_phase(uvm_phase phase);
+    phase.raise_objection(this);               // 举起：开始工作
+    phase.phase_done.set_drain_time(this, 100); // 留 100ns 排空流水线
+    seq_h.start(env_h.agent_h.sqr_h);          // 启动 Sequence（阻塞等待完成）
+    phase.drop_objection(this);                // 放下：工作完成
+endtask
+```
 
-    // 简化后的内部逻辑：
-    function void raise_objection(uvm_object obj);
-        objection.raise(obj);                  // 计数 +1，记录"obj 还有工作"
-    endfunction
-
-    function void drop_objection(uvm_object obj);
-        objection.drop(obj);                   // 计数 -1，清除"obj 的工作记录"
-        // 当计数器归零时 → Phase 结束
-    endfunction
+`drain_time` 是 objection 放下后的额外等待时间——给流水线中还在传输的最后几个事务留出完成窗口。如果你刚 drop 就关仿真，Scoreboard 可能还没来得及检查最后几笔数据。
 endclass
 ```
 
