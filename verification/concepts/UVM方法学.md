@@ -2902,6 +2902,129 @@ endtask
 
 config_db 的几个关键约束：类型参数 `#(T)` 在 set 和 get 之间必须完全一致；`get` 返回值必须检查——返回 0 说明配置未正确传递，应报错而非静默忽略；`"*"` 通配方便但多 set 同键名时会相互覆盖；高频调用场景（如 Sequence 的 `body()` 内每次循环都 get）应将值缓存到局部变量以避免重复的层次树遍历开销。
 
+### TLM 四种通信模式：Push、Pull、FIFO、Broadcast
+
+UVM 项目 `uvm-memory` 的 `TLM_*_mod_AXI_tx` 目录提供了四种 TLM 通信模式的完整教学示例。每种模式由 Producer、Consumer 和 Agent/Env 组成。
+
+#### Push 模式：生产者主动推送
+
+Producer 有数据就推送给 Consumer，Consumer 被动接收。
+
+```
+Producer (uvm_blocking_put_port)  ──put(tx)──►  Consumer (uvm_blocking_put_imp)
+  主动方：调用 put()                             被动方：实现 task put(tx)
+```
+
+```systemverilog
+// Producer — 拥有 uvm_blocking_put_port，调用 put() 推送
+class axi_producer extends uvm_component;
+    uvm_blocking_put_port#(axi_tx) axi_put_producer_h;  // 端口用 new 而非 create
+
+    task run_phase(uvm_phase phase);
+        axi_tx axi_tx_h = axi_tx::type_id::create("axi_tx_h");
+        axi_tx_h.randomize();
+        axi_put_producer_h.put(axi_tx_h);           // 阻塞推送——Consumer 未接收完不返回
+    endtask
+endclass
+
+// Consumer — 拥有 uvm_blocking_put_imp，实现 task put(tx) 被动接收
+class axi_consumer extends uvm_component;
+    uvm_blocking_put_imp#(axi_tx, axi_consumer) axi_imp_consumer_h;
+    //                        ^^^^^^  ^^^^^^^^^^^^^  事务类型 + 实现此接口的类
+
+    task put(axi_tx axi_tx_h);                      // 方法名必须是 put
+        axi_tx_h.print();
+    endtask
+endclass
+
+// connect_phase:
+producer.axi_put_producer_h.connect(consumer.axi_imp_consumer_h);
+```
+
+#### Pull 模式：消费者主动拉取
+
+Consumer 需要数据时向 Producer 索取，Producer 被动响应——与 Push 方向相反。
+
+```
+Consumer (uvm_blocking_get_port)  ──get(tx)──►  Producer (uvm_blocking_get_imp)
+  主动方：调用 get()                             被动方：实现 task get(output tx)
+```
+
+```systemverilog
+// Consumer — 拥有 uvm_blocking_get_port，调用 get() 拉取
+class axi_consumer extends uvm_component;
+    uvm_blocking_get_port#(axi_tx) axi_get_consumer_h;
+    task run_phase(uvm_phase phase);
+        axi_get_consumer_h.get(axi_tx_h);           // 阻塞拉取——Producer 未产生数据前阻塞
+    endtask
+endclass
+
+// Producer — 拥有 uvm_blocking_get_imp，实现 task get(output tx)
+class axi_producer extends uvm_component;
+    uvm_blocking_get_imp#(axi_tx, axi_producer) axi_imp_producer_h;
+    task get(output axi_tx axi_tx_flag);            // 参数必须是 output
+        axi_tx_flag = new("axi_tx_h");
+        axi_tx_flag.randomize();                    // 按需生产数据
+    endtask
+endclass
+```
+
+#### FIFO 模式：解耦缓冲
+
+`uvm_tlm_fifo` 插入到 Producer 和 Consumer 之间——Producer 只管 put，Consumer 只管 get，双方互不知晓。
+
+```systemverilog
+uvm_tlm_fifo#(axi_tx) fifo = new("fifo", this);
+producer.axi_put_producer_h.connect(fifo.put_export);    // Producer → FIFO
+consumer.axi_get_consumer_h.connect(fifo.get_peek_export); // FIFO → Consumer
+```
+
+#### Broadcast 模式：一对多广播
+
+Producer 通过 `uvm_analysis_port` 广播，多个 Subscriber 通过 `uvm_analysis_imp` 独立接收——这是 Monitor→Scoreboard+Coverage 的标准模式。
+
+```systemverilog
+// Producer: uvm_analysis_port → ap.write(tx) 非阻塞广播
+// Subscriber: uvm_analysis_imp → function void write(tx) 被动接收
+```
+
+**四种模式的选择**：
+
+| 场景 | 推荐模式 |
+|:---|:---|
+| Monitor→Scoreboard（监控推送） | Push 或 Broadcast |
+| Driver←Sequencer（主动拉取） | Pull（UVM 内建 seq_item_port） |
+| 速度不匹配的 Producer/Consumer | FIFO |
+| 一对多广播 | Broadcast（analysis_port） |
+
+### Factory Override：不修改源码替换类型
+
+`uvm-memory/Overriding` 目录演示了两种覆盖方式。
+
+**子类扩展**——`mem_err_tx` 继承 `mem_tx`，新增 `err_count` 字段：
+
+```systemverilog
+class mem_err_tx extends mem_tx;
+    rand int err_count;
+    `uvm_object_utils(mem_err_tx)             // 子类独立注册
+    constraint err_count1 { err_count inside {[10:20]}; }
+endclass
+```
+
+**Type Override**——全局替换所有实例：
+
+```systemverilog
+set_type_override_by_type(mem_tx::get_type(), mem_err_tx::get_type());
+// 此后所有 create("mem_tx") 实际创建 mem_err_tx
+```
+
+**Instance Override**——只替换特定层次路径：
+
+```systemverilog
+set_inst_override_by_type("env.agent.*", mem_tx::get_type(), mem_err_tx::get_type());
+// 只替换 env.agent 子树下的实例
+```
+
 ## 关键要点
 
 - **OVM 继承与标准化演进**：UVM 继承自 OVM（Open Verification Methodology），吸收了 VMM 和 eRM 的经验教训，于 2011 年由 Accellera 发布 1.0 版本，当前工业界主流为 UVM 1.2
