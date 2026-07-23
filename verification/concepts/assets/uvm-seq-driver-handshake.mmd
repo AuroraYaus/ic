@@ -1,0 +1,25 @@
+%%{init: {'theme': 'default'}}%%
+sequenceDiagram
+    participant S as Sequence
+    participant SQ as Sequencer
+    participant D as Driver
+
+    S->>SQ: finish_item(item)
+    activate SQ
+    Note over S: 阻塞等待
+
+    SQ->>D: 事务入 FIFO
+    D->>SQ: get_next_item(req)
+    Note over D: ① 阻塞等待（FIFO为空则挂起）
+
+    D->>D: drive_tx(req)
+    Note over D: ② 事务→引脚时序
+
+    D->>SQ: item_done(rsp)
+    Note over D: ③ 通知完成
+
+    SQ->>S: finish_item 返回
+    deactivate SQ
+
+    D->>SQ: get_next_item(req)
+    Note over D: ④ 循环回①

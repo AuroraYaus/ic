@@ -1,0 +1,57 @@
+%%{init: {'theme': 'default'}}%%
+classDiagram
+    direction TB
+
+    class uvm_object {
+        +create(name)
+        +get_type_name()
+        +clone()
+    }
+
+    class uvm_sequence_item {
+        +set_sequencer()
+        +get_sequencer()
+    }
+
+    class uvm_sequence {
+        +body()
+        +start(sqr)
+    }
+
+    class uvm_component {
+        +build_phase()
+        +connect_phase()
+        +run_phase()
+        +get_parent()
+        +get_full_name()
+    }
+
+    class uvm_driver {
+        +get_next_item()
+        +item_done()
+    }
+
+    class uvm_monitor {
+        +analysis_port
+    }
+
+    class uvm_agent {
+        +is_active
+    }
+
+    class uvm_scoreboard {
+        +write()
+    }
+
+    class uvm_env
+    class uvm_test
+
+    uvm_object <|-- uvm_sequence_item : 对象分支
+    uvm_sequence_item <|-- uvm_sequence
+    uvm_object <|-- uvm_component : 组件分支
+    uvm_component <|-- uvm_driver
+    uvm_component <|-- uvm_monitor
+    uvm_component <|-- uvm_agent
+    uvm_component <|-- uvm_scoreboard
+    uvm_component <|-- uvm_env
+    uvm_component <|-- uvm_test

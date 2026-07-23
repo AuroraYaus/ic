@@ -1,0 +1,9 @@
+%%{init: {'theme': 'default'}}%%
+flowchart LR
+    SEQ["Sequence"] --> DRV["Driver"]
+    DRV --> DUT["DUT"]
+    DUT --> MON["Monitor"]
+    DRV --> MON
+    MON --> SCB["Scoreboard"]
+    REF["Reference Model"] --> SCB
+    SCB --> RESULT["比对结果"]

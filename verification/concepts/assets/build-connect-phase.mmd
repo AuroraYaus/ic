@@ -1,0 +1,16 @@
+%%{init: {'theme': 'default'}}%%
+flowchart TB
+    subgraph build["build_phase (自顶向下)"]
+        B1["env.build_phase()"] --> B2["agent = create('agent', this)"]
+        B2 --> B3["agent.build_phase()"]
+        B3 --> B4["driver = create('driver', this)"]
+        B4 --> B5["driver.build_phase()"]
+    end
+
+    subgraph connect["connect_phase (自底向上)"]
+        C1["driver.connect_phase()"] --> C2["seq_item_port.connect(...)"]
+        C3["agent.connect_phase()"] --> C4["子组件已连好"]
+        C5["env.connect_phase()"] --> C6["agent.ap.connect(scb.export)"]
+    end
+
+    build --> connect

@@ -481,9 +481,9 @@ endtask
 TLM 端口连接有严格的类型和方向约束，且必须在 `connect_phase` 中完成：
 
 ```
-连接链（单向）：
-  Port ──connect()──► Export ──connect()──► Imp
-  发起端              中间转发              最终实现
+连接链（单向）：Port 发起端 → Export 中间转发 → Imp 最终实现
+
+![TLM 端口连接](assets/tlm-port-connection.svg)
 
 约束：
   - Port 可以连接到 Export 或 Imp
@@ -561,26 +561,7 @@ Sequence 是激励的**生产者**，Sequencer 是激励的**仲裁器和调度�
 
 **Driver-Sequencer 交互的完整流程：**
 
-```
-Sequence.body()                    Sequencer                     Driver
-     │                                │                            │
-     ├─ start_item(item) ────────────►│ 仲裁：决定哪个 Sequence   │
-     │  (请求发送权限)                 │ 的事务可以发送              │
-     │                                │                            │
-     ├─ item.randomize()              │                            │
-     │  (随机化事务字段)               │                            │
-     │                                │                            │
-     ├─ finish_item(item) ───────────►│ 事务入队 ─────────────────►│ get_next_item(req)
-     │  (完成发送，等待Driver取走)     │  (FIFO/优先级队列)          │  (阻塞等待事务)
-     │                                │                            │
-     │                                │◄───────────────────────────┤ drive_transfer(req)
-     │                                │                            │ (驱动DUT信号)
-     │                                │                            │
-     │                                │◄───────────────────────────┤ item_done(rsp)
-     │                                │  (通知事务完成)             │ (确认完成，可带响应)
-     │◄── get_response(rsp) ──────────┤                            │
-     │  (获取Driver的响应，可选)       │                            │
-```
+![Sequence-Sequencer-Driver 交互时序|652](assets/uvm-seq-driver-handshake.svg)
 
 ```systemverilog
 // ===== Sequence 示例：产生 N 个随机内存读写事务 =====
@@ -1622,33 +1603,7 @@ tr.print();  // 自动格式化打印（以下为示例输出）
 
 UVM 类库层次分为两大分支，以 `uvm_void` 为共同根类，在 `uvm_object` 和 `uvm_component` 处分离：
 
-```text
-uvm_void（抽象基类，无任何方法实现）
-│
-├── uvm_object（数据对象分支根）
-│   ├── uvm_transaction
-│   │   └── uvm_sequence_item ──── mem_tx, axi_seq_item 等自定义事务类
-│   ├── uvm_sequence_base
-│   │   └── uvm_sequence #(REQ,RSP)
-│   │       ├── mem_wr_rd_seq, mem_n_wr_rd_seq, mem_full_wr_rd_seq（Memory Design）
-│   │       └── rand_traffic_seq, backpressure_seq, qos_sweep_seq（AXI4 Interconnect）
-│   ├── uvm_env_cfg, axi_env_cfg 等配置类
-│   ├── uvm_reg, uvm_reg_block, uvm_reg_field（RAL 寄存器模型）
-│   ├── uvm_callback（回调基类）
-│   └── uvm_report_message, uvm_objection 等工具类
-│
-└── uvm_component（静态结构分支根）
-    ├── uvm_driver     #(REQ,RSP) ──── mem_drv, axi_driver
-    ├── uvm_sequencer  #(REQ,RSP) ──── mem_sqr, axi_sequencer
-    │   └── uvm_sequencer_param_base #(REQ,RSP)
-    ├── uvm_monitor           ──── mem_mon, axi_monitor
-    ├── uvm_agent             ──── mem_agent, axi_agent
-    ├── uvm_scoreboard        ──── mem_sbd, axi_scoreboard
-    ├── uvm_subscriber #(T)   ──── mem_cov, axi_coverage
-    ├── uvm_env               ──── mem_env, axi_env
-    └── uvm_test              ──── mem_wr_rd_test, mem_full_wr_rd_test,
-                                   base_test, backpressure_test, qos_fairness_test
-```
+![UVM 类层级](assets/uvm-class-diagram.svg)
 
 ##### 实际项目中的继承关系
 
@@ -2349,24 +2304,7 @@ endclass
 
 #### 是什么——两只手之间的同步握手
 
-```
-Sequence                          Sequencer                         Driver
-                                                                     │
-  finish_item(item) ────────────► 事务入 FIFO ──────────────────────►│ get_next_item(req)
-  (阻塞等待)                       (仲裁/排队)                       │     ① 阻塞等待
-       │                              │                             │       直到 FIFO 非空
-       │                              │                             │
-       │                              │                             ├─ drive_tx(req)
-       │                              │                             │     ② 驱动 DUT 信号
-       │                              │                             │
-       │                              │                             ├─ item_done(rsp)
-       │                              │◄────────────────────────────│     ③ 通知 Sequencer
-       │                              │                             │
-       │◄── finish_item 返回 ────────┤                             │
-       │                              │                             ├─ get_next_item(req)
-       │                              │                             │     ④ 拉取下一个事务
-       │                              │                             │     (循环回到 ①)
-```
+![Sequence-Sequencer-Driver 握手协议](assets/uvm-seq-driver-handshake.svg)
 
 这个协议在 `mem_drv.sv` 的 `run_phase` 中以最简形式呈现：
 
