@@ -72,5 +72,28 @@ source_spec: "Local vault index"
 | 18 | 体系结构 | [[architecture/concepts/指令集架构基础\|冯·诺依曼 / 哈佛 / RISC / CISC]] | 2 | 2026-07-23 |
 | 19 | 体系结构 | [[architecture/concepts/乱序执行\|乱序执行 / 超标量]] | 2 | 2026-07-23 |
 | 20 | 体系结构 | [[architecture/concepts/DMA与中断\|DMA / 中断]] | 2 | 2026-07-23 |
+| 21 | RTL 设计 | [[rtl-design/concepts/算术电路\|半加器/全加器/RCA/CLA/计数器/移位寄存器]] | 1 | 2026-07-23 |
+| 22 | RTL 设计 | [[rtl-design/concepts/FIFO设计\|同步FIFO/异步FIFO/Gray码/FWFT/Almost Full/Empty]] | 1 | 2026-07-23 |
+| 23 | ASIC 流程 | [[asic-flow/concepts/时钟树综合\|CTS / Skew vs Latency / CTS前后时序差异]] | 1 | 2026-07-23 |
+| 24 | ASIC 流程 | [[asic-flow/concepts/功耗分析\|功耗分析]] | 1 | 2026-07-23 |
+| 25 | 跨领域 | [[cross-domain/concepts/时序收敛\|时序收敛]] | 1 | 2026-07-23 |
+| 26 | 跨领域 | [[cross-domain/concepts/复位策略\|复位策略]] | 1 | 2026-07-23 |
+| 27 | 验证 | [[verification/concepts/UVM方法学\|UVM Phase 机制]] | 1 | 2026-07-23 |
+| 28 | 验证 | [[verification/concepts/UVM方法学\|uvm_component vs uvm_object]] | 1 | 2026-07-23 |
+| 29 | 验证 | [[verification/concepts/UVM方法学\|UVM Factory 机制]] | 1 | 2026-07-23 |
+| 30 | 验证 | [[verification/concepts/UVM方法学\|TLM put/get/transport 接口]] | 1 | 2026-07-23 |
+| 31 | 验证 | [[verification/concepts/UVM方法学\|Sequence/Sequencer/Driver 交互]] | 1 | 2026-07-23 |
+| 32 | 验证 | [[verification/concepts/UVM方法学\|Monitor vs Scoreboard]] | 1 | 2026-07-23 |
+| 33 | 验证 | [[verification/concepts/UVM方法学\|Virtual Interface 原理]] | 1 | 2026-07-23 |
+| 34 | 验证 | [[verification/concepts/UVM方法学\|Register Model (RAL)]] | 1 | 2026-07-23 |
+| 35 | 验证 | [[verification/concepts/UVM方法学\|Callback 机制]] | 1 | 2026-07-23 |
+| 36 | 验证 | [[verification/concepts/覆盖率模型\|代码覆盖率 vs 功能覆盖率]] | 1 | 2026-07-23 |
+| 37 | 验证 | [[verification/concepts/SVA断言\|SVA握手协议断言]] | 1 | 2026-07-23 |
+| 38 | 验证 | [[verification/concepts/约束随机验证\|随机化约束写法]] | 1 | 2026-07-23 |
+| 39 | 验证 | [[verification/concepts/验证平台架构\|验证计划制定与验证完备性]] | 1 | 2026-07-23 |
+| 40 | 验证 | [[verification/concepts/验证平台架构\|Reference Model 作用]] | 1 | 2026-07-23 |
+| 41 | 体系结构 | [[architecture/concepts/指令流水线\|流水线冒险]] | 1 | 2026-07-23 |
+| 42 | 体系结构 | [[architecture/concepts/分支预测\|分支预测]] | 1 | 2026-07-23 |
+| 43 | 体系结构 | [[architecture/concepts/缓存一致性\|缓存一致性（MESI）]] | 1 | 2026-07-23 |
 
-> 完整排名详见各领域 MOC 的"高频查询"表。计数仅含通过 Q&A Pipeline 统计的查询，非全量访问统计。
+> 以上为全部 43 条高频查询的全量排名。计数仅含通过 Q&A Pipeline 统计的查询。
