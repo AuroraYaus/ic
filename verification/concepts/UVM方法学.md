@@ -11,7 +11,7 @@ tags:
   - methodology
   - testbench
 source_spec: "IEEE 1800.2-2020 Universal Verification Methodology Language Reference Manual; Accellera UVM 1.2 User's Guide"
-queries: 10
+queries: 11
 ---
 # UVM 方法学
 
@@ -129,7 +129,7 @@ endclass
 - `run_phase` 进入后**立即退出**（因为挂起 objection 计数为 0）
 - 测试在开始任何实际操作之前就"结束"了
 - 最常见的症状：仿真瞬间完成，波形为空，所有覆盖率为 0%
-- 这是 UVM 新手最容易犯的错误——忘了 raise objection 导致仿真秒退
+- 这是 UVM 初学者常见的配置遗漏——忘了 raise objection 导致仿真立即终止
 
 **`run_phase` 和 12 个细分 Run-Time Phase 的关系：**
 
@@ -1161,6 +1161,2048 @@ endclass
 **Callback 机制的工程价值：**
 
 在大型 SoC 验证项目中，UVM Agent 通常以 VIP（Verification IP）的形式由第三方提供。Callback 机制使得项目验证工程师可以在**不修改 VIP 源码**的前提下注入定制行为——这对于 IP License 合规和 VIP 升级兼容性至关重要。
+
+### 工厂注册宏：让 UVM "认识"你的类
+
+UVM 有一个全局工厂（Factory），它就像一台"类名→对象"的自动售货机。你把类注册进去，之后就可以按名字创建它——甚至在不改代码的情况下，用子类悄悄替换掉原来的类。这套机制的第一个入口，就是工厂注册宏。
+
+#### `uvm_object_utils` — 对象的"身份证"
+
+写一个 Sequence Item 或 Sequence，第一行永远是它：
+
+```systemverilog
+class mem_tx extends uvm_sequence_item;
+    `uvm_object_utils(mem_tx)  // ← 这行不能少
+    ...
+endclass
+```
+
+这一个宏展开后约 15 行代码，做了四件事：
+
+1. **登记户口**：创建一个内部类型 `type_id`，向全局 Factory 注册"类名 `mem_tx` → 这个 class"的映射
+2. **发放凭证**：`get_type()` 返回类型标识，Factory Override 用它来查找和替换
+3. **虚拟构造函数**：`create(name)` 取代 `new(name)`——SystemVerilog 不允许 `new()` 是 virtual 的，所以 UVM 用 `create()` 绕过了这个限制。只有通过 `create()` 创建的对象才能被 Override
+4. **自带名片**：`get_type_name()` 返回字符串 `"mem_tx"`，日志里看到它就是出问题时能定位到哪个类
+
+**为什么不能直接用 `new()`？** 想象你买了一台标准配置的车，后来想升级引擎。如果车是用 `new()` 造的，你只能返厂重造。但如果你通过 Factory（`create()`）定制，Factory 可以在交车之前就把引擎换成了升级版——不碰原车设计图，只改配置单。这就是 Factory Override 的威力。
+
+**实际项目中的用法**。Memory Design 项目的所有 Sequence 都用 `` `uvm_object_utils``：
+
+```systemverilog
+// seq_lib.sv — 基础读写 Sequence
+class mem_wr_rd_seq extends uvm_sequence #(mem_tx);
+    `uvm_object_utils(mem_wr_rd_seq)
+
+    task body();
+        `uvm_do_with(req, {req.wr_rd == 1;})     // 随机写
+        addr_q.push_back(req.addr);
+        addr_t = addr_q.pop_front();
+        `uvm_do_with(req, {req.wr_rd == 0;        // 定向读同一地址
+                           req.addr == addr_t;})
+    endtask
+endclass
+
+// 使用时：create() 而非 new()
+mem_wr_rd_seq seq_h = mem_wr_rd_seq::type_id::create("mem_wr_rd_seq_h");
+```
+
+AXI4 Interconnect 项目同样：
+
+```systemverilog
+class rand_traffic_seq extends uvm_sequence #(axi_seq_item);
+    `uvm_object_utils(rand_traffic_seq)
+    rand int unsigned n_txn = 100;
+    constraint c_txn { n_txn inside {[50:300]}; }
+
+    task body();
+        axi_seq_item tr;
+        repeat (n_txn) begin
+            tr = axi_seq_item::type_id::create("tr");
+            tr.randomize() with { is_read == ($urandom_range(0,1)); };
+            start_item(tr); finish_item(tr);
+        end
+    endtask
+endclass
+```
+
+**常见错误**：
+- **用错了宏**：component 类（Driver/Monitor/Agent）必须用 `uvm_component_utils`，不是这个。混用的后果是 `create()` 缺 `parent` 参数——编译直接报错
+- **忘了注册**：类没注册 = Factory 不认识 = `create()` 无法用 = Override 全失效。最隐蔽的 bug：仿真能跑但你的 Override 从来没生效过
+- **类名写错**：`uvm_object_utils(MyCalss)` 里的类名拼错，`get_type_name()` 返回的就错了——config_db 路径匹配失败，日志里看到奇怪的类名，调半天发现是宏参数拼错了
+
+---
+
+#### `uvm_component_utils` — 组件的"户口本+家谱"
+
+Component 比 Object 多一个维度：**层次关系**。Driver 不是孤立存在的——它住在 Agent 里，Agent 住在 Env 里，Env 住在 Test 里。`uvm_component_utils` 除了做 Factory 注册，还额外生成了管理这棵"家族树"的方法。
+
+展开后比 object 版多了五项：
+
+```systemverilog
+function uvm_component get_parent();          // "我爸是谁？"
+function string get_full_name();              // "我的全名是 uvm_test_top.env.agent.driver"
+function uvm_component get_child(string name);// "把我儿子 driver 叫过来"
+function int get_num_children();              // "我有几个儿子？"
+function void get_children(ref uvm_component children[$]); // "儿子们，列队"
+```
+
+**`parent` 参数的深层含义。** `create()` 的签名变化是最直观的区别：
+
+```systemverilog
+// object 版：create("name")           — 单参数，孤家寡人
+// component 版：create("name", this)  — 双参数，认祖归宗
+```
+
+第二个参数 `this` 传的是当前组件自己。这意味着：在 Agent 的 `build_phase` 里 `create("driver", this)`，driver 的 parent 就是 agent。UVM 自顶向下执行 `build_phase`，这棵树从 Test → Env → Agent → Driver 自然长成。`get_full_name()` 返回的 `"uvm_test_top.env.agent.driver"` 正是这条链路——config_db 的路径匹配、日志定位、拓扑打印，全靠它。
+
+**两个项目的实际代码完全一致：**
+
+```systemverilog
+// Memory Design — mem_drv.sv
+class mem_drv extends uvm_driver #(mem_tx);
+    `uvm_component_utils(mem_drv)
+    function new(string name="", uvm_component parent);
+        super.new(name, parent);
+    endfunction
+endclass
+
+// AXI4 — axi_uvm_pkg.sv，完全相同的模式
+class axi_driver extends uvm_driver #(axi_seq_item);
+    `uvm_component_utils(axi_driver)
+    function new(string name, uvm_component parent); super.new(name,parent); endfunction
+endclass
+```
+
+**这两个宏不能互换。** 如果你在 Driver 上错用了 `uvm_object_utils`，`create("driver", this)` 会编译失败——object 版的 `create()` 只有一个参数。反过来，在 Sequence Item 上用 `uvm_component_utils` 同样报错——它平白多出了一个 `parent` 维度，而 Sequence Item 根本不需要"爸"。
+```
+
+与 `uvm_object_utils` 的关键区别：
+
+| 方面 | `uvm_object_utils` | `uvm_component_utils` |
+|:---|:---|:---|
+| `create()` 签名 | `create(string name = "")` — 单参数 | `create(string name, uvm_component parent)` — 双参数，**必须有 parent** |
+| 类型注册表封装 | `uvm_object_registry #(T, Tname)` | `uvm_component_registry #(T, Tname)` |
+| 层次管理方法 | 无 | `get_parent()` / `get_full_name()` / `get_child()` 等 |
+| 适用类 | `uvm_object` 及其派生类 | `uvm_component` 及其派生类 |
+
+##### 为什么需要 parent 参数
+
+UVM 组件必须在仿真时间 0 之前形成一棵有根有叶的**组件树（Component Tree）**。`parent` 参数是三件事的基础：
+
+1. **层次路径生成**：每个 component 的完整层次路径由 `parent.get_full_name() + "." + name` 自动拼接，例如 `"uvm_test_top.env.agent_0.driver"`——这用于 config_db 的路径匹配、`uvm_info` 日志前缀和仿真错误定位
+2. **自动内存管理**：父组件在其析构时自动释放所有子组件，不需要手动 `delete`
+3. **config_db 查找锚点**：`uvm_config_db::get()` 的层次查找从当前组件开始沿 parent 链向上追溯到 root
+
+##### 怎么用
+
+在所有 `uvm_component` 派生类的声明内部调用：
+
+```systemverilog
+// 用法模板——`uvm_component_utils(类名)
+class my_driver extends uvm_driver #(my_item);
+    `uvm_component_utils(my_driver)  // 组件工厂注册
+
+    function new(string name, uvm_component parent);
+        super.new(name, parent);     // 构造函数必须传递 parent
+    endfunction
+endclass
+```
+
+创建实例时使用 `type_id::create("name", this)` ——第二个参数 `this` 指定父组件：
+
+```systemverilog
+// 在 build_phase 中通过工厂创建子组件
+function void build_phase(uvm_phase phase);
+    super.build_phase(phase);
+    driver = my_driver::type_id::create("driver", this);
+    //                                       ^name   ^parent=this (当前组件)
+endfunction
+```
+
+##### 实际项目示例
+
+在 Memory Design 项目中，Driver（`mem_drv.sv`）和 Agent（`mem_agent.sv`）均使用 `uvm_component_utils` 注册：
+
+```systemverilog
+// ===== 来自 mem_drv.sv —— mem_drv =====
+class mem_drv extends uvm_driver #(mem_tx);
+    `uvm_component_utils(mem_drv)  // 组件工厂注册
+
+    virtual mem_intf vif;
+
+    function new(string name="", uvm_component parent);
+        super.new(name, parent);    // 必须传 parent 给父类
+    endfunction
+
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
+        if (!uvm_config_db #(virtual mem_intf)::get(this, "", "MEM_PIF", vif))
+            `uvm_error(get_type_name(), "CONFIG_DB PIF RETRIVAL FAILED")
+    endfunction
+
+    task run_phase(uvm_phase phase);
+        forever begin
+            seq_item_port.get_next_item(req);  // 阻塞等待事务
+            drive_tx(req);                     // 驱动 DUT 信号
+            seq_item_port.item_done();         // 确认完成
+        end
+    endtask
+endclass
+
+// ===== 来自 mem_agent.sv —— mem_agent =====
+class mem_agent extends uvm_agent;
+    `uvm_component_utils(mem_agent)  // 组件工厂注册
+
+    mem_drv mem_drv_h;
+    mem_sqr mem_sqr_h;
+    mem_mon mem_mon_h;
+    mem_cov mem_cov_h;
+
+    function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
+        // create(name, parent) —— parent 传 this，建立 agent→子组件的父子关系
+        mem_cov_h = mem_cov::type_id::create("mem_cov_h", this);
+        mem_mon_h = mem_mon::type_id::create("mem_mon_h", this);
+        mem_drv_h = mem_drv::type_id::create("mem_drv_h", this);
+        mem_sqr_h = mem_sqr::type_id::create("mem_sqr_h", this);
+    endfunction
+
+    function void connect_phase(uvm_phase phase);
+        mem_drv_h.seq_item_port.connect(mem_sqr_h.seq_item_export);
+        mem_mon_h.ap_h.connect(mem_cov_h.analysis_export);
+    endfunction
+endclass
+```
+
+在 AXI4 Interconnect 项目中，所有组件也使用 `uvm_component_utils`：
+
+```systemverilog
+// ===== 来自 axi_uvm_pkg.sv —— axi_driver =====
+class axi_driver extends uvm_driver #(axi_seq_item);
+    `uvm_component_utils(axi_driver)
+
+    axi_vif_m_t vif;
+    int midx;
+
+    function new(string name, uvm_component parent);
+        super.new(name, parent);
+    endfunction
+
+    virtual function void build_phase(uvm_phase phase);
+        if (!uvm_config_db #(axi_vif_m_t)::get(this, "", "vif", vif))
+            `uvm_fatal("NOVIF", "No vif for axi_driver")
+    endfunction
+endclass
+
+// ===== 来自 axi_uvm_pkg.sv —— axi_agent =====
+class axi_agent extends uvm_component;
+    `uvm_component_utils(axi_agent)
+
+    axi_sequencer sqr;         // component 类型
+    axi_driver    drv;         // component 类型
+    axi_monitor   mon;         // component 类型
+
+    function void build_phase(uvm_phase phase);
+        // create 的第二个参数 this 指定：agent 是这些子组件的 parent
+        mon = axi_monitor  ::type_id::create("mon", this);
+        sqr = axi_sequencer::type_id::create("sqr", this);
+        drv = axi_driver   ::type_id::create("drv", this);
+    endfunction
+endclass
+```
+
+##### 注意事项
+
+1. **仅用于 `uvm_component` 派生类**：Driver、Monitor、Sequencer、Agent、Scoreboard、Coverage Collector、Environment（Env）、Test 等所有静态结构组件使用此宏。如果在 `uvm_object` 派生类（如 `uvm_sequence`）上错误使用了 `uvm_component_utils`，会导致 `create()` 调用签名不匹配的编译错误。
+
+2. **`new()` 必须接受 parent 参数**：使用 `uvm_component_utils` 的类，其构造函数 `new()` 必须包含 `uvm_component parent` 参数并调用 `super.new(name, parent)`。缺少 parent 参数会导致展开后的 `create()` 内部 `new(name, parent)` 调用找不到匹配的构造函数。
+
+3. **`create()` 的 parent 参数传递 `this`**：在 `build_phase` 中调用 `type_id::create("name", this)` 时，`this` 指向当前正在执行 `build_phase` 的组件。这建立了正确的父子层次关系——"我正在 build，我的子组件以我为 parent"。
+
+4. **同样没有字段自动化**：和 `uvm_object_utils` 一样，`uvm_component_utils(class_name)` 仅注册工厂信息，不注册任何成员字段。组件通常不需要字段自动化（组件的关键信息是层次连接而非数据字段），但如果需要，UVM 也提供了对应的 `uvm_component_utils_begin/_end` 变体。
+
+5. **以下组件类必须使用此宏**：`uvm_driver`、`uvm_sequencer`、`uvm_monitor`、`uvm_agent`、`uvm_scoreboard`、`uvm_subscriber`、`uvm_env`、`uvm_test` 以及以上任何类的自定义子类。
+
+---
+
+#### 3. `uvm_object_utils_begin/_end` — 带字段自动化的对象工厂注册
+
+##### 是什么
+
+`uvm_object_utils_begin` 和 `uvm_object_utils_end` 是一对宏，构成一个"字段注册块"。使用这对宏替代简单的 `uvm_object_utils(class_name)` 时，除了 Factory 注册之外，还会在 `begin`/`end` 之间为每个列出的成员字段启用**字段自动化（Field Automation）**机制。
+
+字段自动化的本质是：UVM 在内部为每个注册的字段维护一套反射（Reflection）信息，包括字段名、类型、偏移量和操作标志。当调用 `copy()`、`compare()`、`print()`、`pack()`、`unpack()`、`clone()`、`record()` 这些内建方法时，UVM 会遍历字段注册表，对每个标记为"参与此操作"的字段自动执行对应的处理逻辑。
+
+##### 为什么需要
+
+假设一个事务类有 9 个字段（如 `axi_seq_item`），如果每新增一个字段都要手动更新 `copy()`（逐字段赋值）、`compare()`（逐字段比较）、`print()`（逐字段格式化）、`pack()`/`unpack()`（逐字段移位拼接）的实现代码，开发效率低且极易遗漏。字段自动化宏将这个工作量降为零——在 `begin`/`end` 之间声明字段即可，所有内建方法自动覆盖新字段。
+
+但在以下场景**不应**使用字段自动化：
+- 需要自定义 `copy()`/`compare()` 行为（如某些字段不应参与比较）
+- 对仿真性能极度敏感（`compare()` 的反射遍历比手写逐字段比较慢一个数量级）
+- 字段类型不被任何 `uvm_field_*` 宏支持
+
+##### 怎么用
+
+```systemverilog
+class my_item extends uvm_sequence_item;
+    // 字段声明
+    rand bit [31:0] addr;
+    rand bit [31:0] data;
+    rand bit        is_valid;
+
+    `uvm_object_utils_begin(my_item)       // 开始注册块
+        `uvm_field_int(addr,     UVM_ALL_ON)  // 注册 addr 字段
+        `uvm_field_int(data,     UVM_ALL_ON)  // 注册 data 字段
+        `uvm_field_int(is_valid, UVM_ALL_ON)  // 注册 is_valid 字段
+    `uvm_object_utils_end                  // 结束注册块
+
+    function new(string name = "my_item");
+        super.new(name);
+    endfunction
+endclass
+```
+
+字段注册后，以下方法自动生效，无需手动编写代码：
+
+```systemverilog
+my_item a = my_item::type_id::create("a");
+my_item b = my_item::type_id::create("b");
+
+a.addr = 32'h1000; a.data = 32'hABCD; a.is_valid = 1;
+
+b.copy(a);                                    // 自动逐字段拷贝
+if (b.compare(a))                             // 自动逐字段比较（全等返回 1）
+    `uvm_info("CHK", "Match", UVM_LOW)
+a.print();                                    // 自动格式化打印所有字段
+a.pack(bytes);                                // 自动打包为字节流
+```
+
+##### 实际项目示例
+
+在 Memory Design 项目中，`mem_tx` 使用 `uvm_object_utils_begin/_end` 注册 4 个字段：
+
+```systemverilog
+// ===== 来自 mem_tx.sv —— 简单版本：4 个整数字段 =====
+class mem_tx extends uvm_sequence_item;
+    rand bit wr_rd;                          // 读写方向：1=写，0=读
+    rand bit [`WIDTH-1:0] wr_data;           // 写数据（WIDTH=16）
+    rand bit [`ADDR_WIDTH-1:0] addr;         // 目标地址（ADDR_WIDTH=4）
+         bit [`WIDTH-1:0] rd_data;           // 读回数据（Monitor 回填，非随机）
+
+    `uvm_object_utils_begin(mem_tx)
+        `uvm_field_int(wr_rd,   UVM_ALL_ON)  // 整数位域
+        `uvm_field_int(wr_data, UVM_ALL_ON)  // 16-bit 整数
+        `uvm_field_int(addr,    UVM_ALL_ON)  // 4-bit 整数
+        `uvm_field_int(rd_data, UVM_ALL_ON)  // 16-bit 整数（非随机）
+    `uvm_object_utils_end
+
+    function new(string name="");
+        super.new(name);
+    endfunction
+endclass
+```
+
+在 AXI4 Interconnect 项目中，`axi_seq_item` 注册了 9 个字段，包含整数、枚举和动态数组三种类型：
+
+```systemverilog
+// ===== 来自 axi_uvm_pkg.sv —— 完整版本：9 个字段，3 种类型 =====
+class axi_seq_item extends uvm_sequence_item;
+    rand bit is_read;                             // 事务方向：0=写，1=读
+    rand bit [AXI_ID_W-1:0]   id;                // 事务 ID
+    rand bit [AXI_ADDR_W-1:0] addr;              // 起始地址
+    rand bit [7:0]            len;               // 突发长度
+    rand bit [2:0]            size;              // 每 beat 字节数
+    rand axi_burst_e          burst;             // 突发类型（枚举）
+    rand bit [3:0]            qos;               // QoS 优先级
+    rand bit [AXI_DATA_W-1:0] data[];            // 写数据载荷（动态数组）
+    rand bit [AXI_STRB_W-1:0] strb[];            // 字节选通（动态数组）
+
+    constraint c_default {
+        size == 3;
+        burst == AXI_BURST_INCR;
+        data.size() == len + 1;
+        strb.size() == len + 1;
+    }
+
+    `uvm_object_utils_begin(axi_seq_item)
+        `uvm_field_int      (is_read, UVM_ALL_ON)           // 整数：bit
+        `uvm_field_int      (id,      UVM_ALL_ON)           // 整数：bit [ID_W-1:0]
+        `uvm_field_int      (addr,    UVM_ALL_ON)           // 整数：bit [ADDR_W-1:0]
+        `uvm_field_int      (len,     UVM_ALL_ON)           // 整数：bit [7:0]
+        `uvm_field_int      (size,    UVM_ALL_ON)           // 整数：bit [2:0]
+        `uvm_field_enum     (axi_burst_e, burst, UVM_ALL_ON)// 枚举：axi_burst_e 类型
+        `uvm_field_int      (qos,     UVM_ALL_ON)           // 整数：bit [3:0]
+        `uvm_field_array_int(data,    UVM_ALL_ON)           // 动态数组：bit [DATA_W-1:0]
+        `uvm_field_array_int(strb,    UVM_ALL_ON)           // 动态数组：bit [STRB_W-1:0]
+    `uvm_object_utils_end
+
+    function new(string name = "axi_seq_item");
+        super.new(name);
+    endfunction
+endclass
+```
+
+对比 `mem_tx`（4 个整数字段）和 `axi_seq_item`（9 个字段，含枚举和动态数组），可以清楚看到 `uvm_object_utils_begin/_end` 的统一用法：在 `begin`/`end` 之间逐行列出字段，每条 `uvm_field_*` 宏声明字段名和操作标志。即使字段类型不同，接口形式保持一致。
+
+---
+
+#### 4. `uvm_field_*` 字段自动化宏详解
+
+##### 常用 `uvm_field_*` 宏一览
+
+| 宏 | 语法 | 适用字段类型 | 说明 |
+|:---|:---|:---|:---|
+| `` `uvm_field_int`` | `` `uvm_field_int(NAME, FLAG)`` | `bit`、`logic`、`int`、`integer`、`byte`、`shortint`、`longint` 等所有整型 | 最通用的整数注册宏，覆盖 90% 的字段注册场景 |
+| `` `uvm_field_enum`` | `` `uvm_field_enum(TYPE, NAME, FLAG)`` | 任何 `enum` / `typedef enum` 类型 | 第一个参数是枚举类型名（而非字段名），打印时自动显示枚举标签而非裸数值 |
+| `` `uvm_field_array_int`` | `` `uvm_field_array_int(NAME, FLAG)`` | 动态数组（`bit [N:0] arr[]`、`int arr[]` 等） | `axi_seq_item` 的 `data[]` 和 `strb[]` 使用此宏 |
+| `` `uvm_field_sarray_int`` | `` `uvm_field_sarray_int(NAME, FLAG)`` | 静态数组（`bit [N:0] arr[M]`） | `axi_env_cfg` 的 `base[]` 和 `mask[]` 是固定大小的数组，使用此宏 |
+| `` `uvm_field_string`` | `` `uvm_field_string(NAME, FLAG)`` | `string` | 字符串字段，`print()` 时显示带引号的完整字符串 |
+| `` `uvm_field_object`` | `` `uvm_field_object(NAME, FLAG)`` | `uvm_object` 及其派生类句柄 | 嵌套对象字段——当 Item 内包含另一个配置对象时使用 |
+
+##### `UVM_ALL_ON` 的含义与控制位
+
+`UVM_ALL_ON` 是一个预定义的位掩码（bitmask），表示该字段参与**所有**内建操作。UVM 通过独立的控制位分别控制每种操作，你可以按需禁用特定操作：
+
+| 控制位 | 位值 | 含义 | 典型禁用场景 |
+|:---|:---|:---|:---|
+| `UVM_COPY` | `'h00000001` | 参与 `copy()` | 只读状态字段不应拷贝 |
+| `UVM_NOCOPY` | — | 不参与 `copy()` | 内部句柄（如指向 parent 的引用） |
+| `UVM_COMPARE` | `'h00000002` | 参与 `compare()` | 无关比较的元数据字段 |
+| `UVM_NOCOMPARE` | — | 不参与 `compare()` | 时间戳、随机种子等 |
+| `UVM_PRINT` | `'h00000004` | 参与 `print()` | 无 |
+| `UVM_NOPRINT` | — | 不参与 `print()` | 大数组或敏感数据 |
+| `UVM_RECORD` | `'h00000008` | 参与 `record()`（事务记录到波形数据库） | 数量过多的中间变量 |
+| `UVM_NORECORD` | — | 不参与 `record()` | 大量中间值 |
+| `UVM_PACK` | `'h00000010` | 参与 `pack()`（序列化为字节流） | 动态数据（如 callback 句柄） |
+| `UVM_NOPACK` | — | 不参与 `pack()` | Scoreboard 的内部计数器 |
+| `UVM_UNPACK` | — | （隐含）参与 `unpack()` | 同上 |
+
+`UVM_ALL_ON` = `UVM_COPY | UVM_COMPARE | UVM_PRINT | UVM_RECORD | UVM_PACK` （即 `'h0000001F`），该字段参与 `copy`、`compare`、`print`、`record`、`pack`、`unpack` 全部操作。
+
+按位组合示例：
+
+```systemverilog
+`uvm_object_utils_begin(my_item)
+    // addr 参与全部操作
+    `uvm_field_int(addr,    UVM_ALL_ON)
+
+    // timestamp 不参与 compare（不同仿真 run 的时间戳没比较意义）
+    //           也不参与 pack（序列化传输时不带时间戳）
+    `uvm_field_int(timestamp, UVM_DEFAULT | UVM_NOCOMPARE | UVM_NOPACK)
+    //                UMV_DEFAULT 等价于 UVM_ALL_ON，然后禁用 COMPARE 和 PACK
+
+    // checksum 不参与 copy（由硬件计算，不应被软件拷贝覆盖）
+    `uvm_field_int(checksum, UVM_ALL_ON | UVM_NOCOPY)
+`uvm_object_utils_end
+```
+
+##### 各宏的实际行为对比
+
+以 `axi_seq_item` 中不同字段类型为例，观察 `compare()` 和 `print()` 的行为差异：
+
+```systemverilog
+// 假设有一个 axi_seq_item 实例 tr，已随机化
+tr.print();  // 自动格式化打印（以下为示例输出）
+
+// 输出示例：
+// Name       Type         Size   Value
+// ------------------------------------------------
+// tr         axi_seq_item -      -
+//   is_read  integral     1      'h1           ← `uvm_field_int, 显示 hex
+//   id       integral     4      'ha           ← `uvm_field_int
+//   addr     integral     32     'h00001200    ← `uvm_field_int
+//   len      integral     8      'hf           ← `uvm_field_int
+//   size     integral     3      'h3           ← `uvm_field_int
+//   burst    axi_burst_e  32     INCR          ← `uvm_field_enum, 显示枚举标签
+//   qos      integral     4      'h3           ← `uvm_field_int
+//   data     array        256    'h0 'h1 ...   ← `uvm_field_array_int
+//   strb     array        32     'hF 'hF ...   ← `uvm_field_array_int
+// ------------------------------------------------
+```
+
+注意 `burst` 字段使用 `` `uvm_field_enum`` 注册后，`print()` 自动显示枚举标签 `INCR` 而非裸数值 `'h1`。如果用了 `` `uvm_field_int`` 注册枚举字段，`print()` 只会显示裸数值而不知道对应的枚举标签——这将显著降低调试日志的可读性。
+
+##### 注意事项
+
+1. **`begin`/`end` 必须成对出现**：有 `_begin` 就必须有 `_end`，中间可以有多条 `uvm_field_*`，也可以没有（此时等价于普通 `uvm_object_utils`）。
+
+2. **字段必须在宏之前声明**：所有使用 `uvm_field_*` 注册的字段必须在宏调用之前声明——宏需要引用已声明的字段名。
+
+3. **动态数组用 `_array_int`，静态数组用 `_sarray_int`**：混淆会导致编译错误。`axi_seq_item` 的 `data[]` 是动态数组用 `uvm_field_array_int`，`axi_env_cfg` 的 `base[]` 是固定大小数组用 `uvm_field_sarray_int`。
+
+4. **`UVM_ALL_ON` 带来性能开销**：每个字段的 `compare()` 中的反射遍历比手写逐字段比较慢一个量级左右。在大型回归测试中，如果 Sequence Item 的 `compare()` 被频繁调用（如在 Scoreboard 中对每笔事务做比较），字段自动化带来的反射开销可能贡献 5-10% 的仿真时间。对性能极敏感的场景，可考虑手写 `do_compare()` 覆盖默认实现。
+
+5. **继承类中的字段注册**：如果子类增加了新字段，子类使用 `uvm_object_utils_begin/_end`，父类的字段注册通过继承自动保留——不需要在子类的 `begin`/`end` 块中重复列父类的字段。
+
+---
+
+#### 5. uvm_object 与 uvm_component 的类层级
+
+##### 类层级全景
+
+UVM 类库层次分为两大分支，以 `uvm_void` 为共同根类，在 `uvm_object` 和 `uvm_component` 处分离：
+
+```text
+uvm_void（抽象基类，无任何方法实现）
+│
+├── uvm_object（数据对象分支根）
+│   ├── uvm_transaction
+│   │   └── uvm_sequence_item ──── mem_tx, axi_seq_item 等自定义事务类
+│   ├── uvm_sequence_base
+│   │   └── uvm_sequence #(REQ,RSP)
+│   │       ├── mem_wr_rd_seq, mem_n_wr_rd_seq, mem_full_wr_rd_seq（Memory Design）
+│   │       └── rand_traffic_seq, backpressure_seq, qos_sweep_seq（AXI4 Interconnect）
+│   ├── uvm_env_cfg, axi_env_cfg 等配置类
+│   ├── uvm_reg, uvm_reg_block, uvm_reg_field（RAL 寄存器模型）
+│   ├── uvm_callback（回调基类）
+│   └── uvm_report_message, uvm_objection 等工具类
+│
+└── uvm_component（静态结构分支根）
+    ├── uvm_driver     #(REQ,RSP) ──── mem_drv, axi_driver
+    ├── uvm_sequencer  #(REQ,RSP) ──── mem_sqr, axi_sequencer
+    │   └── uvm_sequencer_param_base #(REQ,RSP)
+    ├── uvm_monitor           ──── mem_mon, axi_monitor
+    ├── uvm_agent             ──── mem_agent, axi_agent
+    ├── uvm_scoreboard        ──── mem_sbd, axi_scoreboard
+    ├── uvm_subscriber #(T)   ──── mem_cov, axi_coverage
+    ├── uvm_env               ──── mem_env, axi_env
+    └── uvm_test              ──── mem_wr_rd_test, mem_full_wr_rd_test,
+                                   base_test, backpressure_test, qos_fairness_test
+```
+
+##### 实际项目中的继承关系
+
+在 Memory Design 项目中，所有类的继承链如下：
+
+```systemverilog
+// ── 对象分支 ──
+// mem_tx: 事务数据包
+class mem_tx extends uvm_sequence_item { ... }
+//         → uvm_sequence_item → uvm_transaction → uvm_object → uvm_void
+
+// mem_wr_rd_seq: 基本读写 Sequence
+class mem_wr_rd_seq extends uvm_sequence #(mem_tx) { ... }
+//                   → uvm_sequence → uvm_sequence_base → uvm_object → uvm_void
+
+// mem_n_wr_rd_seq: N 次重复 Sequence
+class mem_n_wr_rd_seq extends uvm_sequence #(mem_tx) { ... }
+//                      → uvm_sequence → uvm_sequence_base → uvm_object → uvm_void
+
+// ── 组件分支 ──
+// mem_drv: Driver
+class mem_drv extends uvm_driver #(mem_tx) { ... }
+//             → uvm_driver → uvm_component → uvm_void
+
+// mem_agent: Agent（容器组件）
+class mem_agent extends uvm_agent { ... }
+//               → uvm_agent → uvm_component → uvm_void
+
+// mem_env: Environment（顶层环境容器）
+class mem_env extends uvm_env { ... }
+//             → uvm_env → uvm_component → uvm_void
+
+// mem_full_wr_rd_test: Test（测试用例）
+class mem_full_wr_rd_test extends uvm_test { ... }
+//                         → uvm_test → uvm_component → uvm_void
+```
+
+在 AXI4 Interconnect 项目中，继承链更复杂但模式一致：
+
+```systemverilog
+// 对象分支
+axi_seq_item     extends uvm_sequence_item              // 事务
+axi_env_cfg      extends uvm_object                     // 配置（直接从 uvm_object 继承）
+rand_traffic_seq extends uvm_sequence #(axi_seq_item)   // Sequence
+
+// 组件分支
+axi_driver       extends uvm_driver    #(axi_seq_item)  // Driver
+axi_sequencer    extends uvm_sequencer #(axi_seq_item)  // Sequencer
+axi_monitor      extends uvm_component                  // Monitor
+axi_agent        extends uvm_component                  // Agent
+axi_coverage     extends uvm_component                  // Coverage
+axi_scoreboard   extends uvm_component                  // Scoreboard
+axi_vseqr        extends uvm_sequencer #(axi_seq_item)  // Virtual Sequencer
+axi_env          extends uvm_env                        // Env
+base_test        extends uvm_test                       // Test
+backpressure_test extends base_test                     // Test（继承自 base_test）
+qos_fairness_test extends base_test                     // Test（继承自 base_test）
+```
+
+##### Sequence 为什么是 object 不是 component？
+
+这是一个 UVM 架构设计的核心问题，可以从三个维度理解：
+
+**1. 生命周期维度**：Component 是**静态的**——在 `build_phase` 中创建后存在于整个仿真生命周期，直到 `final_phase` 才销毁。而 Sequence 是**动态的**——每个测试用例可以根据需要创建不同的 Sequence 实例，用完即销毁。如果 Sequence 是 component，那么每换一个测试用例就需要重新 build 整个组件树（而组件树本应在仿真零时刻一次性构建完成），这违背了 UVM Phase 机制的设计初衷。
+
+**2. Phase 维度**：Component 参与 Phase 机制——UVM 会自动调用每个 component 的 `build_phase`、`connect_phase`、`run_phase` 等回调。Sequence 不需要这些回调——它只需要 `body()` 任务，在其中自主地生成事务并发送给 Sequencer。给 Sequence 增加 Phase 机制不仅多余，还会带来不必要的复杂性（如果 Sequence 有 `build_phase`，谁负责调用它？在什么时机？）。
+
+**3. 层次维度**：Component 有父子层次关系（parent-child hierarchy），这用于 config_db 的层次查找和日志路径。Sequence 不需要层次——它的"上下文"就是它运行时挂载到的 Sequencer（通过 `get_sequencer()` 或 `m_sequencer` 访问），而不是某个 parent component。Sequence 与 Sequencer 的关系是"运行于其上"而非"作为其子节点"。
+
+实际影响示例：
+
+```systemverilog
+// Sequence 没有 build_phase——配置通过手动 config_db::get() 获取
+class mem_n_wr_rd_seq extends uvm_sequence #(mem_tx);
+    `uvm_object_utils(mem_n_wr_rd_seq)  // object 宏，非 component 宏
+
+    int num_tx;        // 从 config_db 获取的配置值
+
+    task body();
+        // Sequence 是 object，没有 this 指向 component 的层次上下文
+        // 所以 config_db::get() 的第一个参数传 null（全局查找）而非 this
+        if (!uvm_config_db #(int)::get(null, "", "INT_NUM_TX", num_tx))
+            `uvm_error(get_type_name(), "RETRIVAL_FAILED FROM CONFIG_DB")
+
+        repeat (num_tx) begin
+            `uvm_do(mem_wr_rd_seq_h)     // 重复启动子 Sequence
+        end
+    endtask
+endclass
+```
+
+注意上述代码中 `config_db::get(null, ...)` 的第一个参数是 `null`——因为 Sequence 是 object，它没有 component 的层次上下文（`this` 在 component 中指向当前组件节点），只能使用全局查找。这是 Sequence 作为 object 的一个直接行为后果。
+
+##### uvm_object 与 uvm_component 的核心区别总结
+
+| 维度 | `uvm_object` 分支 | `uvm_component` 分支 |
+|:---|:---|:---|
+| **层次关系** | 无父子层次，独立存在（或临时挂载到某 component 上） | 有严格的父子层次，形成组件树 |
+| **生命周期** | 动态——可随时创建和销毁 | 静态——`build_phase` 创建后持续到仿真结束 |
+| **Phase 机制** | 不参与 Phase 回调 | 参与完整的 Build/Run/Cleanup Phase 执行 |
+| **`new()` 参数** | `function new(string name = "")` — 只需 name | `function new(string name, uvm_component parent)` — 必须有 parent |
+| **`create()` 参数** | `type_id::create("name")` — 单参数 | `type_id::create("name", parent)` — 双参数 |
+| **工厂宏** | `` `uvm_object_utils`` / `` `uvm_object_utils_begin`` | `` `uvm_component_utils`` / `` `uvm_component_utils_begin`` |
+| **config_db 访问** | 需通过 `uvm_resource_db` 或传 `null` 全局查找 | 天然支持 `config_db::get(this, ...)` 层次查找 |
+| **典型子类** | Sequence Item、Sequence、Configuration、RegModel、Callback | Driver、Monitor、Sequencer、Agent、Scoreboard、Env、Test |
+| **内存管理** | 手动或垃圾回收（动态释放） | 父组件析构时自动释放所有子组件 |
+
+---
+
+#### Sequence 宏
+
+##### `uvm_do` — 启动一个 Sequence（全自动）
+
+`` `uvm_do`` 宏用于在当前 Sequencer 上创建并启动一个子 Sequence。它是 Sequence 分层设计中串联不同层级 Sequence 的主要方式。
+
+**是什么**：一个宏，封装为单次宏调用完成"创建子 Sequence → 在父 Sequence 的 Sequencer 上启动 → 阻塞等待完成"。`uvm_do` 支持两种参数形式：(1) 传入 Sequence Item——等价于 `create_item → start_item → randomize → finish_item`；(2) 传入 Sequence（子 Sequence）——等价于 `type_id::create → start(m_sequencer)`。
+
+**为什么需要**：在分层 Sequence 设计中，高层 Sequence 的 `body()` 需要反复启动低层 Sequence。`mem_n_wr_rd_seq`（N 次读写 Sequence）在 `body()` 中调用 `mem_wr_rd_seq`（单次读写 Sequence）N 次——每次都手动 `create + start` 写 3-4 行代码，而 `uvm_do` 封装为单次宏调用完成。
+
+```systemverilog
+// ===== 用法 A：启动子 Sequence（常用形式）=====
+task body();
+    repeat (num_tx) begin
+        `uvm_do(mem_wr_rd_seq_h)  // 创建并启动子 Sequence，阻塞等待完成
+    end
+endtask
+
+// 宏展开后等价于：
+task body();
+    repeat (num_tx) begin
+        mem_wr_rd_seq_h = mem_wr_rd_seq::type_id::create("mem_wr_rd_seq_h");
+        mem_wr_rd_seq_h.start(m_sequencer);  // 在父的 Sequencer 上启动
+        // start() 内部完成 start_item → randomize → finish_item 全流程
+        // 阻塞直到子 Sequence 的 body() 执行完毕
+    end
+endtask
+```
+
+**实际项目中的角色**（Memory Design — `seq_lib.sv`）：
+
+```systemverilog
+class mem_n_wr_rd_seq extends uvm_sequence #(mem_tx);
+    `uvm_object_utils(mem_n_wr_rd_seq)
+
+    mem_wr_rd_seq mem_wr_rd_seq_h;  // 子 Sequence 句柄
+    int num_tx;
+
+    task body();
+        if (!uvm_config_db #(int)::get(null, "", "INT_NUM_TX", num_tx))
+            `uvm_error(get_type_name(), "RETRIVAL_FAILED FROM CONFIG_DB")
+
+        repeat (num_tx) begin
+            `uvm_do(mem_wr_rd_seq_h)  // 每次启动一个基础读写 Sequence
+            // `uvm_do 阻塞直到 mem_wr_rd_seq_h.body() 完成
+            // 循环 + 阻塞 = 严格串行执行 N 次读写对
+        end
+    endtask
+endclass
+```
+
+##### `uvm_do_with` — 启动一个 Sequence Item（带内联约束）
+
+`` `uvm_do_with`` 在 `uvm_do` 的基础上增加了一个内联约束块 `{...}`，允许在 Sequence Item 随机化时附加额外的约束条件。内联约束不会覆盖类内定义的 `constraint` 块——两者取交集（逻辑 AND），必须同时满足。
+
+```systemverilog
+// ===== 来自 seq_lib.sv —— mem_wr_rd_seq::body() =====
+task body();
+    // 写操作：约束 wr_rd == 1（写）
+    `uvm_do_with(req, {req.wr_rd == 1;})       // 内联约束：强制写方向
+    addr_q.push_back(req.addr);                 // 记录写入地址
+
+    addr_t = addr_q.pop_front();
+    // 读操作：约束 wr_rd == 0（读）+ 指定同一地址
+    `uvm_do_with(req, {req.wr_rd == 0;          // 内联约束：强制读方向
+                        req.addr == addr_t;})    // 内联约束：指定确切地址
+endtask
+```
+
+**宏展开后等价于**：
+
+```systemverilog
+req = mem_tx::type_id::create("req");
+start_item(req);
+req.randomize() with { req.wr_rd == 1; };  // 内联约束合并到随机化
+finish_item(req);
+```
+
+**内联约束与类内约束的关系**：假设 `mem_tx` 类内定义了 `constraint c_addr { addr < 16; }`（DUT 深度为 16），同时 `uvm_do_with` 中写了 `{req.wr_rd == 0; req.addr == addr_t;}`。随机化时，UVM 会同时满足类内约束（`addr < 16`）和内联约束（`addr == addr_t`）——结果是一个确定性的地址值，但前提是 `addr_t` 本身也在 0-15 范围内。如果 `addr_t >= 16`，随机化失败，`uvm_do_with` 内部会报 `UVM_FATAL`。
+
+**注意事项**：
+1. `` `uvm_do_with`` 仅用于 Sequence Item（创建单个事务），不能像 `uvm_do` 那样传入子 Sequence
+2. 内联约束语法是标准的 SystemVerilog `with {}` 约束——大括号内可以有多条约束语句，每条以分号结束
+3. 如果随机化失败（约束冲突导致无解），宏内部调用 `uvm_report_fatal` 终止仿真
+
+---
+
+#### Report 宏
+
+UVM 的报告机制通过 `uvm_report_handler` 和 `uvm_report_server` 两级结构实现分级日志输出。四个最常用的 Report 宏覆盖了从信息打印到仿真终止的全部严重级别。
+
+| 宏 | 严重级别 | 默认行为 | 语法 |
+|:---|:---|:---|:---|
+| `` `uvm_info(ID, MSG, VERBOSITY)`` | 信息 | 按 verbosity 过滤后打印，仿真继续 | 三个参数：ID 标签、消息字符串、详细度等级 |
+| `` `uvm_warning(ID, MSG)`` | 警告 | 打印消息 + 警告计数 +1，仿真继续 | 两个参数：ID 标签、消息字符串 |
+| `` `uvm_error(ID, MSG)`` | 错误 | 打印消息 + 错误计数 +1，达到 `max_quit_count` 后终止仿真 | 两个参数：ID 标签、消息字符串 |
+| `` `uvm_fatal(ID, MSG)`` | 致命 | 打印消息 + 立即终止仿真（通过 `$finish`） | 两个参数：ID 标签、消息字符串 |
+
+**Verbosity 等级**（仅 `uvm_info` 使用）：
+
+| 等级 | 含义 | 使用场景 |
+|:---|:---|:---|
+| `UVM_NONE` | 总是打印（verbosity 过滤关闭） | 关键状态变更、Phase 完成确认、config_db 状态 |
+| `UVM_LOW` | 低详细度 | 测试开始/结束、重要 Entscheidungs 分支 |
+| `UVM_MEDIUM` | 中详细度 | 每次事务的开始/完成 |
+| `UVM_HIGH` | 高详细度 | 事务的中间步骤、子操作细节 |
+| `UVM_FULL` | 全详细度 | 每个信号驱动的详细信息 |
+| `UVM_DEBUG` | 调试级 | 仅开发调试时使用，包含大量内部状态 |
+
+Verbosity 通过命令行 `+UVM_VERBOSITY=UVM_LOW` 控制全局阈值，也可通过 `uvm_component::set_report_verbosity_level()` 针对特定组件单独设置。
+
+**实际项目中的使用模式**（Memory Design）：
+
+```systemverilog
+// ===== 来自 mem_drv.sv —— build_phase 和 run_phase 确认 =====
+function void build_phase(uvm_phase phase);
+    super.build_phase(phase);
+    if (!uvm_config_db #(virtual mem_intf)::get(this, "", "MEM_PIF", vif))
+        `uvm_error(get_type_name(), "CONFIG_DB PIF RETRIVAL FAILED")
+        // get_type_name() 返回 "mem_drv"——自动包含类名，便于定位错误来源
+    `uvm_info("mem_drv", "build_phase verified", UVM_NONE)
+    // UVM_NONE: 关键状态确认，总是打印——不依赖任何 verbosity 设置
+endfunction
+
+task run_phase(uvm_phase phase);
+    `uvm_info("mem_drv", "run_phase verified", UVM_NONE)
+    forever begin
+        seq_item_port.get_next_item(req);
+        drive_tx(req);
+        seq_item_port.item_done();
+    end
+endtask
+
+// ===== 来自 mem_drv.sv —— 事务级详细日志 =====
+task drive_tx(mem_tx tx);
+    @(vif.drv_cb);
+    vif.drv_cb.addr_i   <= tx.addr;
+    // ... 信号驱动 ...
+    `uvm_info($sformatf("%s_drv_tx_task", get_type_name()),
+              $sformatf("wr_rd=%s addr=%h data=%h",
+                         tx.wr_rd ? "WR" : "RD",
+                         tx.addr,
+                         tx.wr_rd ? tx.wr_data : tx.rd_data),
+              UVM_NONE)  // 业务关键信息，总是打印
+endtask
+```
+
+**注意事项**：
+1. **ID 标签是字符串，用于日志过滤**：可以通过命令行 `+uvm_set_action=UVM_ERROR,UVM_DISPLAY` 统一控制某类错误的处理行为
+2. **`get_type_name()` 优于硬编码类名**：当类名被 Factory Override 替换时，`get_type_name()` 自动返回实际子类名，硬编码字符串则不反映真实类型
+3. **`$sformatf()` 格式化消息**：类似于 `$sprintf`，但不直接输出——返回格式化后的字符串，适用于 `uvm_info` 的 MSG 参数
+4. **仿真终止控制**：`uvm_report_server::set_max_quit_count(N)` 设置允许的最多 `UVM_ERROR` 数量——超过后仿真终止。默认值为 0（不限制），生产环境通常设为 5-10 以 Fail Fast
+5. **`UVM_FATAL` 无法被 `set_max_quit_count` 覆盖**——一旦触发立即终止仿真，无论当前错误计数是多少
+
+---
+
+#### 六、关键方法调用流程
+
+##### Driver ↔ Sequencer 握手
+
+```systemverilog
+// Driver 侧 — 拉取事务 + 驱动 + 确认
+task run_phase(uvm_phase phase);
+    forever begin
+        seq_item_port.get_next_item(req);    // ① 阻塞等待 Sequencer 给事务
+        drive_tx(req);                       // ② 转为 DUT 引脚波形
+        seq_item_port.item_done();           // ③ 告诉 Sequencer：完成，发下一个
+    end
+endtask
+
+// Sequence 侧 — 产生事务 + 发送（由 start_item/finish_item 宏自动处理）
+// `uvm_do_with(req, {...}) 宏等价于：
+start_item(req);          // ① 向 Sequencer 请求发送权（可能排队等待）
+req.randomize() with {};  // ② 随机化事务内容
+finish_item(req);         // ③ 放入 Sequencer 队列 → Driver 可取走
+```
+
+##### Objection 控制仿真生命周期
+
+```systemverilog
+task run_phase(uvm_phase phase);
+    phase.raise_objection(this);                 // ① 举起：仿真不会在此时结束
+    phase.phase_done.set_drain_time(this, 100);   // ② 留 100ns 排空最后的事务
+    seq_h.start(env_h.agent_h.sqr_h);            // ③ 启动 Sequence（阻塞到 body() 完成）
+    phase.drop_objection(this);                  // ④ 放下：Sequence 完成后允许仿真结束
+endtask
+```
+
+**不 raise objection 会怎样？** `run_phase` 进入后没有任何组件举起 objection → UVM 认为没有工作需要做 → 仿真立即结束。这是最常见的 UVM 初学者错误根源——Sequence 启动了但 Driver 还没来得及驱动第一个事务，仿真就终止了。
+
+##### config_db 配置传递
+
+```systemverilog
+// top.sv — 静态 module 世界：set
+initial begin
+    uvm_config_db #(virtual mem_intf)::set(null, "*", "MEM_PIF", pif);
+    //            ^ 类型参数             ^范围  ^路径  ^键名      ^值
+    // null+"*" = 全局路径匹配——所有组件都能 get 到
+end
+
+// mem_drv.sv — 动态 class 世界：get
+function void build_phase(uvm_phase phase);
+    if (!uvm_config_db #(virtual mem_intf)::get(this, "", "MEM_PIF", vif))
+        //                                   ^上下文 ^路径 ^键名    ^接收变量
+        `uvm_error(...)  // get 失败——虚拟接口未正确传递，仿真无法继续
+endfunction
+```
+
+**set 和 get 的时序约束**：`set` 必须在父组件的 `build_phase` 中完成，`get` 在子组件的 `build_phase` 中完成。自顶向下的 `build_phase` 执行顺序保证子组件 `get` 时父组件已完成 `set`。
+
+##### analysis_port 广播
+
+```systemverilog
+// Monitor：write 一次
+ap_h.write(tx);  // tx 被同时推送给所有连接的订阅者
+
+// Agent connect_phase：建立广播拓扑
+mem_mon_h.ap_h.connect(mem_cov_h.analysis_export);  // → Coverage
+// Env connect_phase：跨层次扩展广播
+mem_agent_h.mem_mon_h.ap_h.connect(mem_sbd_h.analysis_export); // → Scoreboard
+```
+
+**为什么不用 FIFO？** `analysis_port` 是非阻塞广播——如果 Scoreboard 处理慢，它不会阻塞 Monitor 继续采样。需要缓冲的场景用 `uvm_tlm_analysis_fifo`。
+
+#### 七、从代码中学习：实际项目中的调用顺序
+
+Memory Design phase4 的完整调用链：
+
+```
+top.sv
+  ├─ [精化前] uvm_config_db::set("MEM_PIF", pif)       // 传递接口
+  │
+  └─ [仿真 0] run_test("mem_full_wr_rd_test")
+       │
+       ├─ build_phase (自顶向下)
+       │   mem_env::build_phase()
+       │     └─ mem_agent::type_id::create(...)         // uvm_component_utils 生效
+       │       └─ mem_drv/mem_mon/mem_sqr 的 build_phase
+       │           └─ config_db::get("MEM_PIF", vif)    // 获取虚拟接口
+       │
+       ├─ connect_phase (自底向上)
+       │   mem_agent::connect_phase()
+       │     └─ drv.seq_item_port.connect(sqr.seq_item_export)
+       │     └─ mon.ap_h.connect(cov.analysis_export)
+       │   mem_env::connect_phase()
+       │     └─ agent.mon.ap_h.connect(sbd.analysis_export)
+       │
+       ├─ run_phase
+       │   test::run_phase()
+       │     └─ phase.raise_objection(this)             // Objection 机制
+       │     └─ seq_h.start(sqr_h)                      // uvm_sequence 启动
+       │         └─ seq::body()
+       │             └─ `uvm_do_with(req, {...})        // Sequence 宏
+       │                 └─ start_item → randomize → finish_item
+       │                     └─ drv.get_next_item(req)   // Driver 握手
+       │                     └─ drv.drive_tx(req)
+       │                     └─ drv.item_done()
+       │         └─ mon.ap_h.write(tx)                  // analysis_port 广播
+       │             └─ sbd.write(tx)                   // Scoreboard 比对
+       │             └─ cov.write(tx)                   // Coverage 采样
+       │     └─ phase.drop_objection(this)              // Objection 放下
+       │
+       └─ report_phase
+           └─ `uvm_info(...)                            // Report 宏
+```
+
+### `uvm_do` 宏详解
+
+`uvm_do` 是 UVM 中最高频使用的 Sequence 宏，用于**单行代码完成** Sequence Item 或子 Sequence 的创建、随机化和发送全流程。它封装了 `start_item`/`randomize`/`finish_item` 三步操作，使测试激励的编写从繁琐的手动流程封装为单行代码。
+
+#### 是什么——宏展开后的完整等价代码
+
+`uvm_do(item_or_seq)` 根据参数类型有两种展开方式：
+
+**参数为 Sequence Item 时**——创建并发送一个事务对象：
+
+```systemverilog
+// `uvm_do(req) 的宏展开等价代码（简化版）：
+// ===== 步骤 1：create —— 通过工厂创建对象 =====
+req = mem_tx::type_id::create("req");
+
+// ===== 步骤 2：start_item —— 向 Sequencer 请求发送权限 =====
+// 内部调用 sequencer.wait_for_grant(prior) —— 进入仲裁队列等待
+// 如果有更高优先级的 Sequence 正在 grab lock，则阻塞等待
+start_item(req);
+
+// ===== 步骤 3：randomize —— 在获得仲裁许可后随机化 =====
+// 此时 item 已经获得了发送权，可以安全地随机化
+if (!req.randomize()) begin
+    `uvm_warning("RAND", "Randomization failed")
+end
+
+// ===== 步骤 4：finish_item —— 发送到 Sequencer 并阻塞等待 Driver 完成 =====
+// 内部调用 sequencer.send_request(req) 将事务入队
+// 然后等待 Driver 的 item_done() 响应
+finish_item(req);
+
+// 若定义了 UVM_DISABLE_AUTO_ITEM_RECORDING 则跳过记录
+```
+
+**参数为子 Sequence 时**——启动另一个 Sequence 并阻塞等待其 `body()` 执行完成：
+
+```systemverilog
+// `uvm_do(mem_wr_rd_seq_h) 的宏展开等价代码：
+// 创建子 Sequence 实例
+mem_wr_rd_seq_h = mem_wr_rd_seq::type_id::create("mem_wr_rd_seq_h");
+
+// 在同一个 Sequencer 上启动子 Sequence
+// start() 内部包含完整的 start_item → randomize → finish_item 流水线
+// 这是一个阻塞调用：当前 Sequence 的 body() 在此暂停，
+// 直到子 Sequence 的 body() 执行完才返回
+mem_wr_rd_seq_h.start(m_sequencer);
+// m_sequencer: 当前 Sequence 所在的 Sequencer 句柄，
+//   由 UVM 在 start() 时自动设置
+```
+
+#### 为什么是阻塞的——finish_item 等待 Driver 完成 item_done()
+
+`uvm_do` 是**阻塞**宏，执行后暂停调用代码直到以下条件全部满足：
+
+```
+Sequence.body()                Sequencer                     Driver
+     │                              │                            │
+     ├─ start_item(req) ───────────►│ 仲裁：分配发送权          │
+     │  (阻塞直到获得仲裁许可)       │                            │
+     │                              │                            │
+     ├─ randomize()                 │                            │
+     │  (本地执行，不阻塞)           │                            │
+     │                              │                            │
+     ├─ finish_item(req) ──────────►│ 事务入 FIFO ──────────────►│ get_next_item(req)
+     │  (阻塞等待 item_done)        │                            │ (阻塞等待事务到达)
+     │       │                      │                            │
+     │       │                      │◄───────────────────────────┤ drive_tx(req)
+     │       │                      │                            │ (驱动 DUT 信号)
+     │       │                      │                            │
+     │       │                      │◄───────────────────────────┤ item_done()
+     │       │                      │                            │ (通知完成)
+     │◄──────│──────────────────────│                            │
+     │  finish_item 返回 ←──────────┤                            │
+     │                              │                            │
+     ├─ 下一行代码执行              │                            │
+```
+
+**阻塞链的关键环节：**
+
+| 步骤 | 阻塞对象 | 解除条件 |
+|:---|:---|:---|
+| `start_item` | Sequence（等待仲裁） | Sequencer 仲裁器将发送权授给当前 Sequence |
+| `finish_item` | Sequence（等待消费） | Driver 调用 `item_done()` 通知事务已完成 |
+| 子 Sequence 的 `start()` | 父 Sequence（等待子序列完成） | 子 Sequence 的 `body()` 执行完毕返回 |
+
+#### 实际示例——mem_n_wr_rd_seq 中 repeat(num_tx) `uvm_do(...)
+
+来自 `/home/yys/AGENT/ic/projects/uvm-memory/phase4/code/seq_lib.sv`：
+
+```systemverilog
+// ===== mem_n_wr_rd_seq 的 body() 核心代码 =====
+class mem_n_wr_rd_seq extends uvm_sequence#(mem_tx);
+    mem_wr_rd_seq mem_wr_rd_seq_h;             // 子 Sequence 句柄
+    int num_tx;                                // 从 config_db 获取的执行次数
+
+    task body();
+        // 从 config_db 获取重复次数 N
+        if (!uvm_config_db#(int)::get(null, "", "INT_NUM_TX", num_tx))
+            `uvm_error(get_type_name(), "RETRIVAL_FAILED FROM CONFIG_DB")
+
+        // repeat(num_tx) `uvm_do(mem_wr_rd_seq_h)：
+        //   每次循环启动一次 mem_wr_rd_seq（包含 1 写 + 1 读）
+        //   `uvm_do 阻塞直到子 Sequence 完成才进入下一次循环
+        //   因此 N 次读写对严格串行执行——保证内存地址不被并发干扰
+        repeat(num_tx) begin
+            `uvm_do(mem_wr_rd_seq_h)           // 阻塞等待子 Sequence 完成
+        end
+    endtask
+endclass
+```
+
+**在这个示例中**，`uvm_do(mem_wr_rd_seq_h)` 等价于：
+1. 创建 `mem_wr_rd_seq` 实例
+2. 启动它——内部依次执行：`uvm_do_with` 写事务 → 记录地址 → `uvm_do_with` 读事务
+3. 只有当这个读写对**完全结束**（Driver 已驱动完写和读两个事务），`uvm_do` 才返回
+4. 然后 `repeat` 进入下一次循环，启动下一个读写对
+
+#### 与手动 start_item/finish_item 的对比
+
+```systemverilog
+// ===== 方式 A：手动 start_item/finish_item（繁琐但可控）=====
+task body();
+    mem_tx tx;
+    repeat (10) begin
+        tx = mem_tx::type_id::create("tx");    // ① 手动创建
+        start_item(tx);                         // ② 手动请求发送权
+        tx.randomize();                         // ③ 手动随机化
+        finish_item(tx);                        // ④ 手动完成发送
+    end
+endtask
+
+// ===== 方式 B：`uvm_do 宏（简洁等价）=====
+task body();
+    `uvm_do(req)                                // ①~④ 一步完成
+endtask
+```
+
+| 维度 | 手动 start_item/finish_item | `uvm_do` 宏 |
+|:---|:---|:---|
+| **代码行数** | 4 行 | 1 行 |
+| **灵活性** | 可在 start_item 和 finish_item 之间插入自定义逻辑（如 pre_randomize 回调、条件判断） | 固定的三步流程，不可插入自定义逻辑 |
+| **Randomize 时机** | 手动控制——可在 randomize 前修改约束模式 | 自动执行——无插入点 |
+| **可读性** | 手动操作易遗漏步骤 | 简洁明了 |
+| **适用场景** | 需要在随机化前后做特殊处理（如手动设置确定性值覆盖随机结果） | 标准的事务生成流程 |
+| **错误处理** | 可自定义 randomize 失败的异常处理 | 使用默认的 warning 处理 |
+
+#### 注意事项
+
+- **不要在使用 `uvm_do` 之前手动 `new()` 或 `create()` 对象**：`uvm_do` 内部已经包含了 `create()` 调用，如果先创建再传入会导致内存泄漏（旧对象被覆盖）。
+- **`uvm_do` 的阻塞性质可能导致死锁**：如果 Driver 的 `run_phase` 中忘记调用 `item_done()`，`finish_item` 将永远阻塞，仿真不报错但挂起不动。
+- **在 `repeat` 循环中使用 `uvm_do` 保证严格串行**：每个事务/子 Sequence 完成后才开始下一个，这在存储器验证中很关键（避免写入-读取的地址竞争）。
+- **子 Sequence 的 `uvm_do` 会嵌套阻塞**：父 Sequence 阻塞在子 Sequence 的 `body()` 上，子 Sequence 的 `finish_item` 又阻塞在 Driver 的 `item_done()` 上，形成多层阻塞链。
+
+### `uvm_do_with` 宏详解
+
+`uvm_do_with` 是 `uvm_do` 的增强版本，在事务随机化时**附加一个内联约束块**，使得用户可以在 Sequence 中动态指定事务的取值条件，而不需要修改 Transaction 类本身的 `constraint` 块。
+
+#### 展开后等价代码 + 内联约束的语义
+
+```systemverilog
+// `uvm_do_with(req, {req.wr_rd == 1;}) 的宏展开等价代码：
+req = mem_tx::type_id::create("req");         // ① 创建
+
+start_item(req);                              // ② 请求发送权
+
+// ③ 随机化 + 内联约束
+// randomize() with { constraints } 的语义：
+//   - 类内 constraint 块（如 c_default）照常生效
+//   - with {} 中的内联约束作为**附加条件**叠加
+//   - 两者取**交集**——随机解必须同时满足类内约束和内联约束
+//   - 如果交集为空（矛盾约束），randomize() 返回 0（失败）
+if (!req.randomize() with { req.wr_rd == 1; }) begin
+    `uvm_warning("RAND", "Randomization failed")
+end
+
+finish_item(req);                             // ④ 发送并等待完成
+```
+
+**内联约束的语义：**
+
+```
+类内 constraint c_default:                   内联 with {req.wr_rd == 1;}
+  wr_rd inside {0, 1};                       wr_rd == 1;
+  addr inside {[0:15]};                      
+                                              ─────────────────
+                                              交集：wr_rd == 1（强制写操作）
+                                              其余字段（addr, wr_data）仍按类内约束随机
+```
+
+#### 内联约束与类内 constraint 的关系：交集，须同时满足
+
+这是理解 `uvm_do_with` 的**最关键概念**——内联约束不会覆盖或替换类内约束，而是在类内约束的基础上**增加额外条件**。随机化解必须同时满足两者：
+
+```systemverilog
+// ===== Transaction 类的类内约束 =====
+class mem_tx extends uvm_sequence_item;
+    rand bit wr_rd;              // 0=读, 1=写
+    rand bit [3:0] addr;         // 4-bit 地址（0~15）
+
+    constraint c_default {
+        wr_rd inside {0, 1};     // 合法范围：0 或 1
+        addr inside {[0:15]};    // 合法范围：0~15
+    }
+endclass
+
+// ===== Sequence 中使用 uvm_do_with 附加内联约束 =====
+task body();
+    // 示例 1：强制写操作——内联约束 wr_rd==1 与类内 c_default 的交集
+    //   类内：wr_rd ∈ {0,1}
+    //   内联：wr_rd == 1
+    //   交集：wr_rd == 1（所有符合条件的值中随机选取）
+    `uvm_do_with(req, {req.wr_rd == 1;})              // addr 随机（0~15）
+
+    // 示例 2：强制读操作 + 指定地址
+    //   类内：addr ∈ {0,15}
+    //   内联：wr_rd == 0; addr == addr_t
+    //   交集：wr_rd=0, addr=addr_t（完全确定的事务）
+    `uvm_do_with(req, {req.wr_rd == 0; req.addr == addr_t;})
+
+    // 示例 3：矛盾约束——randomize() 返回 0
+    //   内联：wr_rd == 2（非法值——不在类内约束 {0,1} 范围内）
+    //   交集为空 → randomize() 返回 0 → uvm_warning
+    //   不要写这种约束！
+    // `uvm_do_with(req, {req.wr_rd == 2;})            // 失败！
+endtask
+```
+
+**内联约束与类内约束的矛盾检测：**
+
+如果内联约束指定的取值**完全落在类内约束范围之外**，`randomize()` 返回 `0`（失败）。`uvm_do_with` 宏检测到失败后发出 `uvm_warning`，但**不会阻止仿真继续**——事务以未随机化的默认值（所有 bit 为 0）发送给 Driver，通常导致功能错误。因此内联约束必须与类内约束兼容。
+
+#### 实际示例——mem_wr_rd_seq 和 mem_full_wr_rd_seq
+
+来自 `/home/yys/AGENT/ic/projects/uvm-memory/phase4/code/seq_lib.sv`：
+
+**示例 1：mem_wr_rd_seq —— 同一地址的写后读**
+
+```systemverilog
+// ===== mem_wr_rd_seq 的 body()：一次写 + 一次读同一地址 =====
+class mem_wr_rd_seq extends uvm_sequence#(mem_tx);
+    bit [`ADDR_WIDTH-1:0] addr_q[$];           // 队列：记录写入的地址
+    bit [`ADDR_WIDTH-1:0] addr_t;              // 临时变量：从队列取出的地址
+
+    task body();
+        // 步骤 1：生成一次随机写事务
+        //   wr_rd == 1：强制为写操作
+        //   addr：由类内约束随机化（0~15），不指定具体值
+        `uvm_do_with(req, {req.wr_rd == 1;})
+        addr_q.push_back(req.addr);             // 记录写入的随机地址
+
+        // 步骤 2：生成一次定向读事务——读同一个地址
+        //   从队列中取出之前写入的地址
+        addr_t = addr_q.pop_front();
+        //   wr_rd == 0：强制为读操作
+        //   addr == addr_t：指定读地址等于之前写的地址（确定性定向）
+        `uvm_do_with(req, {req.wr_rd == 0;
+                            req.addr == addr_t;})
+        // 结果：如果 Scoreboard 比对 req.wr_data 和 req.rd_data 一致，
+        // 说明 DUT 在 addr_t 地址正确存储并读取了数据
+    endtask
+endclass
+```
+
+**示例 2：mem_full_wr_rd_seq —— 满深度遍历的批量约束**
+
+```systemverilog
+// ===== mem_full_wr_rd_seq 的 body()：先全部写后全部读 =====
+class mem_full_wr_rd_seq extends uvm_sequence#(mem_tx);
+    rand bit [`ADDR_WIDTH-1:0] addr_q[$];       // 随机生成 0~15 的无重复排列
+
+    constraint addr_c {
+        addr_q.size == 16;
+        unique {addr_q};                        // 约束：16 个地址互不相同
+    }
+
+    task body();
+        this.randomize();                       // 随机生成地址排列
+
+        // 阶段 1：对所有地址执行写操作
+        for (int i = 0; i < `DEPTH; i++) begin
+            // wr_rd==1 + addr==addr_q[i]：定向写——每个地址只写一次
+            `uvm_do_with(req, {req.wr_rd == 1;
+                                req.addr == addr_q[i];})
+        end
+
+        // 阶段 2：对所有地址执行读操作
+        for (int i = 0; i < `DEPTH; i++) begin
+            // wr_rd==0 + addr==addr_q[i]：定向读——读回每个地址的数据
+            // 使用相同的 addr_q 排列，保证读的顺序与写的顺序一致
+            `uvm_do_with(req, {req.wr_rd == 0;
+                                req.addr == addr_q[i];})
+        end
+        // 验证目标：Scoreboard 对每个地址比对 wr_data 和 rd_data，
+        // 确认全部 16 个存储单元均正确写入和读出
+    endtask
+endclass
+```
+
+#### 内联约束中的操作符和表达式
+
+内联约束支持 SystemVerilog constraint 的大部分语法：
+
+| 表达式类型 | 语法示例 | 说明 |
+|:---|:---|:---|
+| 等式约束 | `req.wr_rd == 1;` | 强制字段等于指定值 |
+| 范围约束 | `req.addr inside {[0:7]};` | 限定字段的取值范围 |
+| 不等式约束 | `req.len < 16;` | 限定字段的上下界 |
+| 多重约束 | `{req.len < 16; req.size == 3;}` | 用分号分隔多个约束条件 |
+| 分布约束 | `req.addr dist {0:=1, [1:15]:/1};` | 加权随机分布 |
+| 蕴含约束 | `(req.is_read) -> req.len < 4;` | 条件约束 |
+
+#### 注意事项
+
+- **`uvm_do_with` 的参数必须是 Sequence Item**（不能用子 Sequence）——子 Sequence 使用 `uvm_do`。
+- **内联约束不会覆盖类内约束**——两者取交集，如果内联约束指定的值超出类内约束范围，`randomize()` 返回 0。
+- **`with {}` 中引用非 rand 变量时需注意**：`addr_t` 等局部变量的值在内联约束中使用时是确定的，作为约束条件不会影响随机化失败概率。
+- **内联约束不能引用不在作用域内的变量**：`with {}` 的作用域是 `randomize()` 调用所在的作用域，可以访问当前 task/function 的局部变量和类的成员变量。
+- **分号是分隔符不是终止符**：内联约束块 `{constraint1; constraint2;}` 中每条约束以分号分隔，最后一条后面可以有分号也可以没有。
+
+### get_next_item / item_done 握手协议
+
+`get_next_item` 和 `item_done` 是 UVM Driver 与 Sequencer 之间的事务握手协议，它们是 Sequence → Sequencer → Driver 流水线的**末端通信机制**。这两个方法定义了 Driver 如何从 Sequencer 拉取事务、驱动完成后如何通知 Sequencer、以及 Sequencer 如何将完成信号传回给等待中的 Sequence。
+
+#### 是什么——两只手之间的同步握手
+
+```
+Sequence                          Sequencer                         Driver
+                                                                     │
+  finish_item(item) ────────────► 事务入 FIFO ──────────────────────►│ get_next_item(req)
+  (阻塞等待)                       (仲裁/排队)                       │     ① 阻塞等待
+       │                              │                             │       直到 FIFO 非空
+       │                              │                             │
+       │                              │                             ├─ drive_tx(req)
+       │                              │                             │     ② 驱动 DUT 信号
+       │                              │                             │
+       │                              │                             ├─ item_done(rsp)
+       │                              │◄────────────────────────────│     ③ 通知 Sequencer
+       │                              │                             │
+       │◄── finish_item 返回 ────────┤                             │
+       │                              │                             ├─ get_next_item(req)
+       │                              │                             │     ④ 拉取下一个事务
+       │                              │                             │     (循环回到 ①)
+```
+
+这个协议在 `mem_drv.sv` 的 `run_phase` 中以最简形式呈现：
+
+```systemverilog
+// ===== mem_drv.sv — 标准的 forever 循环 =====
+// 来自 /home/yys/AGENT/ic/projects/uvm-memory/phase4/code/mem_drv.sv
+task run_phase(uvm_phase phase);
+    forever begin
+        // ① get_next_item(req)：阻塞等待 Sequencer 将事务放入输出 FIFO
+        //   如果 Sequencer FIFO 为空（没有 Sequence 发出事务），Driver 在此阻塞
+        //   req 句柄在 uvm_driver 基类中已声明，无需在子类中声明
+        seq_item_port.get_next_item(req);
+
+        // ② drive_tx(req)：将事务字段转换为 DUT 接口信号时序
+        //   这是 Driver 的核心工作——事务级抽象 → 信号级实现
+        drive_tx(req);
+
+        // ③ item_done()：通知 Sequencer 当前事务已完成
+        //   此调用：
+        //   a) 将 req 发送回 Sequencer（作为响应，如果有的话）
+        //   b) 唤醒在 finish_item() 中阻塞等待的 Sequence
+        //   c) 允许 Sequencer 将下一个事务出队给 Driver
+        //   如果不调用——Driver 永远拿不到第二个事务！
+        seq_item_port.item_done();
+    end
+endtask
+```
+
+#### 为什么——阻塞等待和完成通知缺一不可
+
+**get_next_item 为什么阻塞？**
+
+Driver 是事务的消费者，它的工作速度可能远快于 Sequence 的生成速度。如果 Sequencer 的 FIFO 中没有待发事务而 Driver 不阻塞，Driver 将驱动无效数据到 DUT（或空指针崩溃）。阻塞等待保证 Driver 只在有实际激励时才工作。
+
+**item_done 为什么不能跳过？**
+
+```
+如果不调用 item_done()：
+  Driver 侧：get_next_item() 会返回什么？
+  ─────────────────────────────────
+  第一次 get_next_item → 返回 item_1（FIFO 中有数据）
+  Driver 驱动 item_1，但不调用 item_done()
+  第二次 get_next_item → 永远阻塞！
+  ─────────────────────────────────
+  原因：Sequencer 内部维护一个"当前事务正在处理"标志。
+  只有 item_done() 才会清除这个标志并释放下一笔事务。
+  不调用 item_done() 等价于告诉 Sequencer"第一个事务还没完成"——
+  Sequencer 不会发送第二个事务。
+
+  Sequence 侧：finish_item() 什么时候返回？
+  ─────────────────────────────────
+  finish_item() 在 Sequence 侧阻塞等待 Sequencer 收到 item_done()。
+  Sequence 发完 10 个事务后调用 drop_objection。
+  但如果第一个事务的 item_done() 就从未被调用——
+  第一个 Sequence 的 finish_item() 永远阻塞，
+  测试的 run_phase 永远不会结束，
+  仿真挂起（Hang）不报错。
+```
+
+#### 实际代码——mem_drv.sv 的 forever 循环
+
+来自 `/home/yys/AGENT/ic/projects/uvm-memory/phase4/code/mem_drv.sv` 的 `run_phase` 和 `drive_tx`：
+
+```systemverilog
+// ===== 实际 Driver 代码：完整的 get_next_item → drive → item_done 流程 =====
+class mem_drv extends uvm_driver#(mem_tx);
+    virtual mem_intf vif;                      // 虚拟接口句柄（从 config_db 获取）
+
+    task run_phase(uvm_phase phase);
+        forever begin
+            seq_item_port.get_next_item(req);  // ① 阻塞拉取
+
+            drive_tx(req);                     // ② 驱动到 DUT 接口
+
+            seq_item_port.item_done();         // ③ 通知完成
+        end
+    endtask
+
+    // drive_tx 内部时序：valid-ready 握手协议
+    task drive_tx(mem_tx tx);
+        @(vif.drv_cb);                         // 等待时钟沿
+        vif.drv_cb.addr_i   <= tx.addr;        // 驱动地址
+        vif.drv_cb.wr_rd_i  <= tx.wr_rd;       // 驱动读写方向
+        if (tx.wr_rd == 1) begin
+            vif.drv_cb.wdata_i <= tx.wr_data;  // 写操作：驱动写数据
+        end
+        vif.drv_cb.valid_i   <= 1;             // 置 valid=1，发起传输
+        wait(vif.drv_cb.ready_o);              // 阻塞等待 DUT 的 ready 握手
+        if (tx.wr_rd == 0) begin
+            tx.rd_data = vif.drv_cb.rdata_o;   // 读操作：采集读数据
+        end
+        // 信号清零：释放总线控制权
+        vif.drv_cb.addr_i   <= 0;
+        vif.drv_cb.wr_rd_i  <= 0;
+        vif.drv_cb.valid_i  <= 0;
+        vif.drv_cb.wdata_i  <= 0;
+    endtask
+endclass
+```
+
+**时序分析——一次完整的握手周期：**
+
+```
+时间 ──────────────────────────────────────────────────────────►
+
+clk     ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐  ┌─┐
+        └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘  └─┘
+
+Driver  │ get_next_item │       drive_tx ...         │item_done│ get_next_item
+        │ (立即拿到)     │  @drv_cb→驱动→wait(ready)  │  (唤醒   │ (拿到下一个)
+        │               │                            │  Sequencer│
+        ────────────────┼────────────────────────────┼──────────┼──────────────
+Sequencer              │                            │          │
+  FIFO  [item_1]       │ FIFO 空                    │ item_1完 │ [item_2]
+                       │                            │          │
+Sequence               │                            │          │
+  finish_item          ┆阻塞───────────────────────►│ 返回     │
+                                                              │
+```
+
+#### AXI Driver 中的五通道驱动流程
+
+来自 `/home/yys/AGENT/ic/projects/uvm-axi/tb/axi_uvm_pkg.sv` 的 `axi_driver::run_phase`：
+
+```systemverilog
+// ===== AXI Driver：五通道驱动——per-事务的 get_next_item / item_done =====
+task run_phase(uvm_phase phase);
+    axi_seq_item tr;
+    vif.b_ready <= 1;                          // B 通道常 ready——随时接收写响应
+    vif.r_ready <= 1;                          // R 通道常 ready——随时接收读数据
+    forever begin
+        seq_item_port.get_next_item(tr);       // ① 拉取一个 AXI 事务
+        if (tr.is_read)
+            drive_read(tr);                    // ②a 读事务：AR 握手 + 等待 R beat
+        else
+            drive_write(tr);                   // ②b 写事务：AW + W + B 三通道握手
+        seq_item_port.item_done();             // ③ 通知完成——不管读写都是一笔事务
+    end
+endtask
+
+// 写事务驱动：AW + W + B 三个通道依次完成
+task drive_write(axi_seq_item tr);
+    // AW 通道：驱动地址+控制信号，等待 aw_ready
+    vif.aw.id    <= {midx[...], tr.id[...]};   // 拼接 Master 索引和事务 ID
+    vif.aw.addr  <= tr.addr;
+    vif.aw_valid <= 1;
+    @(posedge vif.clk); while(!vif.aw_ready) @(posedge vif.clk);
+    vif.aw_valid <= 0;
+
+    // W 通道：逐 beat 驱动数据+strb+last，等待 w_ready
+    foreach (tr.data[i]) begin
+        vif.w.data  <= tr.data[i];
+        vif.w.strb  <= tr.strb[i];
+        vif.w.last  <= (i == tr.len);          // 最后一个 beat 置 last
+        vif.w_valid <= 1;
+        @(posedge vif.clk); while(!vif.w_ready) @(posedge vif.clk);
+        vif.w_valid <= 0;
+    end
+
+    // B 通道：等待写响应（b_ready 已常置 1，自动消费）
+    do @(posedge vif.clk); while(!vif.b_valid);
+endtask
+```
+
+**关键观察：** AXI Driver 的 `item_done()` 是在**整个读写事务的五通道完成之后**才调用——不是在每个通道完成时调用。这意味着：
+- 一次 `get_next_item` 对应一个完整的 AXI Transaction（可能包含 256 个 beat 的突发传输）
+- `item_done` 通知 Sequencer 的是整个 Transaction 已完成
+- Sequence 的 `finish_item` 也只等这一次通知
+
+#### get_next_item vs try_next_item vs get
+
+| 方法 | 行为 | 适用场景 |
+|:---|:---|:---|
+| `get_next_item(req)` | **阻塞**: FIFO 为空时一直等待直到事务到达 | 标准的 Driver 主循环——Driver 在没有事务时无事可做 |
+| `try_next_item(req)` | **非阻塞**: FIFO 为空时立即返回 0 | Driver 需要在没有事务时做其他工作（如发送 IDLE 周期） |
+| `get(req)` | 阻塞拉取但**不返回 item_done 的响应给 Sequence** | 高级用法——需要精确控制响应时机时 |
+
+#### 注意事项
+
+- **永远在 `get_next_item` 和 `item_done` 之间放 `drive_tx`**——这是驱动的黄金法则。如果顺序错了（先 item_done 再 drive），数据驱动时事务状态已标记为"完成"。
+- **如果 drive_tx 内部有 `@(posedge clk)` 等待**——`item_done()` 在这些等待之后才调用。这保证 Driver 在 Transaction 真正完成前不会拉取下一个事务。
+- **item_done 可以带参数**：`item_done(rsp)` 将响应对象回传给 Sequencer，Sequence 侧可通过 `get_response(rsp)` 获取。但多数设计不用此特性——数据比对在 Scoreboard 中完成。
+- **AXI 中 `get_next_item` 返回的是整个 Burst**——不是单个 beat。Driver 在 item_done 前必须完成所有 beat 的驱动和响应接收。
+
+### raise_objection / drop_objection 机制
+
+Objection（异议）机制是 UVM 控制仿真生命周期的核心：它决定 `run_phase` 何时可以结束。简单来说——**只要有任何组件 raise 了 objection，仿真就继续运行；当所有 objection 都被 drop 后，`run_phase` 结束，仿真进入 Cleanup Phase**。
+
+#### 是什么——一个全局的"未完成工作"计数器
+
+UVM 在每个 Phase 中维护一个挂起 objection 计数器。组件通过 `phase.raise_objection(this)` 告诉 UVM"我还有工作要做"，通过 `phase.drop_objection(this)` 告诉 UVM"我完成了"。
+
+```systemverilog
+// ===== Phase Objection 的计数机模型 =====
+class uvm_phase;
+    uvm_objection objection;                   // 内部 objection 管理器
+
+    // 简化后的内部逻辑：
+    function void raise_objection(uvm_object obj);
+        objection.raise(obj);                  // 计数 +1，记录"obj 还有工作"
+    endfunction
+
+    function void drop_objection(uvm_object obj);
+        objection.drop(obj);                   // 计数 -1，清除"obj 的工作记录"
+        // 当计数器归零时 → Phase 结束
+    endfunction
+endclass
+```
+
+**Objection 与 Phase 生命周期：**
+
+```
+run_phase 启动
+     │
+     ├── 检查 objection 计数器 == 0 ?
+     │     YES → 立即结束（仿真立即终止——这是初学者常见的配置遗漏）
+     │     NO  → 进入等待循环
+     │
+     ├── 所有 objection 都被 drop ?
+     │     YES → run_phase 结束 → Cleanup Phases
+     │     NO  → 继续等待（时间前推进）
+     │
+     └── (如果所有组件都忘了 drop → 仿真永远挂起)
+```
+
+#### 为什么——不 raise 会怎样（最常见的初学者错误根源）
+
+**场景 A：忘记 raise objection**
+
+```systemverilog
+// ===== 错误：没有 raise objection =====
+task run_phase(uvm_phase phase);
+    my_sequence seq = my_sequence::type_id::create("seq");
+    seq.start(sequencer);                      // 启动 Sequence
+    // 没有 raise_objection！
+    // UVM 检查：run_phase 的挂起 objection 计数 = 0
+    // UVM 决定：没有工作需要做 → 立即结束
+    // 结果：seq.start() 立即返回（Sequence 可能还没产生任何事务）
+    // 仿真日志：Simulation complete via $finish(1) at time 0
+endtask
+```
+
+**症状：** 仿真瞬间完成（simulation time = 0），波形为空，覆盖率为 0%。这是 UVM 初学者常见的误解——明明写了完整的 Sequence 和 Driver 代码，为什么什么都没执行？
+
+**场景 B：忘记 drop objection**
+
+```systemverilog
+// ===== 错误：raise 了但没有 drop =====
+task run_phase(uvm_phase phase);
+    phase.raise_objection(this);               // 计数 +1
+    seq.start(sequencer);                      // Sequence 执行（可能 10us）
+    // 忘记 drop_objection！
+    // 结果：run_phase 永远等待这个"永未完成"的 objection
+    // 仿真挂起（Hang）——不报错，不断推进仿真时间
+    // 日志无异常，需要手动 kill
+endtask
+```
+
+**症状：** 仿真看起来完成了所有预期工作，但就是不结束——simulation time 无限增长而不进入 report_phase。
+
+#### 怎么用——实际代码中的两种管理模式
+
+来自 `/home/yys/AGENT/ic/projects/uvm-memory/phase4/code/test_lib.sv` 和 `seq_lib.sv`：
+
+**模式 1：Test 层管理（mem_wr_rd_test）**
+
+```systemverilog
+// ===== test_lib.sv — mem_wr_rd_test 的 run_phase =====
+task run_phase(uvm_phase phase);
+    mem_wr_rd_seq mem_wr_rd_seq_h;
+    mem_wr_rd_seq_h = mem_wr_rd_seq::type_id::create("mem_wr_rd_seq_h", this);
+
+    // ① raise_objection：告诉 UVM "我的测试刚开始，别结束"
+    phase.raise_objection(this);               // this = 当前 test 实例
+
+    // ② phase_done.set_drain_time(this, 100)：
+    //    在所有 objection 都被 drop 后，额外保留 100 个时间单位
+    //    用于排空（Drain）流水线中最后的事务——确保末级事务的响应也被处理
+    phase.phase_done.set_drain_time(this, 100);
+
+    // ③ seq.start()：启动 Sequence（阻塞——等 body() 执行完才返回）
+    mem_wr_rd_seq_h.start(mem_env_h.mem_agent_h.mem_sqr_h);
+
+    // ④ drop_objection：Sequence 已完成，允许仿真结束
+    phase.drop_objection(this);
+endtask
+
+// 执行顺序：
+// raise → set_drain_time → start(阻塞等 Sequence 完成) → drop → 等 drain_time → Phase 结束
+```
+
+**模式 2：Sequence 层自管理（mem_n_wr_rd_seq）**
+
+```systemverilog
+// ===== seq_lib.sv — mem_n_wr_rd_seq 的 pre_body/post_body =====
+class mem_n_wr_rd_seq extends uvm_sequence#(mem_tx);
+    uvm_phase phase;                           // 保存 Phase 句柄
+
+    task pre_body();
+        // get_starting_phase()：
+        //   如果 Sequence 通过 default_sequence 机制启动
+        //   （config_db 设置的方式），返回当前 Phase 句柄
+        //   如果 Sequence 通过手动 start() 启动（Test 层管理模式），
+        //   返回 null——此时 objection 由 Test 层管理
+        phase = get_starting_phase();
+        if (phase != null) begin
+            phase.raise_objection(this);       // Sequence 自己管理 objection
+            phase.phase_done.set_drain_time(this, 100);
+        end
+    endtask
+
+    task body();
+        // ... 执行 N 次 uvm_do ...
+        repeat (num_tx) begin
+            `uvm_do(mem_wr_rd_seq_h)
+        end
+    endtask
+
+    task post_body();
+        if (phase != null) begin
+            phase.drop_objection(this);        // Sequence 完成工作，放下 objection
+        end
+    endtask
+endclass
+```
+
+#### 为什么 Sequence 里要判断 phase != null
+
+这是 UVM 中一个重要的防御性编码模式：
+
+| Sequence 启动方式 | `get_starting_phase()` 返回值 | Objection 由谁管理 |
+|:---|:---|:---|
+| **default_sequence**（config_db 设置） | 非 null——返回 Sequencer 所在 Phase 的句柄 | **Sequence 自己**（pre_body raise, post_body drop） |
+| **手动 start()**（Test 的 run_phase 中调用） | **null**——没有 Phase 句柄 | **Test 层**（Test 在 start() 前后 raise/drop） |
+
+**如果不对 phase 判空就调用 raise_objection 会发生什么？**
+
+```systemverilog
+// ===== 错误：不判空直接 raise =====
+task pre_body();
+    phase = get_starting_phase();
+    phase.raise_objection(this);               // 如果 phase == null → 仿真崩溃
+endtask
+
+// ===== 正确：判空后再 raise =====
+task pre_body();
+    phase = get_starting_phase();
+    if (phase != null) begin                   // 防御性检查
+        phase.raise_objection(this);
+    end
+endtask
+```
+
+**设计原理：** 当通过 default_sequence 机制启动时，UVM 会把 Sequencer 的当前 Phase 句柄传递给 Sequence 的 `starting_phase` 成员。当手动 `start()` 时，这个传递不会发生——`starting_phase` 仍为 null。判空检查使 Sequence 可以在两种启动方式下都正常工作。
+
+#### set_drain_time 的作用——留排空时间
+
+```systemverilog
+phase.phase_done.set_drain_time(this, 100);    // 单位：仿真时间单位（通常 ns）
+```
+
+**问题场景：** 最后一个事务已经 `item_done()` 了，但 Scoreboard 可能还没收到 Monitor 广播的响应事务（Monitor 有 1-2 个周期的采样延迟）。
+
+**drain_time 的作用：** 在 `drop_objection` 之后，UVM 不是立即结束 Phase，而是额外等待 `drain_time` 指定的时间。这段时间内：
+- 流水线中的末级事务可以完成采样
+- Monitor 可以广播最后一个 `write()`
+- Scoreboard 可以做最后的数据比对
+
+如果不在 drain_time 内完成这些操作，Scoreboard 可能对最后一笔事务报告"missing expected"错误。
+
+#### 注意事项
+
+- **raise 和 drop 必须配对**——每个 raise 必须有对应的 drop。如果 Sequence 中 raise 了但没有 drop，仿真挂起——`run_phase` 永远不结束。
+- **不要在不同的 Phase 中共享 objection 逻辑**——每个 Phase（`run_phase`、`main_phase`、`reset_phase` 等）有独立的 objection 计数器。
+- **drain_time 不宜过大**——典型值 100-1000ns。设太大浪费仿真机时；设太小可能导致 Scoreboard Drain 检查报错。
+- **多个组件同时 raise objection 时**——计数器累加。只有当所有组件都 drop 了自己的 objection 后，Phase 才结束。
+- **Sequence 中 raise objection 优于 Test 中 raise**——因为 Sequence 知道自己的 body() 何时真正完成工作，Test 只知道 `start()` 返回了（但可能还有 pending 的响应）。
+
+### `uvm_info/uvm_error/uvm_fatal` 详解
+
+UVM 的报告机制通过四个核心宏提供分级日志系统。它们不仅输出消息，还控制仿真的行为（继续、计数、或终止）和日志的详细程度过滤。
+
+#### 是什么——四个报告宏的严重级别和默认行为
+
+| 宏 | 严重级别 | 默认行为 | 对仿真的影响 |
+|:---|:---|:---|:---|
+| `` `uvm_info(ID, MSG, VERBOSITY)`` | 信息（Info） | 按 verbosity 过滤后打印 | **无**——纯日志输出 |
+| `` `uvm_warning(ID, MSG)`` | 警告（Warning） | 总是打印（不受 verbosity 影响） | **无**——继续仿真 |
+| `` `uvm_error(ID, MSG)`` | 错误（Error） | 总是打印，错误计数器 +1 | 当错误计数达到 `max_quit_count` 时终止仿真 |
+| `` `uvm_fatal(ID, MSG)`` | 致命（Fatal） | 总是打印 | **立即终止仿真**——调用 `$finish` |
+
+**参数说明：**
+- `ID`：消息标识（字符串）——用于消息分类和过滤（如 `"CFG"` 表示配置错误，`"CHK"` 表示比对错误）
+- `MSG`：消息正文（字符串）——描述发生了什么
+- `VERBOSITY`：详细级别（仅 `uvm_info` 有此参数）——控制消息是否被打印
+
+#### 为什么——分级日志和 verbosity 过滤
+
+**verbosity 过滤的设计目的：**
+
+在回归测试（Regression Test）中，可能有几万条 `uvm_info` 消息。如果全部打印，日志文件可能有几 GB 且查找关键信息困难。verbosity 过滤允许用户在命令行控制日志详细程度：
+
+```bash
+# 默认：只打印 UVM_MEDIUM 及以上级别的 uvminfo
+./simv
+
+# 调高 verbosity：打印所有级别（UVM_DEBUG 也可见）
+./simv +UVM_VERBOSITY=UVM_DEBUG
+
+# 调低 verbosity：只打印 UVM_NONE 级别的 uvminfo
+./simv +UVM_VERBOSITY=UVM_NONE
+
+# 只对特定组件提高 verbosity（如只关注 mem_drv 的调试信息）
+./simv +uvm_set_verbosity=mem_drv,_ALL_,UVM_DEBUG,time,0
+```
+
+**Verbosity 等级：**
+
+| 等级 | 值 | 典型用途 |
+|:---|:---|:---|
+| `UVM_NONE` | 0 | **总是打印**——无论命令行设置如何。用于关键里程碑信息（如 `build_phase` 确认、错误信息） |
+| `UVM_LOW` | 100 | 测试流程关键节点（如 "Sequence started"、"Test passed"） |
+| `UVM_MEDIUM` | 200 | 默认级别——事务摘要、配置信息 |
+| `UVM_HIGH` | 300 | 每笔事务的详细信息 |
+| `UVM_FULL` | 400 | 每个信号触发的详细信息 |
+| `UVM_DEBUG` | 500 | 调试级——包含内部状态变化 |
+
+#### 怎么用——实际代码中的典型模式
+
+来自 `/home/yys/AGENT/ic/projects/uvm-memory/phase4/code/mem_drv.sv`：
+
+```systemverilog
+// ===== mem_drv.sv — build_phase 中的 config_db 失败报错 =====
+function void build_phase(uvm_phase phase);
+    super.build_phase(phase);                  // 自动检索 config_db 变量
+
+    // uvm_config_db::get 返回 0 表示获取失败
+    if (!uvm_config_db#(virtual mem_intf)::get(this, "", "MEM_PIF", vif)) begin
+        // get_type_name()：返回当前类的名字字符串（如 "mem_drv"）
+        // 优点：不需要手动写类名字符串——重构类名时自动更新
+        `uvm_error(get_type_name(), "CONFIG_DB PIF RETRIVAL FAILED")
+        //           ^^^^^^^^^^^^^^    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        //           ID = "mem_drv"    消息体 = 描述具体错误
+        // 效果：打印 "UVM_ERROR mem_drv(123) @ 0: CONFIG_DB PIF RETRIVAL FAILED"
+    end
+    // 里程碑确认——verbosity=UVM_NONE 保证总是打印
+    `uvm_info("mem_drv", "build_phase verified", UVM_NONE)
+endfunction
+
+// ===== mem_drv.sv — run_phase 中的执行确认 =====
+task run_phase(uvm_phase phase);
+    `uvm_info("mem_drv", "run_phase verified", UVM_NONE)  // 总是可见
+    forever begin
+        seq_item_port.get_next_item(req);
+        drive_tx(req);
+        seq_item_port.item_done();
+    end
+endtask
+
+// ===== mem_drv.sv — drive_tx 中的事务级日志 =====
+task drive_tx(mem_tx tx);
+    // ... 驱动操作 ...
+    // $sformatf：格式化字符串——拼接类名 + 事务方向 + 地址 + 数据
+    // Verbosity = UVM_NONE：事务日志始终可见（调试时需要）
+    `uvm_info($sformatf("%s_drv_tx_task", get_type_name()),
+              $sformatf("wr_rd=%s addr=%h data=%h",
+                        tx.wr_rd ? "WR" : "RD",
+                        tx.addr,
+                        tx.wr_rd ? tx.wr_data : tx.rd_data),
+              UVM_NONE)
+endtask
+```
+
+#### get_type_name() 的用法——自动包含类名便于定位
+
+`get_type_name()` 是 UVM Factory 自动为每个注册类生成的静态方法，返回类名的字符串。在报告宏中使用它有三大好处：
+
+```systemverilog
+// ===== get_type_name() 的三种典型用法 =====
+
+// 用法 1：作为消息 ID——自动标识消息来源
+`uvm_error(get_type_name(), "CONFIG_DB PIF RETRIVAL FAILED")
+// 输出：UVM_ERROR mem_drv(123) @ 0: CONFIG_DB PIF RETRIVAL FAILED
+//            ^^^^^^^ 自动带上类名
+
+// 用法 2：动态构造 ID——加上阶段标记
+`uvm_info($sformatf("%s_drv_tx_task", get_type_name()),
+          $sformatf("wr_rd=%s addr=%h data=%h", ...), UVM_NONE)
+// 输出：UVM_INFO mem_drv_drv_tx_task(456) @ 10: wr_rd=WR addr=3 data=dead
+
+// 用法 3：手动写死类名 vs 自动获取
+`uvm_info("mem_drv",  "...", UVM_NONE)          // 手动——重构类名后需同步修改
+`uvm_info(get_type_name(), "...", UVM_NONE)     // 自动——类名改变后自动更新
+```
+
+#### max_quit_count 控制 fail-fast 行为
+
+```systemverilog
+// ===== 在 build_phase 或 start_of_simulation_phase 中配置 =====
+function void start_of_simulation_phase(uvm_phase phase);
+    // set_max_quit_count(N)：在第 N 个 UVM_ERROR 后调用 $finish
+    //   设为 1：第一个错误就终止——快速暴露问题
+    //   设为 10：允许 10 个错误——一次仿真暴露多个问题（适合回归）
+    //   设为 0：永不因错误终止（不推荐——浪费仿真机时）
+    uvm_report_server::get_server().set_max_quit_count(10);
+endfunction
+```
+
+#### 四个报告宏的分工策略
+
+| 场景 | 使用宏 | 示例 |
+|:---|:---|:---|
+| **验证通过标志** | `uvm_info(ID, "PASSED", UVM_NONE)` | Scoreboard 比对全过后的确认 |
+| **调试打印** | `uvm_info(ID, msg, UVM_DEBUG)` | 仅在调试模式可见的内部状态 |
+| **可恢复的数据不匹配** | `uvm_warning(ID, msg)` | 偶发的、可能由时序抖动引起的不一致 |
+| **确定的 DUT 行为错误** | `uvm_error(ID, msg)` | Scoreboard 比对失败——数据确实不对 |
+| **环境配置错误（无法继续）** | `uvm_fatal(ID, msg)` | Virtual Interface 未设置——Driver 无法工作 |
+
+**来自 AXI 项目 `axi_uvm_pkg.sv` 的实际用法：**
+
+```systemverilog
+// ===== AXI Driver build_phase 中的分层错误处理 =====
+// 来自 /home/yys/AGENT/ic/projects/uvm-axi/tb/axi_uvm_pkg.sv
+
+// 没有 Virtual Interface → 无法驱动信号 → 必须终止
+if (!uvm_config_db#(axi_vif_m_t)::get(this, "", "vif", vif))
+    `uvm_fatal("NOVIF", "No vif for axi_driver")
+//   ^^^^^^^^^  FATAL——没有接口不能工作，立即终止
+
+// midx 获取失败 → 使用默认值 0 不影响核心功能 → 用默认值即可
+if (!uvm_config_db#(int)::get(this, "", "midx", midx))
+    midx = 0;                                  // 静默使用默认值——不用报错
+
+// 环境配置缺失 → 无法确定 agent 数量 → 必须终止
+if (!uvm_config_db#(axi_env_cfg)::get(this, "", "cfg", cfg))
+    `uvm_fatal("NOCFG", "no cfg")
+//   ^^^^^^^^^  FATAL——环境配置缺失，运行无意义
+```
+
+#### 注意事项
+
+- **`uvm_error` 不会立即终止仿真**——默认 `max_quit_count` 为 0（永不终止）。生产环境通常设为 5-10。
+- **`uvm_fatal` 立即调用 `$finish`**——不可恢复。只用于"继续仿真无意义"的场景（如 Virtual Interface 为空）。
+- **verbosity 参数仅对 `uvm_info` 有效**——`uvm_warning`、`uvm_error`、`uvm_fatal` 总是打印，不受 verbosity 设置影响（你可以通过 `uvm_report_handler` 的 `set_action()` 覆盖此行为，但很少需要）。
+- **`uvm_info` 的 MSG 支持 `$sformatf()`**——动态拼接变量值到消息中，这是调试时最常用的模式。
+- **不要用 `uvm_error` 替代 `uvm_fatal`**——如果环境配置错误（如没有 Virtual Interface），后续的 `get_next_item` 会崩溃。此时应该用 `uvm_fatal` 立即停止，避免无意义的诊断信息。
+- **ID 字符串应该短而有意义**——如 `"CFG"`（配置）、`"CHK"`（检查）、`"DRV"`（驱动）、`"MON"`（监测）。长 ID 字符串会撑宽日志列。
+
+### config_db::set/get 详解
+
+配置数据库（Configuration Database, config_db）是 UVM 中最重要的组件间通信机制之一。它允许验证环境的任意两个节点之间通过键值对传递数据，而无需直接的句柄连接。Driver 获取虚拟接口、Agent 获取配置信息、Sequence 获取测试参数——全部依赖 config_db。
+
+#### 是什么——一个全局的层次化键值存储
+
+`uvm_config_db #(T)` 是一个参数化的配置数据库类，其中 `T` 是存储值的类型。它提供了两个静态方法：
+
+```systemverilog
+// set: 存储一个键值对到数据库中
+//   参数 1 (cntxt)：上下文组件——set 的作用范围起点（null 表示全局）
+//   参数 2 (inst_name)：实例路径——相对于 cntxt 的层次路径
+//   参数 3 (field_name)：键名——标识这条数据的名称
+//   参数 4 (value)：值——实际存储的数据
+uvm_config_db #(T)::set(uvm_component cntxt,
+                         string inst_name,
+                         string field_name,
+                         T value);
+
+// get: 从数据库中检索一个键值对
+//   参数 1 (cntxt)：起始搜索组件（从该组件开始向根追溯）
+//   参数 2 (inst_name)：实例路径——相对于 cntxt 的层次路径
+//   参数 3 (field_name)：键名
+//   参数 4 (variable)：接收变量——检索到的值写入此变量
+//   返回值：1 = 找到，0 = 未找到
+uvm_config_db #(T)::get(uvm_component cntxt,
+                         string inst_name,
+                         string field_name,
+                         ref T variable);
+```
+
+#### 为什么——解决验证环境的配置传递问题
+
+在没有 config_db 的验证环境中，配置传递通常通过以下方式：
+- **全局变量**：难以管理，多测试并发时相互覆盖
+- **层次路径引用（Hierarchical Reference）**：`top.env.agent.driver.vif = top.dut_if` —— 耦合严重，环境结构变化时全部失效
+- **构造函数参数传递**：每层组件都要显式传递，当层次深达 5-6 层时参数列表不可维护
+
+config_db 解决了这些问题：**set 在顶层设置一次，各级子组件各自 get 所需的键值**，无需显式的层次路径引用。
+
+#### 怎么用——类型参数化的 set/get 实例
+
+**set 和 get 的类型参数化：**
+
+```systemverilog
+// ===== config_db 支持多种类型的 set/get =====
+
+// 1. Virtual Interface（最常用的类型）
+uvm_config_db #(virtual mem_intf)::set(null, "*", "MEM_PIF", pif);
+//                             ^^^^^                   ^^^
+//                             类型参数 T               值
+
+// 2. 整数标量
+uvm_config_db #(int)::set(this, "*", "INT_NUM_TX", 20);
+
+// 3. 对象句柄（配置对象）
+uvm_config_db #(axi_env_cfg)::set(this, "*", "cfg", cfg_obj);
+
+// 4. uvm_object_wrapper（Sequence 类型——default_sequence 模式）
+uvm_config_db #(uvm_object_wrapper)::set(
+    this, "env.agent.sqr.main_phase",
+    "default_sequence", mem_n_wr_rd_seq::get_type()
+);
+```
+
+**get 的层次查找策略：**
+
+```
+假设组件层次为：uvm_test_top.env.agent.driver
+
+driver 中调用 uvm_config_db #(T)::get(this, "", "vif", vif)：
+  this = driver（当前组件）
+  inst_name = ""（空字符串——匹配任意路径）
+
+查找顺序（从当前组件向根追溯）：
+  ┌─────────────────────────────────────────────────────┐
+  │ ① driver 节点 → 检查是否有 set 的 cntxt+inst_name 匹配
+  │ ② agent 节点   → 沿 parent 向上
+  │ ③ env 节点     → 继续向上
+  │ ④ test 节点    → 继续向上
+  │ ⑤ uvm_root     → 到顶了——返回 0（未找到）
+  └─────────────────────────────────────────────────────┘
+
+匹配规则：set 的 cntxt + inst_name 必须匹配 get 的 cntxt + inst_name
+```
+
+#### 路径匹配规则——通配符 "\*" vs 精确路径
+
+```systemverilog
+// ===== 路径匹配规则示例 =====
+
+// 模式 1：全局广播——所有组件都能 get 到
+//   cntxt=null + inst_name="*" → 匹配全部路径
+uvm_config_db #(virtual mem_intf)::set(null, "*", "MEM_PIF", pif);
+
+// 模式 2：精确路径——只有特定实例能 get 到
+//   cntxt=this + inst_name="env.agent_m0" → 只匹配 agent_m0
+uvm_config_db #(axi_vif_m_t)::set(this, "env.agent_m0", "vif", m0_vif);
+
+// 模式 3：通配路径——匹配某个层级下的所有节点
+//   cntxt=this + inst_name="env.*" → 匹配 env 下的所有子组件
+uvm_config_db #(axi_env_cfg)::set(this, "env.*", "cfg", cfg);
+
+// 模式 4：更精确的通配——匹配特定组件下的所有子组件
+//   cntxt=this + inst_name="*.sqr" → 匹配所有名为 sqr 的 Sequencer
+uvm_config_db #(int)::set(this, "*.sqr", "max_retry", 3);
+
+// 匹配总结：
+//  "*"    → 匹配当前层次的任何名称
+//  "*."   → 匹配所有层次（递归）
+//  "a.b"  → 精确匹配 "cntxt.a.b"
+//  "a.*"  → 匹配 "cntxt.a.x"（x 为任意名称）
+```
+
+**来自 AXI 项目 `axi_uvm_pkg.sv` 的精确路径示例：**
+
+```systemverilog
+// ===== axi_agent::build_phase —— 给每个 agent 实例独立 set vif =====
+// 来自 /home/yys/AGENT/ic/projects/uvm-axi/tb/axi_uvm_pkg.sv
+class axi_agent extends uvm_component;
+    virtual function void build_phase(uvm_phase phase);
+        // ① Agent 从父级（env）获取自己的 vif 和 midx
+        if (!uvm_config_db#(axi_vif_m_t)::get(this, "", "vif", vif))
+            `uvm_fatal("NOVIF", "no vif");
+        void'(uvm_config_db#(int)::get(this, "", "midx", midx));
+
+        mon = axi_monitor::type_id::create("mon", this);
+
+        // ② Agent 向下级（monitor）传递 vif——使用精确路径
+        //   cntxt=this → 从当前 agent 的路径开始
+        //   inst_name="mon" → 精确指定 mon 子组件
+        uvm_config_db#(axi_vif_m_t)::set(this, "mon", "vif", vif);
+        //                                   ^^^^  ^^^^
+        //                                   cntxt inst_name="mon"
+        //   含义：在 "this.mon" 路径下 set ——只有 mon 组件能 get 到
+
+        if (is_active) begin
+            sqr = axi_sequencer::type_id::create("sqr", this);
+            drv = axi_driver::type_id::create("drv", this);
+
+            // ③ 同样用精确路径给 driver 传递 vif
+            uvm_config_db#(axi_vif_m_t)::set(this, "drv", "vif", vif);
+            //                                   ^^^^  ^^^^
+            //   含义：在 "this.drv" 路径下 set ——只有 drv 组件能 get 到
+        end
+    endfunction
+endclass
+```
+
+**精确路径 vs 通配路径的选择：**
+
+| 场景 | 推荐方式 | 原因 |
+|:---|:---|:---|
+| Virtual Interface（top.sv → 所有组件） | `set(null, "*", key, val)` | 全局可用——Driver、Monitor、所有 Agent 都需要 |
+| 每个 Agent 不同的配置（vif、midx） | `set(parent, "agent_m0", "vif", vif0)` | 每个 Agent 不同的 vif，必须精确区分 |
+| 全局共享配置（env_cfg） | `set(this, "*", "cfg", cfg)` | 所有子组件共享同一份配置 |
+| default_sequence | `set(this, "env.agent.sqr.main_phase", ...)` | 精确路径——只设置在特定 Sequencer 的特定 Phase |
+
+#### 时序约束——set 在 build_phase 之前，get 在 build_phase 之中
+
+这是 config_db 使用中**最关键也最容易出错**的约束：
+
+```
+时间线 ─────────────────────────────────────────────────────────────►
+
+[精化前]                      [仿真时间 0]          [仿真时间 >0]
+modules 实例化                build_phase 执行       run_phase 执行
+Interface 实例化              自顶向下              消耗仿真时间
+
+    │                              │                      │
+    ├─ top.sv initial begin        │                      │
+    │   uvm_config_db::set(       │                      │
+    │     null, "*", "MEM_PIF",    │                      │
+    │     pif                      │                      │
+    │   );  ← set 必须在 build 前  │                      │
+    │   run_test("test"); ────────►│                      │
+    │ end                          │                      │
+    │                              ├─ test.build_phase()  │
+    │                              │   env.create()       │
+    │                              │                      │
+    │                              ├─ env.build_phase()   │
+    │                              │   agent.create()     │
+    │                              │                      │
+    │                              ├─ agent.build_phase() │
+    │                              │   drv.create()       │
+    │                              │                      │
+    │                              ├─ drv.build_phase()   │
+    │                              │   uvm_config_db::    │
+    │                              │     get(this, "",    │
+    │                              │     "MEM_PIF", vif) │
+    │                              │   ← get 在 build 中  │
+    │                              │                      │
+    │                              │   ...                │
+```
+
+**为什么 set 必须在 build_phase 之前？**
+
+`build_phase` 是**自顶向下**执行的——父组件的 `build_phase` 先于子组件。当子组件的 `build_phase` 执行 `get()` 时，父组件的 `build_phase` 已经执行了 `set()`。如果 set 是在 `connect_phase` 或 `run_phase` 中执行的，子组件在 `build_phase` 中 `get()` 时必然失败。
+
+#### 实际示例——Memory 项目中的 config_db 完整链路
+
+**来自 top.sv（推测）的 set：**
+
+```systemverilog
+// ===== top.sv — 在 run_test 前 set Virtual Interface =====
+module tb_top;
+    logic clk;
+    mem_intf pif(.clk(clk));                   // 实例化物理接口
+
+    mem_dut dut(.if(pif));                      // 连接 DUT
+
+    initial begin
+        // set 必须在 run_test() 之前
+        //   null: 上下文为 null（全局作用域——所有组件可见）
+        //   "*": 实例路径为通配（所有组件匹配）
+        //   "MEM_PIF": 键名
+        //   pif: 接口实例句柄（传入类世界后变为 virtual mem_intf）
+        uvm_config_db #(virtual mem_intf)::set(null, "*", "MEM_PIF", pif);
+        run_test("mem_full_wr_rd_test");       // 启动 UVM 测试
+    end
+endmodule
+```
+
+**来自 mem_drv.sv 的 get：**
+
+```systemverilog
+// ===== mem_drv.sv — build_phase 中 get Virtual Interface =====
+// 来自 /home/yys/AGENT/ic/projects/uvm-memory/phase4/code/mem_drv.sv
+function void build_phase(uvm_phase phase);
+    super.build_phase(phase);                  // 自动检索 config_db 变量
+
+    if (!uvm_config_db#(virtual mem_intf)::get(this, "", "MEM_PIF", vif)) begin
+        //     ^^^^^^^^^^^^^^^^^^^^^^^^    ^^^^  ^^   ^^^^^^^^  ^^^
+        //     类型必须与 set 一致          this  空   键名一致  接收变量
+        `uvm_error(get_type_name(), "CONFIG_DB PIF RETRIVAL FAILED")
+    end
+    `uvm_info("mem_drv", "build_phase verified", UVM_NONE)
+endfunction
+```
+
+**来自 seq_lib.sv 的 get（Sequence 中——非 component 场景）：**
+
+```systemverilog
+// ===== seq_lib.sv — Sequence 中 get 配置参数 =====
+// 来自 /home/yys/AGENT/ic/projects/uvm-memory/phase4/code/seq_lib.sv
+task body();
+    // Sequence 是 object（非 component），没有父组件层次
+    // get 的第一个参数用 null（全局查找）或 m_sequencer（关联的 Sequencer）
+    if (!uvm_config_db#(int)::get(null,          // cntxt=null → 全局查找
+                                  "",            // inst_name="" → 匹配任意路径
+                                  "INT_NUM_TX",  // 键名
+                                  num_tx)) begin // 接收变量
+        `uvm_error(get_type_name(), "RETRIVAL_FAILED FROM CONFIG_DB")
+    end
+endtask
+```
+
+#### 注意事项
+
+- **set 和 get 的类型参数 `#(T)` 必须完全一致**——`set #(virtual mem_intf)` 和 `get #(virtual mem_intf)` 必须匹配。如果类型不匹配（如 set 用 `mem_intf` 而 get 用 `virtual mem_intf`），get 返回 0。
+- **通配符 `"*"` 谨慎使用**——全局通配看似方便，但当多个地方 set 相同的键名时会产生覆盖冲突（最后 set 的值生效）。生产代码中推荐使用精确路径。
+- **get 返回值必须检查**——如果 `get` 返回 0（未找到），必须用 `uvm_error` 或 `uvm_fatal` 报告。静默忽略可能导致 Driver 的 vif 为 null → 仿真崩溃（难以定位根因）。
+- **`void'(...)` 忽略返回值**——对于非关键配置（如 midx），获取失败时有合理的默认值，可用 `void'(uvm_config_db#(int)::get(...))` 忽略返回值。
+- **config_db 有性能开销**——每次 `get` 调用会从当前组件向根遍历层次树进行字符串路径匹配。对于高频调用的场景（如 Sequence 的 `body()` 中每次循环都 `get`），应把值缓存到局部变量中。
+- **config_db 内部同时写入 resource_db**——`uvm_config_db::set()` 内部同时向 `uvm_resource_db` 写入，而 `get()` 优先查 config_db 再查 resource_db。
+
+```
 
 ## 关键要点
 

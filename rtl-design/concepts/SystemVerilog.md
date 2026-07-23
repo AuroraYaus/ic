@@ -77,7 +77,7 @@ end
 **3. 缺 else 不会推断锁存器——这是触发器，不是组合逻辑**
 
 ```systemverilog
-// 新手常问：always_ff 中 if 没有 else，会推断出锁存器吗？
+// 常见疑问：always_ff 中 if 没有 else，会推断出锁存器吗？
 always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n)      q <= '0;          // 复位路径
     else if (en)     q <= d;           // 使能路径
@@ -545,7 +545,7 @@ endmodule
 
 ### reg 什么时候综合成组合逻辑 / 寄存器
 
-**reg 类型名称不决定综合结果**——这是 Verilog 最经典的认知陷阱。reg 综合为何种硬件完全由 always 块的敏感列表和内部逻辑决定：
+**reg 类型名称不决定综合结果**——这是 Verilog 最经典的认知误区。reg 综合为何种硬件完全由 always 块的敏感列表和内部逻辑决定：
 
 | always 块写法 | sensitive list | 综合结果 |
 |:---|:---|:---|
@@ -991,7 +991,7 @@ end
 ## 关键要点
 
 - **logic 类型统一 wire/reg**：logic 默认单驱动约束，多驱动场景用 wire/tri；logic 默认值为 X，便于仿真时暴露未初始化信号
-- **always_ff/comb/latch 语义校验**：编译时检查消除敏感列表不全、锁存器意外推断等 Verilog 常见陷阱
+- **always_ff/comb/latch 语义校验**：编译时检查消除敏感列表不全、锁存器意外推断等 Verilog 常见设计错误
 - **非阻塞赋值（<=）在 NBA 区统一更新**：两阶段机制（Active 计算 RHS + NBA 更新 LHS）精确建模物理 D 触发器的并行采样——时序逻辑混用 `=` 会破坏仿真与硬件的一致性
 - **wire/reg 命名误导，logic 统一语义**：reg 可能综合为组合逻辑——判断标准是 always 块敏感列表（边沿→寄存器，电平→组合/锁存器）；双向端口必须用 wire（多驱动场景）
 - **task vs function 本质差异在时序控制权**：function 必须在零仿真时间内完成（禁止 `#`/`@`/`wait`）；可综合子集中两者等价（均无时序控制）

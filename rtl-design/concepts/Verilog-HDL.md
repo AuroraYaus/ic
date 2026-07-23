@@ -185,4 +185,4 @@ endmodule
 - [[rtl-design/concepts/SystemVerilog|SystemVerilog]] — SV 作为 Verilog 的超集，统一了 wire/reg 为 logic，引入 always_ff/always_comb 等意图显式的 always 块，并增加了 interface、enum 等高级抽象。Verilog 向 SV 的迁移是业界不可逆的趋势——IEEE 1364 自 2005 年后已停止独立更新
 - [[rtl-design/concepts/组合逻辑|组合逻辑]] — Verilog 描述组合逻辑的两种方式（continuous assign 与 always @(*)）及其陷阱（锁存器推断）。assign 语句对应连续驱动的线网，always_comb 支持更复杂的条件描述——两者综合结果等价但仿真行为有细微差异（always_comb 对初始化和零延迟事件的处理更符合硬件预期）
 - [[rtl-design/concepts/时序逻辑|时序逻辑]] — 非阻塞赋值（`<=`）与 always @(posedge clk) 如何精确描述 D 触发器行为。Verilog 的 reg 类型在时序 always 块中映射到实际的 D-FF，而在组合 always 块中映射到线网输出——这个"类型名称与实际硬件的解耦"是 Verilog 区别于 VHDL 的核心认知难点
-- [[rtl-design/concepts/编码风格|RTL 编码风格]] — 基于 Verilog/SV 的可综合编码规范、命名约定（`_i`/`_o`/`_n`）和 lint 规则。编码风格规则的存在理由根植于 Verilog 的语义陷阱——不完整的 if/case 导致锁存器、混合阻塞/非阻塞赋值导致仿真-综合不匹配
+- [[rtl-design/concepts/编码风格|RTL 编码风格]] — 基于 Verilog/SV 的可综合编码规范、命名约定（`_i`/`_o`/`_n`）和 lint 规则。编码风格规则的存在理由根植于 Verilog 的语义缺陷——不完整的 if/case 导致锁存器、混合阻塞/非阻塞赋值导致仿真-综合不匹配
