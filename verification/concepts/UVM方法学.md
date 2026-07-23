@@ -1385,85 +1385,65 @@ endclass
 
 ---
 
-#### 3. `uvm_object_utils_begin/_end` — 带字段自动化的对象工厂注册
+#### `uvm_object_utils_begin/_end` — 让事务学会"自己介绍自己"
 
-##### 是什么
+一个普通的 `uvm_object_utils` 注册只告诉 Factory"这个类存在"和"怎么创建它"。但 UVM 能为你的类做更多事情——自动拷贝、自动比较、自动打印、自动打包成字节流。前提是：你得告诉 UVM 你的类里有哪些字段。
 
-`uvm_object_utils_begin` 和 `uvm_object_utils_end` 是一对宏，构成一个"字段注册块"。使用这对宏替代简单的 `uvm_object_utils(class_name)` 时，除了 Factory 注册之外，还会在 `begin`/`end` 之间为每个列出的成员字段启用**字段自动化（Field Automation）**机制。
-
-字段自动化的本质是：UVM 在内部为每个注册的字段维护一套反射（Reflection）信息，包括字段名、类型、偏移量和操作标志。当调用 `copy()`、`compare()`、`print()`、`pack()`、`unpack()`、`clone()`、`record()` 这些内建方法时，UVM 会遍历字段注册表，对每个标记为"参与此操作"的字段自动执行对应的处理逻辑。
-
-##### 为什么需要
-
-假设一个事务类有 9 个字段（如 `axi_seq_item`），如果每新增一个字段都要手动更新 `copy()`（逐字段赋值）、`compare()`（逐字段比较）、`print()`（逐字段格式化）、`pack()`/`unpack()`（逐字段移位拼接）的实现代码，开发效率低且极易遗漏。字段自动化宏将这个工作量降为零——在 `begin`/`end` 之间声明字段即可，所有内建方法自动覆盖新字段。
-
-但在以下场景**不应**使用字段自动化：
-- 需要自定义 `copy()`/`compare()` 行为（如某些字段不应参与比较）
-- 对仿真性能极度敏感（`compare()` 的反射遍历比手写逐字段比较慢一个数量级）
-- 字段类型不被任何 `uvm_field_*` 宏支持
-
-##### 怎么用
+`uvm_object_utils_begin` 和 `uvm_object_utils_end` 这一对宏围出的代码块，就是你和 UVM 之间的这份"字段清单"。
 
 ```systemverilog
 class my_item extends uvm_sequence_item;
-    // 字段声明
     rand bit [31:0] addr;
     rand bit [31:0] data;
-    rand bit        is_valid;
 
-    `uvm_object_utils_begin(my_item)       // 开始注册块
-        `uvm_field_int(addr,     UVM_ALL_ON)  // 注册 addr 字段
-        `uvm_field_int(data,     UVM_ALL_ON)  // 注册 data 字段
-        `uvm_field_int(is_valid, UVM_ALL_ON)  // 注册 is_valid 字段
-    `uvm_object_utils_end                  // 结束注册块
-
-    function new(string name = "my_item");
-        super.new(name);
-    endfunction
+    `uvm_object_utils_begin(my_item)        // "UVM，我的字段清单如下："
+        `uvm_field_int(addr, UVM_ALL_ON)    //  addr 字段，所有操作都参与
+        `uvm_field_int(data, UVM_ALL_ON)    //  data 字段，同上
+    `uvm_object_utils_end                  // "清单结束"
 endclass
 ```
 
-字段注册后，以下方法自动生效，无需手动编写代码：
+注册之后，你不需要写一行 `copy()`/`compare()`/`print()` 的代码。UVM 内部维护了一份字段反射表——它知道每个字段的名字、类型、在内存中的偏移量。当你调用 `a.copy(b)` 时，UVM 遍历这张表，逐字段把 b 的值拷到 a。`compare()` 也一样——逐字段比对，任何一个不等就返回 0。`print()` 则逐字段格式化输出，字段名和值一目了然。
+
+**为什么不能所有地方都用？** 反射遍历有开销。在大型回归测试中，每个事务都要 `copy()`/`compare()` 几十万次，手写的逐字段拷贝比反射遍历快大约一个数量级。性能敏感的验证环境通常绕过字段自动化，手写 `do_copy()`/`do_compare()` 等方法。但对于学习项目和中小型验证任务，用字段自动化节省的开发和调试时间远大于运行时开销。
+
+**两个项目的实际用法。** Memory Design 的 `mem_tx` 很简单——4 个整数字段，没有动态数组，没有枚举：
 
 ```systemverilog
-my_item a = my_item::type_id::create("a");
-my_item b = my_item::type_id::create("b");
-
-a.addr = 32'h1000; a.data = 32'hABCD; a.is_valid = 1;
-
-b.copy(a);                                    // 自动逐字段拷贝
-if (b.compare(a))                             // 自动逐字段比较（全等返回 1）
-    `uvm_info("CHK", "Match", UVM_LOW)
-a.print();                                    // 自动格式化打印所有字段
-a.pack(bytes);                                // 自动打包为字节流
-```
-
-##### 实际项目示例
-
-在 Memory Design 项目中，`mem_tx` 使用 `uvm_object_utils_begin/_end` 注册 4 个字段：
-
-```systemverilog
-// ===== 来自 mem_tx.sv —— 简单版本：4 个整数字段 =====
 class mem_tx extends uvm_sequence_item;
-    rand bit wr_rd;                          // 读写方向：1=写，0=读
-    rand bit [`WIDTH-1:0] wr_data;           // 写数据（WIDTH=16）
-    rand bit [`ADDR_WIDTH-1:0] addr;         // 目标地址（ADDR_WIDTH=4）
-         bit [`WIDTH-1:0] rd_data;           // 读回数据（Monitor 回填，非随机）
+    rand bit wr_rd;
+    rand bit [15:0] wr_data;
+    rand bit [3:0]  addr;
+         bit [15:0] rd_data;      // 非 rand——Driver 从 DUT 读回后填入
 
     `uvm_object_utils_begin(mem_tx)
-        `uvm_field_int(wr_rd,   UVM_ALL_ON)  // 整数位域
-        `uvm_field_int(wr_data, UVM_ALL_ON)  // 16-bit 整数
-        `uvm_field_int(addr,    UVM_ALL_ON)  // 4-bit 整数
-        `uvm_field_int(rd_data, UVM_ALL_ON)  // 16-bit 整数（非随机）
+        `uvm_field_int(wr_rd,   UVM_ALL_ON)
+        `uvm_field_int(wr_data, UVM_ALL_ON)
+        `uvm_field_int(addr,    UVM_ALL_ON)
+        `uvm_field_int(rd_data, UVM_ALL_ON)  // 非随机字段也可以注册
     `uvm_object_utils_end
-
-    function new(string name="");
-        super.new(name);
-    endfunction
 endclass
 ```
 
-在 AXI4 Interconnect 项目中，`axi_seq_item` 注册了 9 个字段，包含整数、枚举和动态数组三种类型：
+AXI4 Interconnect 的 `axi_seq_item` 复杂得多——9 个字段，包含三类数据类型：
+
+```systemverilog
+class axi_seq_item extends uvm_sequence_item;
+    rand bit        is_read;           // 普通 bit
+    rand bit [7:0]  len;              // 普通整数
+    rand axi_burst_e burst;           // 枚举类型——用 _enum 版本注册
+    rand bit [63:0] data[];           // 动态数组——用 _array_int 版本
+
+    `uvm_object_utils_begin(axi_seq_item)
+        `uvm_field_int(is_read, UVM_ALL_ON)      // bit 也算 integer
+        `uvm_field_int(len,     UVM_ALL_ON)      // 整数
+        `uvm_field_enum(axi_burst_e, burst, UVM_ALL_ON)  // 枚举需指定类型
+        `uvm_field_array_int(data,  UVM_ALL_ON)  // 动态数组用 _array_int
+    `uvm_object_utils_end
+endclass
+```
+
+`uvm_field_int` 实际上是所有"标量"类型共用——`bit`、`logic`、`int`、`bit [N:0]` 都用同一个宏。遇到枚举才换 `uvm_field_enum`，遇到数组才换 `uvm_field_array_int`。
 
 ```systemverilog
 // ===== 来自 axi_uvm_pkg.sv —— 完整版本：9 个字段，3 种类型 =====
@@ -1527,96 +1507,65 @@ endclass
 | 控制位 | 位值 | 含义 | 典型禁用场景 |
 |:---|:---|:---|:---|
 | `UVM_COPY` | `'h00000001` | 参与 `copy()` | 只读状态字段不应拷贝 |
-| `UVM_NOCOPY` | — | 不参与 `copy()` | 内部句柄（如指向 parent 的引用） |
-| `UVM_COMPARE` | `'h00000002` | 参与 `compare()` | 无关比较的元数据字段 |
-| `UVM_NOCOMPARE` | — | 不参与 `compare()` | 时间戳、随机种子等 |
-| `UVM_PRINT` | `'h00000004` | 参与 `print()` | 无 |
-| `UVM_NOPRINT` | — | 不参与 `print()` | 大数组或敏感数据 |
-| `UVM_RECORD` | `'h00000008` | 参与 `record()`（事务记录到波形数据库） | 数量过多的中间变量 |
-| `UVM_NORECORD` | — | 不参与 `record()` | 大量中间值 |
-| `UVM_PACK` | `'h00000010` | 参与 `pack()`（序列化为字节流） | 动态数据（如 callback 句柄） |
-| `UVM_NOPACK` | — | 不参与 `pack()` | Scoreboard 的内部计数器 |
-| `UVM_UNPACK` | — | （隐含）参与 `unpack()` | 同上 |
+#### 字段宏：不只是"注册"，是"精确控制"
 
-`UVM_ALL_ON` = `UVM_COPY | UVM_COMPARE | UVM_PRINT | UVM_RECORD | UVM_PACK` （即 `'h0000001F`），该字段参与 `copy`、`compare`、`print`、`record`、`pack`、`unpack` 全部操作。
+在 `begin`/`end` 之间列出的每个字段，都可以通过第二个参数——一个位掩码——精确控制它参与哪些自动化操作。
 
-按位组合示例：
+`UVM_ALL_ON` 是最常用的值——这个字段参与 `copy`、`compare`、`print`、`record`、`pack`、`unpack` 全部六种操作。但实际项目中经常需要更细的控制。比如 Scoreboard 里的内部计数器 `match_cnt` 你绝不会希望它被 `pack()` 序列化传输——它只是一个局部统计量，不是事务数据。
 
 ```systemverilog
 `uvm_object_utils_begin(my_item)
-    // addr 参与全部操作
-    `uvm_field_int(addr,    UVM_ALL_ON)
-
-    // timestamp 不参与 compare（不同仿真 run 的时间戳没比较意义）
-    //           也不参与 pack（序列化传输时不带时间戳）
-    `uvm_field_int(timestamp, UVM_DEFAULT | UVM_NOCOMPARE | UVM_NOPACK)
-    //                UMV_DEFAULT 等价于 UVM_ALL_ON，然后禁用 COMPARE 和 PACK
-
-    // checksum 不参与 copy（由硬件计算，不应被软件拷贝覆盖）
-    `uvm_field_int(checksum, UVM_ALL_ON | UVM_NOCOPY)
+    `uvm_field_int(addr,      UVM_ALL_ON)                     // 全部参与
+    `uvm_field_int(timestamp, UVM_DEFAULT | UVM_NOCOMPARE)    // 不参与 compare
+    `uvm_field_int(checksum,  UVM_ALL_ON | UVM_NOCOPY)        // 不参与 copy
 `uvm_object_utils_end
 ```
 
-##### 各宏的实际行为对比
+可用的 flag 组合：
 
-以 `axi_seq_item` 中不同字段类型为例，观察 `compare()` 和 `print()` 的行为差异：
+| 含此 flag | 去除此 flag | 作用 |
+|:---|:---|:---|
+| `UVM_COPY` | `UVM_NOCOPY` | 是否参与 `copy()` |
+| `UVM_COMPARE` | `UVM_NOCOMPARE` | 是否参与 `compare()` |
+| `UVM_PRINT` | `UVM_NOPRINT` | 是否参与 `print()` |
+| `UVM_RECORD` | `UVM_NORECORD` | 是否记录到波形数据库 |
+| `UVM_PACK` | `UVM_NOPACK` | 是否参与 `pack()`/`unpack()` |
+
+**选宏的直觉。** 大部分字段用 `uvm_field_int`——它覆盖了 `bit`、`logic`、`int`、`bit [N:0]` 所有标量整数类型。遇到枚举，必须换 `uvm_field_enum(枚举类型, 字段名, flag)`，否则 `print()` 只显示裸数值而非枚举标签。遇到动态数组，用 `uvm_field_array_int`；静态数组用 `uvm_field_sarray_int`。字符串用 `uvm_field_string`，对象句柄用 `uvm_field_object`。
+
+AXI4 Interconnect 项目中能看到这三种宏的实际差异：
 
 ```systemverilog
-// 假设有一个 axi_seq_item 实例 tr，已随机化
-tr.print();  // 自动格式化打印（以下为示例输出）
+class axi_seq_item extends uvm_sequence_item;
+    rand bit                is_read;
+    rand axi_burst_e        burst;      // 枚举
+    rand bit [63:0]         data[];     // 动态数组
 
-// 输出示例：
-// Name       Type         Size   Value
-// ------------------------------------------------
-// tr         axi_seq_item -      -
-//   is_read  integral     1      'h1           ← `uvm_field_int, 显示 hex
-//   id       integral     4      'ha           ← `uvm_field_int
-//   addr     integral     32     'h00001200    ← `uvm_field_int
-//   len      integral     8      'hf           ← `uvm_field_int
-//   size     integral     3      'h3           ← `uvm_field_int
-//   burst    axi_burst_e  32     INCR          ← `uvm_field_enum, 显示枚举标签
-//   qos      integral     4      'h3           ← `uvm_field_int
-//   data     array        256    'h0 'h1 ...   ← `uvm_field_array_int
-//   strb     array        32     'hF 'hF ...   ← `uvm_field_array_int
-// ------------------------------------------------
+    `uvm_object_utils_begin(axi_seq_item)
+        `uvm_field_int(is_read,   UVM_ALL_ON)            // bit → _int
+        `uvm_field_enum(axi_burst_e, burst, UVM_ALL_ON)  // 枚举 → _enum
+        `uvm_field_array_int(data,   UVM_ALL_ON)         // 动态数组 → _array_int
+    `uvm_object_utils_end
+endclass
 ```
 
-注意 `burst` 字段使用 `` `uvm_field_enum`` 注册后，`print()` 自动显示枚举标签 `INCR` 而非裸数值 `'h1`。如果用了 `` `uvm_field_int`` 注册枚举字段，`print()` 只会显示裸数值而不知道对应的枚举标签——这将显著降低调试日志的可读性。
+如果对 `burst` 错用了 `uvm_field_int`，`tr.print()` 会输出 `burst: 'h1` 而非 `burst: INCR`——看到十六进制值你得去翻头文件才知道它代表哪种 burst 类型。这看似小事，但当你在波形里 debug 几百个事务时，每一次都要手动查表，体验极差。
 
-##### 注意事项
+#### 类层级的"分水岭"
 
-1. **`begin`/`end` 必须成对出现**：有 `_begin` 就必须有 `_end`，中间可以有多条 `uvm_field_*`，也可以没有（此时等价于普通 `uvm_object_utils`）。
+UVM 所有类从 `uvm_void` 出发，到 `uvm_object` 处分叉成两条路：
 
-2. **字段必须在宏之前声明**：所有使用 `uvm_field_*` 注册的字段必须在宏调用之前声明——宏需要引用已声明的字段名。
-
-3. **动态数组用 `_array_int`，静态数组用 `_sarray_int`**：混淆会导致编译错误。`axi_seq_item` 的 `data[]` 是动态数组用 `uvm_field_array_int`，`axi_env_cfg` 的 `base[]` 是固定大小数组用 `uvm_field_sarray_int`。
-
-4. **`UVM_ALL_ON` 带来性能开销**：每个字段的 `compare()` 中的反射遍历比手写逐字段比较慢一个量级左右。在大型回归测试中，如果 Sequence Item 的 `compare()` 被频繁调用（如在 Scoreboard 中对每笔事务做比较），字段自动化带来的反射开销可能贡献 5-10% 的仿真时间。对性能极敏感的场景，可考虑手写 `do_compare()` 覆盖默认实现。
-
-5. **继承类中的字段注册**：如果子类增加了新字段，子类使用 `uvm_object_utils_begin/_end`，父类的字段注册通过继承自动保留——不需要在子类的 `begin`/`end` 块中重复列父类的字段。
-
----
-
-#### 5. uvm_object 与 uvm_component 的类层级
-
-##### 类层级全景
-
-UVM 类库层次分为两大分支，以 `uvm_void` 为共同根类，在 `uvm_object` 和 `uvm_component` 处分离：
+```
+uvm_void → uvm_object ─┬─→ uvm_transaction → uvm_sequence_item → uvm_sequence
+                       │         (对象分支：数据容器，无 Phase，无 parent)
+                       │
+                       └─→ uvm_component → uvm_driver / uvm_monitor / ...
+                            (组件分支：有 Phase，有 parent，有层次)
+```
 
 ![UVM 类层级](assets/uvm-class-diagram.svg)
 
-##### 实际项目中的继承关系
-
-在 Memory Design 项目中，所有类的继承链如下：
-
-```systemverilog
-// ── 对象分支 ──
-// mem_tx: 事务数据包
-class mem_tx extends uvm_sequence_item { ... }
-//         → uvm_sequence_item → uvm_transaction → uvm_object → uvm_void
-
-// mem_wr_rd_seq: 基本读写 Sequence
-class mem_wr_rd_seq extends uvm_sequence #(mem_tx) { ... }
+这条分叉决定了很多行为差异。Sequence 是对象——它没有 `build_phase`，不能自动从 `config_db` 获取配置（没有 `super.build_phase(phase)` 可调用），必须手动 `config_db::get(null, ...)`。Driver 是组件——它有完整的 Phase 回调链，`config_db::get(this, ...)` 中的 `this` 提供层次路径用于匹配。
 //                   → uvm_sequence → uvm_sequence_base → uvm_object → uvm_void
 
 // mem_n_wr_rd_seq: N 次重复 Sequence

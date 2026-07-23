@@ -182,6 +182,8 @@
   },
   "active": "d0028a1d304122f7",
   "lastOpenFiles": [
+    "verification/concepts/UVM方法学.md.tmp.4417.0c8f88359e3d",
+    "verification/concepts/UVM方法学.md.tmp.4417.c8b9ec6ddb4d",
     "verification/concepts/验证平台架构.md.tmp.4417.19b1db1aad4e",
     "verification/concepts/assets/reference-model-architecture.svg",
     "verification/concepts/assets/reference-model-architecture.mmd",
@@ -198,8 +200,6 @@
     "verification/concepts/assets/uvm-class-diagram.svg",
     "verification/concepts/assets/build-connect-phase.svg",
     "verification/concepts/assets/uvm-seq-driver-handshake.svg",
-    "verification/concepts/assets/uvm-class-diagram.mmd",
-    "verification/concepts/assets/uvm-class-diagram.mmd.tmp.4417.01c503c931ad",
     "verification/concepts/SVA断言.md",
     "projects/uvm-axi/README_CN.md",
     "projects/uvm-memory/README.md",
