@@ -2,12 +2,12 @@
 type: concept
 aliases:
   - Makefile IC项目构建实战
-  - Makefile IC项目构建实战
+  - Makefile ASIC project framework
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual; common ASIC flow methodology references"
+source_spec: "GNU Make Manual; common ASIC project build methodology references"
 queries: 1
 ---
 
@@ -15,111 +15,143 @@ queries: 1
 
 ## 学习目标
 
-本篇属于 Part 9，目标是：设计 IP 级和项目级统一入口，串联仿真、综合、STA、DFT 和发布流程。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+读完后，读者应该能设计一个层次化 IC 项目 Makefile 框架，用统一入口串联 IP 准备、仿真、综合、STA、DFT、发布和 CI 退出码。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+实战篇的重点不是展示复杂业务代码，而是把前面学过的规则、变量、函数、自动依赖、递归和调试方法组合成可迁移的工程框架。默认示例全部使用 mock 命令，读者没有商业 EDA 工具也能运行。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile综合流程实战|前一篇]]，再读 [[tools/concepts/Makefile常见错误50例|后一篇]]。
+- 建议先读 [[tools/concepts/Makefile综合流程实战|前一篇]]。
+- 需要理解模式规则、自动依赖、伪目标和命令行变量覆盖。
+- 后续可继续读 [[tools/concepts/Makefile常见错误50例|后一篇]]。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `out/release.stamp`，它足够小，便于观察每一步行为。
-
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: out/release.stamp          # all 是目标；冒号右边的文件是前置条件
+# 项目配置：真实项目可放入 .config.mk
+PROJECT ?= demo_soc
+IPS := cpu bus mem
+OUT_DIR := out
 
-# 真实文件目标：当 out/release.stamp 不存在或依赖更新时执行配方
-out/release.stamp: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 允许本地配置覆盖默认值
+-include .config.mk
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
+# 每个 IP 的准备 stamp
+IP_STAMPS := $(foreach ip,$(IPS),out/ip/$(ip).ready)
 
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf out input.txt  # 删除示例产物，方便重新实验
+# 默认目标：完成项目基本构建
+all: sim syn sta dft
+
+# 动作目标声明：这些目标不代表同名文件
+.PHONY: sim syn sta dft release dry-run clean ci
+
+# IP 准备：每个 IP 一个 ready stamp
+out/ip/%.ready: | out/ip
+	@printf 'prepare ip %s\n' '$*' > '$@'
+
+# 目录目标：创建统一产物目录
+out/ip out/sim out/syn out/sta out/dft out/release:
+	@mkdir -p '$@'
+
+# 顶层流程入口：动作目标依赖真实 stamp
+sim: out/sim/pass.stamp
+syn: out/syn/pass.stamp
+sta: out/sta/pass.stamp
+dft: out/dft/pass.stamp
+
+# 仿真 stamp：依赖 IP 准备
+out/sim/pass.stamp: $(IP_STAMPS) | out/sim
+	@printf 'sim project $(PROJECT) ips=%s\n' '$(IPS)' > '$@'
+
+# 综合 stamp：依赖 IP 准备
+out/syn/pass.stamp: $(IP_STAMPS) | out/syn
+	@printf 'syn project $(PROJECT)\n' > '$@'
+
+# STA stamp：依赖综合完成
+out/sta/pass.stamp: out/syn/pass.stamp | out/sta
+	@printf 'sta from syn\n' > '$@'
+
+# DFT stamp：依赖综合完成
+out/dft/pass.stamp: out/syn/pass.stamp | out/dft
+	@printf 'dft from syn\n' > '$@'
+
+# 发布目标：依赖所有签核入口
+release: sim syn sta dft | out/release
+	@printf 'release $(PROJECT)\n' > 'out/release/release.txt'
+
+# CI 入口：依赖 release，失败会传递非零退出码
+ci: release
+	@printf 'ci pass\n'
+
+# dry-run：展示真实工具替换点
+dry-run:
+	@printf 'make sim TEST=<name>; make syn CORNER=<corner>; make sta; make dft\n'
+
+# clean：示例中只打印清理意图
+clean:
+	@printf 'clean $(OUT_DIR)\n'
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
-make clean
-# 只打印将要执行的命令，不真正执行配方
+# 预演命令，确认不会调用真实商业工具
 make -n
-# 打印规则触发原因，并真正执行构建
+# 执行默认 mock 流程并显示触发原因
 make --trace
-# 第二次运行，用来观察目标已经最新时的行为
-make --trace
+# 显式运行 dry-run 入口，查看真实项目中应替换的命令
+make dry-run
 ```
-
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
 
 ## 语法拆解
 
-- `all: out/release.stamp` 表示 `all` 依赖 `out/release.stamp`；`all` 放在最前面，因此成为默认目标。
-- `out/release.stamp: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `out/release.stamp`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `.config.mk` 适合保存本地覆盖配置，不应强制提交私人路径。
+- IP ready stamp 把 IP 准备变成真实文件目标。
+- `sim/syn/sta/dft` 是用户入口，内部依赖真实 stamp。
+- `sta` 和 `dft` 依赖综合 stamp，表达流程顺序。
+- `ci` 入口依赖 release，失败退出码可直接传给流水线。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+    Config[配置变量] --> Inputs[输入列表]
+    Inputs --> Targets[Make 目标]
+    Targets --> Logs[日志/报告/产物]
+    Logs --> Summary[汇总或发布]
 ```
 
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
-
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
+实战 Makefile 应该让读者看出三层边界：用户入口目标、内部真实文件目标、外部工具命令。入口目标要稳定，真实文件目标要可缓存，外部工具命令要能被变量替换。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
-
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+项目级 Makefile 的关键是统一入口和清晰产物目录。每个流程可以在子目录维护自己的 `.mk` 片段，但顶层要提供稳定目标：`sim`、`regress`、`syn`、`sta`、`dft`、`release`、`clean`、`help`。版本发布应记录输入配置、工具版本和产物路径。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| 顶层目标只串命令无文件产物 | 无法增量和定位失败 | 用 pass.stamp/log/report 表示真实完成状态 |
+| 私人路径被提交 | `.config.mk` 没有隔离 | 本地配置用 `-include .config.mk` 并加入忽略策略 |
+| CI 误判通过 | 配方吞掉错误码 | 让失败命令返回非零，避免全局 `.IGNORE` |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- 项目级 Makefile 应提供稳定统一入口。
+- 内部流程完成状态应落成真实 stamp 或报告文件。
+- IP 依赖要显式进入 DAG。
+- 本地配置和仓库默认配置要分离。
+- CI 目标应继承真实流程的失败退出码。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile综合流程实战|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/Makefile常见错误50例|后一篇]]：把本篇概念推进到下一层工程用法。
-- [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
+- [[tools/concepts/Makefile综合流程实战|前一篇]]：提供调试、架构或规则基础。
+- [[tools/concepts/Makefile常见错误50例|后一篇]]：继续推进下一类实战或附录总结。
+- [[tools/concepts/Makefile快速参考与版本兼容|Makefile 快速参考与版本兼容]]：提供命令和变量速查。
 
 ## 小练习
 
-1. 把 `out/release.stamp` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 运行 `make IPS="cpu bus mem dma"`，观察新增 IP ready 文件。
+2. 创建 `.config.mk` 覆盖 `PROJECT`，观察 release 内容。
+3. 把 `sta` 对综合的依赖去掉，解释风险。

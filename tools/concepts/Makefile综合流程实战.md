@@ -2,7 +2,7 @@
 type: concept
 aliases:
   - Makefile 综合流程实战
-  - Makefile 综合流程实战
+  - Makefile synthesis flow
 tags:
   - tools
   - makefile
@@ -15,111 +15,135 @@ queries: 1
 
 ## 学习目标
 
-本篇属于 Part 9，目标是：用 Makefile 封装综合工具、corner、报告、checkpoint 和 dry-run mock 流程。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+读完后，读者应该能用 Makefile 封装综合 corner、工具选择、脚本入口、报告目录、QoR 汇总和 checkpoint 管理，并能通过 mock 目标验证流程拓扑。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+实战篇的重点不是展示复杂业务代码，而是把前面学过的规则、变量、函数、自动依赖、递归和调试方法组合成可迁移的工程框架。默认示例全部使用 mock 命令，读者没有商业 EDA 工具也能运行。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile仿真回归实战|前一篇]]，再读 [[tools/concepts/MakefileIC项目构建实战|后一篇]]。
+- 建议先读 [[tools/concepts/Makefile仿真回归实战|前一篇]]。
+- 需要理解模式规则、自动依赖、伪目标和命令行变量覆盖。
+- 后续可继续读 [[tools/concepts/MakefileIC项目构建实战|后一篇]]。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `reports/typ/qor.rpt`，它足够小，便于观察每一步行为。
-
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: reports/typ/qor.rpt          # all 是目标；冒号右边的文件是前置条件
+# 综合工具和 corner 配置
+SYN_TOOL ?= dc
+CORNERS := typ slow fast
+REPORT_DIR := reports
+WORK_DIR := work
+QOR_REPORTS := $(foreach c,$(CORNERS),reports/$(c)/qor.rpt)
 
-# 真实文件目标：当 reports/typ/qor.rpt 不存在或依赖更新时执行配方
-reports/typ/qor.rpt: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 默认目标：生成全部 QoR 报告
+all: syn
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
+# 动作目标声明：这些目标不代表同名文件
+.PHONY: syn dry-run summary clean
 
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf reports input.txt  # 删除示例产物，方便重新实验
+# 综合入口：依赖所有 corner 报告
+syn: $(QOR_REPORTS)
+	@printf 'synthesis reports: %s\n' '$^'
+
+# 单个 corner 报告：由脚本和目录生成
+reports/%/qor.rpt: scripts/syn.tcl | reports/% work/%
+	@printf 'tool=%s corner=%s script=%s\n' '$(SYN_TOOL)' '$*' '$<' > '$@'
+	@printf 'WNS 0.00\nAREA 1000\n' >> '$@'
+	@printf 'checkpoint %s\n' '$*' > 'work/$*/syn.ddc'
+
+# 报告目录模式规则
+reports/%:
+	@mkdir -p '$@'
+
+# checkpoint 目录模式规则
+work/%:
+	@mkdir -p '$@'
+
+# 脚本目标：生成最小 Tcl 脚本
+scripts/syn.tcl: | scripts
+	@printf 'puts "mock synthesis"\n' > '$@'
+
+# scripts 目录目标
+scripts:
+	@mkdir -p '$@'
+
+# 汇总目标：合并 QoR 报告摘要
+summary: syn | reports
+	@printf 'summary from %s\n' '$(QOR_REPORTS)' > 'reports/summary.txt'
+
+# reports 根目录目标
+reports:
+	@mkdir -p '$@'
+
+# dry-run：展示真实工具调用形状
+dry-run:
+	@printf '$(SYN_TOOL) -f scripts/syn.tcl -x "set CORNER <corner>"\n'
+
+# clean：示例中只打印清理意图
+clean:
+	@printf 'clean $(REPORT_DIR) $(WORK_DIR)\n'
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
-make clean
-# 只打印将要执行的命令，不真正执行配方
+# 预演命令，确认不会调用真实商业工具
 make -n
-# 打印规则触发原因，并真正执行构建
+# 执行默认 mock 流程并显示触发原因
 make --trace
-# 第二次运行，用来观察目标已经最新时的行为
-make --trace
+# 显式运行 dry-run 入口，查看真实项目中应替换的命令
+make dry-run
 ```
-
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
 
 ## 语法拆解
 
-- `all: reports/typ/qor.rpt` 表示 `all` 依赖 `reports/typ/qor.rpt`；`all` 放在最前面，因此成为默认目标。
-- `reports/typ/qor.rpt: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `reports/typ/qor.rpt`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `CORNERS` 是综合矩阵的核心维度。
+- `$(foreach ...)` 把 corner 列表映射成报告目标。
+- `reports/%/qor.rpt` 使用 stem `$*` 表示 corner。
+- report 和 work 目录是 order-only 依赖。
+- `dry-run` 显示真实工具替换点，但默认不调用商业工具。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+    Config[配置变量] --> Inputs[输入列表]
+    Inputs --> Targets[Make 目标]
+    Targets --> Logs[日志/报告/产物]
+    Logs --> Summary[汇总或发布]
 ```
 
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
-
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
+实战 Makefile 应该让读者看出三层边界：用户入口目标、内部真实文件目标、外部工具命令。入口目标要稳定，真实文件目标要可缓存，外部工具命令要能被变量替换。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
-
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+真实综合 Makefile 应把 Tcl 脚本、约束文件、RTL filelist、library set、corner set 明确写成依赖。报告目标应落到稳定目录，checkpoint 要按 corner 和版本隔离。ECO 流程可把上一次 checkpoint 作为输入目标，生成增量报告。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| 多 corner 报告互相覆盖 | 没有按 corner 分目录 | 使用 `reports/<corner>/qor.rpt` |
+| 无工具环境无法验证 | 默认目标直接调用 DC/Genus | 提供 mock 和 dry-run 目标 |
+| summary 读到旧报告 | summary 没依赖全部 QoR | 让 summary 依赖 `$(QOR_REPORTS)` 或 `syn` |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- corner 是综合 Makefile 的自然维度。
+- 报告和 checkpoint 应按 corner 隔离。
+- dry-run 是真实 EDA 命令接入前的安全验证层。
+- Tcl 脚本和约束文件也应进入依赖图。
+- ECO 可以建模为 checkpoint 到新报告的增量目标。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile仿真回归实战|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/MakefileIC项目构建实战|后一篇]]：把本篇概念推进到下一层工程用法。
-- [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
+- [[tools/concepts/Makefile仿真回归实战|前一篇]]：提供调试、架构或规则基础。
+- [[tools/concepts/MakefileIC项目构建实战|后一篇]]：继续推进下一类实战或附录总结。
+- [[tools/concepts/Makefile快速参考与版本兼容|Makefile 快速参考与版本兼容]]：提供命令和变量速查。
 
 ## 小练习
 
-1. 把 `reports/typ/qor.rpt` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 添加 `CORNERS += ss_0p72v`，观察新增报告。
+2. 运行 `make SYN_TOOL=genus dry-run`。
+3. 把 summary 改成直接依赖 `$(QOR_REPORTS)`，比较语义。

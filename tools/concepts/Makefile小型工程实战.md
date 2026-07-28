@@ -2,7 +2,7 @@
 type: concept
 aliases:
   - Makefile 小型工程实战
-  - Makefile 小型工程实战
+  - Makefile C golden model project
 tags:
   - tools
   - makefile
@@ -15,111 +15,151 @@ queries: 1
 
 ## 学习目标
 
-本篇属于 Part 9，目标是：把前面知识整合到小型 C/golden model 工程，覆盖库、可执行文件、测试和打包。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+读完后，读者应该能把小型 C/golden model 工程拆成源文件、对象文件、库、可执行文件、测试、安装、打包和覆盖率入口，并理解哪些目标应该是真实文件、哪些应该是伪目标。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+实战篇的重点不是展示复杂业务代码，而是把前面学过的规则、变量、函数、自动依赖、递归和调试方法组合成可迁移的工程框架。默认示例全部使用 mock 命令，读者没有商业 EDA 工具也能运行。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile调试与性能|前一篇]]，再读 [[tools/concepts/Makefile仿真回归实战|后一篇]]。
+- 建议先读 [[tools/concepts/Makefile调试与性能|前一篇]]。
+- 需要理解模式规则、自动依赖、伪目标和命令行变量覆盖。
+- 后续可继续读 [[tools/concepts/Makefile仿真回归实战|后一篇]]。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `build/app`，它足够小，便于观察每一步行为。
-
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: build/app          # all 是目标；冒号右边的文件是前置条件
+# 目录配置：集中管理产物路径
+BUILD_DIR := build
+SRC_DIR := src
+TEST_DIR := tests
 
-# 真实文件目标：当 build/app 不存在或依赖更新时执行配方
-build/app: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 模式配置：用户可用 make MODE=release 切换
+MODE ?= debug
+CFLAGS_debug := -O0 -g
+CFLAGS_release := -O2 -DNDEBUG
+CFLAGS := $(CFLAGS_$(MODE))
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
+# 工程产物：用文本文件模拟对象、库和可执行文件
+OBJS := $(BUILD_DIR)/main.o $(BUILD_DIR)/model.o
+LIB := $(BUILD_DIR)/libgolden.a
+APP := $(BUILD_DIR)/golden_app
 
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf build input.txt  # 删除示例产物，方便重新实验
+# 默认目标：构建应用
+all: $(APP)
+
+# 链接目标：由库和 main 对象生成
+$(APP): $(LIB) $(BUILD_DIR)/main.o | $(BUILD_DIR)
+	@printf 'link %s mode=%s\n' '$^' '$(MODE)' > '$@'
+
+# 静态库目标：由对象文件生成
+$(LIB): $(OBJS) | $(BUILD_DIR)
+	@printf 'archive %s\n' '$^' > '$@'
+
+# 对象模式规则：由源文件生成对象
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
+	@printf 'compile %s -> %s %s\n' '$<' '$@' '$(CFLAGS)' > '$@'
+
+# 构建目录目标：只负责创建 build
+$(BUILD_DIR):
+	@mkdir -p '$@'
+
+# 源码目录目标：只负责创建 src
+$(SRC_DIR):
+	@mkdir -p '$@'
+
+# 测试目录目标：目录名不用 test，避免和 test 伪目标冲突
+$(TEST_DIR):
+	@mkdir -p '$@'
+
+# main 源文件：生成示例 C 入口
+$(SRC_DIR)/main.c: | $(SRC_DIR)
+	@printf 'int main(void) { return 0; }\n' > '$@'
+
+# model 源文件：生成示例 golden model
+$(SRC_DIR)/model.c: | $(SRC_DIR)
+	@printf 'int model(void) { return 0; }\n' > '$@'
+
+# 动作目标声明：这些目标不代表同名文件
+.PHONY: test dry-run package install uninstall clean
+
+# 测试目标：依赖应用，生成测试日志
+test: $(APP) | $(TEST_DIR)
+	@printf 'run tests for %s\n' '$(APP)' > '$(TEST_DIR)/result.log'
+
+# dry-run：打印真实项目中可替换的命令
+dry-run:
+	@printf 'cc $(CFLAGS) -c src/main.c -o build/main.o\n'
+	@printf 'ar rcs $(LIB) $(OBJS)\n'
+
+# 打包目标：依赖应用并生成包描述
+package: $(APP) | $(BUILD_DIR)
+	@printf 'package $(APP)\n' > '$(BUILD_DIR)/package.txt'
+
+# 安装、卸载、清理：示例中只打印，不破坏系统路径
+install uninstall clean:
+	@printf '%s target is project-specific\n' '$@'
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
-make clean
-# 只打印将要执行的命令，不真正执行配方
+# 预演命令，确认不会调用真实商业工具
 make -n
-# 打印规则触发原因，并真正执行构建
+# 执行默认 mock 流程并显示触发原因
 make --trace
-# 第二次运行，用来观察目标已经最新时的行为
-make --trace
+# 显式运行 dry-run 入口，查看真实项目中应替换的命令
+make dry-run
 ```
-
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
 
 ## 语法拆解
 
-- `all: build/app` 表示 `all` 依赖 `build/app`；`all` 放在最前面，因此成为默认目标。
-- `build/app: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `build/app`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `MODE ?= debug` 给用户提供可覆盖默认值。
+- `CFLAGS_$(MODE)` 是配置矩阵的常见写法。
+- 对象、库、应用都是真实文件目标，便于增量构建。
+- `test`、`dry-run`、`package`、`install` 是动作目标，应声明 `.PHONY`。
+- 目录目标放到 order-only 依赖，避免目录时间戳触发重建。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+    Config[配置变量] --> Inputs[输入列表]
+    Inputs --> Targets[Make 目标]
+    Targets --> Logs[日志/报告/产物]
+    Logs --> Summary[汇总或发布]
 ```
 
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
-
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
+实战 Makefile 应该让读者看出三层边界：用户入口目标、内部真实文件目标、外部工具命令。入口目标要稳定，真实文件目标要可缓存，外部工具命令要能被变量替换。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
-
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+真实 C 工程可把 mock `printf` 替换为 `$(CC) -MMD -MP ...`、`ar rcs`、测试框架命令和覆盖率命令。数字IC项目中的 C golden model 也可用同样结构：库表示模型，应用表示对比工具，测试目标表示样例向量回归。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| Debug/Release 互相污染 | 产物目录没有按模式隔离 | 把 `BUILD_DIR` 扩展为 `build/$(MODE)` |
+| test 每次都重跑且无日志 | 只写伪目标不写真实日志 | 让 test 依赖真实 `tests/result.log` |
+| 打包包含旧文件 | clean/package 边界不清 | 明确产物目录和依赖列表 |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- 小型工程也应区分入口目标和真实文件目标。
+- 构建模式适合用变量矩阵表达。
+- 对象、库、应用目标可形成清晰 DAG。
+- dry-run 目标能帮助迁移到真实工具链。
+- 目录应作为 order-only 依赖。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile调试与性能|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/Makefile仿真回归实战|后一篇]]：把本篇概念推进到下一层工程用法。
-- [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
+- [[tools/concepts/Makefile调试与性能|前一篇]]：提供调试、架构或规则基础。
+- [[tools/concepts/Makefile仿真回归实战|后一篇]]：继续推进下一类实战或附录总结。
+- [[tools/concepts/Makefile快速参考与版本兼容|Makefile 快速参考与版本兼容]]：提供命令和变量速查。
 
 ## 小练习
 
-1. 把 `build/app` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 把 `MODE=release` 传给 make，观察链接产物内容。
+2. 把 `BUILD_DIR` 改成 `build/$(MODE)`，避免模式产物混用。
+3. 把 mock 编译替换成真实 `$(CC)` 命令。
