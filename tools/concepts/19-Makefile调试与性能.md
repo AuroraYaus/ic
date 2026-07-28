@@ -1,128 +1,122 @@
 ---
 type: concept
-aliases:
-  - Makefile 调试与性能
-  - Makefile trace debug performance
-tags:
-  - tools
-  - makefile
-  - asic
-source_spec: "GNU Make Manual: Options Summary, Debugging Make Rules, Shell Function"
+aliases: [Makefile 调试与性能, trace debug performance shuffle]
+tags: [tools, makefile, asic]
+source_spec: "GNU Make Manual 9.7, 12.1; --debug --trace --shuffle documentation"
 queries: 1
 ---
 
-# Makefile调试与性能
+# 19 — Makefile调试与性能
 
 ## 学习目标
 
-读完后，读者应该能使用 `--trace`、`--debug`、`--warn-undefined-variables`、`$(info)`、`$(warning)`、`--output-sync` 和变量缓存策略定位 Makefile 问题，并能识别常见性能反模式。
+Makefile 没有断点和单步执行——你需要用 `--trace`、`--debug`、诊断函数和性能工具来追踪行为。读完本篇，你应能：
 
-本篇进入工程化 Makefile 的操作层：如何控制 Make 的特殊行为、命令行行为、递归行为和诊断行为。默认环境是 GNU Make 4.3；更新版本能力会明确标注。
+1. 用 `--trace` 和 `--debug` 追踪任何目标的决策过程
+2. 嵌入 `$(warning)`/`$(info)` 诊断——区分读阶段和配方阶段
+3. 诊断 `$(shell ...)` 的性能开销并优化
+4. 用 `--shuffle` 检测并行竞态（GNU Make ≥4.4）
+5. 编写跨平台可移植的 Makefile
 
-## 前置知识
-
-- 建议先读 [[tools/concepts/Makefile递归与大型项目|前一篇]]。
-- 需要理解规则、变量、自动依赖和配方执行。
-- 后续可继续读 [[tools/concepts/Makefile小型工程实战|后一篇]]。
-
-## 最小可运行例子
-
-```makefile
-# 缓存 shell 结果：读阶段执行一次
-HOST := $(shell uname -s)                 # 用 := 缓存 shell 输出
-
-# 调试开关：用户可运行 make DEBUG=1
-DEBUG ?= 0                                # 默认关闭调试信息
-
-# 条件诊断：只在 DEBUG=1 时打印
-ifeq ($(DEBUG),1)                         # Make 条件在读阶段判断
-$(info debug: HOST=$(HOST))               # info 打印普通诊断信息
-$(warning debug mode is enabled)          # warning 打印警告但不中止
-endif                                     # 结束条件
-
-# 默认目标：生成一个可观察目标
-all: debug.out                            # all 依赖 debug.out
-
-# 文件目标：写入平台信息
-debug.out:                                # 没有前置条件，文件缺失时生成
-	@printf 'host=%s\n' '$(HOST)' > '$@'    # 写入缓存后的平台名
-	@printf 'makeflags=%s\n' '$(MAKEFLAGS)' >> '$@' # 记录命令行标志
-
-# 并行输出示例：两个目标都打印文本
-.PHONY: noisy                             # noisy 是动作目标
-noisy: a.out b.out                        # 可配合 -j 和 --output-sync 观察输出
-
-# 第一个输出目标
-a.out:                                    # 生成 a.out
-	@printf 'A line 1\nA line 2\n' > '$@'   # 写入两行文本
-
-# 第二个输出目标
-b.out:                                    # 生成 b.out
-	@printf 'B line 1\nB line 2\n' > '$@'   # 写入两行文本
-```
-
-执行命令：
+## `--trace` — 逐规则追踪
 
 ```shell
-# 预演默认目标，确认将要执行的配方
-make -n
-# 执行并打印目标触发原因
-make --trace
-# 打印 Make 版本，确认默认验证基线
-make --version | sed -n '1p'
+make --trace               # 每条规则执行前打印文件和行号 + 触发原因
 ```
 
-## 语法拆解
+## `--debug` — 多维度诊断
 
-- `--trace` 显示目标为什么重建，适合日常调试。
-- `--debug[=FLAGS]` 输出更详细，`i` 可观察隐含规则，`j` 可观察 job。
-- `--warn-undefined-variables` 能发现拼写错误。
-- `$(info)` 和 `$(warning)` 在读阶段输出诊断。
-- `$(shell ...)` 有进程启动成本，应常用 `:=` 缓存。
-- `--output-sync` 是 GNU Make 4.3 可用的并行输出同步选项。
-- `--shuffle` 是 GNU Make 4.4+ 特性，不属于本机 4.3 默认验证路径。
-
-## 执行轨迹
-
-```mermaid
-%%{init: {'theme': 'default'}}%%
-flowchart TD
-    CLI[命令行选项和环境] --> Read[读阶段]
-    Read --> Vars[内置变量和特殊目标生效]
-    Vars --> Update[目标更新阶段]
-    Update --> Report[trace/debug/output-sync 观察]
+```shell
+make --debug=b             # basic——基本决策
+make --debug=v             # verbose——读入了哪些文件
+make --debug=i             # implicit——隐含规则搜索
+make --debug=j             # jobs——并行 job 管理  
+make --debug=m             # remake——依赖文件重建
+make --debug=vi            # 组合：verbose + implicit
+# 避免 --debug=a ——输出极多，非必要时不用
 ```
 
-对工程 Makefile 来说，语法正确只是最低要求。更重要的是：用户如何调用、子 Make 如何继承参数、失败是否能被 CI 捕获、并行输出是否可读、调试信息是否足以定位问题。
+## 嵌入诊断
 
-## 工程化写法
+```makefile
+# 读阶段诊断——make -n 也输出
+$(info === Building ===)
+$(warning CC=$(CC))                  # stderr
 
-调试 Makefile 时先用低噪声工具：`make -n` 看命令，`make --trace` 看触发原因，`make --warn-undefined-variables` 看拼写。只有规则选择复杂时再用 `make --debug=i` 或 `make -p`。性能优化优先减少重复 `$(shell)`、递归 Make 层级和不必要的全目录扫描。
+# 配方阶段诊断——make -n 不输出
+build:
+	@printf 'CC=%s\n' '$(CC)'
 
-## 常见错误
+# 条件式详细输出——V=1 模式
+ifdef V
+$(info [DEBUG] RTL=$(RTL_FILES))
+endif
+# make V=1 → 详细；make → 静默
+```
 
-| 错误现象 | 根因 | 修复 |
-|:---|:---|:---|
-| 每次 make 都很慢 | 读阶段大量 `$(shell find ...)` | 用 `:=` 缓存或生成 `.mk` 文件 |
-| 并行输出混乱 | 多目标同时写 stdout | 使用 `--output-sync` 或写日志文件 |
-| 变量拼写错但无报错 | 未定义变量默认展开为空 | 加 `--warn-undefined-variables` |
+## `$(shell ...)` 性能优化
+
+```makefile
+# 优化 1：:= 缓存——最常见
+SRCS := $(shell find . -name '*.c')    # 一次执行
+
+# 优化 2：$(file ...) 替代 $(shell echo ...)——不 fork
+$(file > build/version.txt,$(VERSION))
+
+# 优化 3：合并多次调用为单次
+DIRS := $(shell ls src lib)            # 而非两次 $(shell ls ...)
+```
+
+## `--shuffle` — 并行竞态检测
+
+```shell
+make -j4 --shuffle              # 随机打乱构建顺序——GNU Make ≥4.4
+# 正常构建成功 + --shuffle 失败 = 有未声明的依赖
+```
+
+## 跨平台可移植性
+
+```makefile
+PLATFORM != uname -s                   # Linux / Darwin
+ifeq ($(PLATFORM),Darwin)
+  NPROC := $(shell sysctl -n hw.ncpu)  # macOS 无 nproc
+else
+  NPROC := $(shell nproc)
+endif
+SED_INPLACE := $(if $(filter Darwin,$(PLATFORM)),sed -i '',sed -i)
+```
+
+## 调试清单
+
+```text
+☐ make --trace         — 为什么（没）被重建？
+☐ make --debug=vim     — 读了什么文件？隐含规则匹配？
+☐ make -n              — 将执行什么配方？
+☐ make -p              — 变量的最终值？
+☐ --warn-undefined-variables — 拼写错误？
+☐ $(info ...) 嵌入     — 关键位置诊断信息
+☐ make -j4 --shuffle   — 并行竞态检测
+```
 
 ## 关键要点
 
-- `make -n`、`--trace`、`--debug` 适合不同深度的观察。
-- 诊断函数在读阶段运行。
-- `$(shell)` 应避免重复展开。
-- 并行构建要关注输出同步和共享文件竞争。
-- GNU Make 4.4+ 的 `--shuffle` 可用于竞态检测，但 GNU Make 4.3 不支持。
+1. **`--trace` 是第一调试工具——回答"为什么重建/不重建"。**
+2. **`--debug=FLAGS` 分类诊断——选对 flag，不 dump `--debug=a`。**
+3. **`$(info)` 读阶段，`@echo` 配方阶段——时机不同。**
+4. **`$(shell ...)` 用 `:=` 缓存——Make 慢的最常见原因。**
+5. **`$(file ...)` 替代 `$(shell echo ...)`——不 fork。**
+6. **`--shuffle` + 多次运行 = 竞态检测（GNU Make ≥4.4）。**
+7. **`uname -s` 检测平台——命令差异封装到变量。**
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile递归与大型项目|前一篇]]：提供依赖和规则基础。
-- [[tools/concepts/Makefile小型工程实战|后一篇]]：继续推进大型项目或实战应用。
-- [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
+- [[tools/concepts/09-Makefile控制函数与诊断函数|09]]
+- [[tools/concepts/05-Makefile变量赋值与展开|05]]
+- [[tools/concepts/04-Makefile配方与Shell|04]]
 
 ## 小练习
 
-1. 运行 `make DEBUG=1`，观察读阶段输出。
-2. 运行 `make -j2 --output-sync=target noisy`，观察输出同步。
-3. 把 `HOST :=` 改成 `HOST =`，思考重复展开成本。
+1. `make --trace` 追踪多目标项目
+2. `$(shell ...)` `=` vs `:=`——`time make` 对比
+3. `--shuffle` 重复 10 次——检查非确定性故障
+4. 检测你的平台：`uname -s` + 默认 `SHELL`

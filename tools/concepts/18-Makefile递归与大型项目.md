@@ -1,123 +1,120 @@
 ---
 type: concept
-aliases:
-  - Makefile 递归与大型项目
-  - Recursive Make
-tags:
-  - tools
-  - makefile
-  - asic
-source_spec: "GNU Make Manual: Recursive Use of make, Communicating Variables to a Sub-make"
+aliases: [Makefile 递归与大型项目, Recursive make include-style]
+tags: [tools, makefile, asic]
+source_spec: "GNU Make Manual 5.7; Miller 'Recursive Make Considered Harmful'"
 queries: 1
 ---
 
-# Makefile递归与大型项目
+# 18 — Makefile递归与大型项目
 
 ## 学习目标
 
-读完后，读者应该能设计 `$(MAKE) -C` 子目录调用，理解变量 export/unexport、`MAKEFLAGS`、`MAKELEVEL`、out-of-source build，以及递归式和 include 式架构的取舍。
-
-本篇进入工程化 Makefile 的操作层：如何控制 Make 的特殊行为、命令行行为、递归行为和诊断行为。默认环境是 GNU Make 4.3；更新版本能力会明确标注。
+大型项目的 Makefile 有两种架构：递归式（每个子目录独立 make）和 include 式（所有规则在同一进程）。本篇覆盖两种架构的完整实现和选择策略。
 
 ## 前置知识
 
-- 建议先读 [[tools/concepts/Makefile内置变量与命令行|前一篇]]。
-- 需要理解规则、变量、自动依赖和配方执行。
-- 后续可继续读 [[tools/concepts/Makefile调试与性能|后一篇]]。
+- [[tools/concepts/17-Makefile内置变量与命令行|17]]：`$(MAKE)`、`$(MAKEFLAGS)`、`$(MAKELEVEL)`
 
-## 最小可运行例子
+## 递归式 Make
 
 ```makefile
-# 子目录列表：真实项目中可对应 ip/sim/syn 等目录
-SUBDIRS := ip sim                         # 两个子模块目录
+# ===== 顶层 Makefile =====
+export CC := gcc                       # export 传递到子 Make
+export CFLAGS := -Wall -O2
+export BUILD_DIR := $(CURDIR)/build
 
-# 默认目标：只打印计划，避免 make -n 直接触发递归 Make
-all:                                      # all 是安全观察入口
-	@printf 'run make subdirs to enter: %s\n' '$(SUBDIRS)' # 提示显式递归目标
+SUBDIRS := lib src test                # 顺序：先 lib → src → test
 
-# 导出变量：传给子 Make 使用
-export PROJECT_ROOT := $(CURDIR)          # 子 Make 可读取项目根目录
+.PHONY: all clean $(SUBDIRS)
+all: $(SUBDIRS)
+$(SUBDIRS): ; $(MAKE) -C $@            # -C 切换目录；$(MAKE) 传递标志
+clean:
+	for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
+	rm -rf $(BUILD_DIR)
 
-# 显式递归入口：需要进入子目录时手动请求
-.PHONY: subdirs                           # subdirs 是动作目标
-subdirs: $(SUBDIRS)                       # subdirs 依赖两个子目录动作目标
+# ===== lib/Makefile =====
+SRCS := $(wildcard *.c); OBJS := $(SRCS:.c=.o)
+LIB  := $(BUILD_DIR)/lib/libutils.a
+$(LIB): $(OBJS); @mkdir -p $(@D); $(AR) rcs $@ $^
+%.o: %.c; $(CC) $(CFLAGS) -c $< -o $@
 
-# 子目录目标：用 $(MAKE) -C 调用子 Make
-$(SUBDIRS):                               # ip 和 sim 都匹配这条规则
-	@mkdir -p '$@'                          # 确保子目录存在
-	@printf 'all:\n\t@printf "subdir=%%s root=%%s level=%%s\\n" "$$(CURDIR)" "$$(PROJECT_ROOT)" "$$(MAKELEVEL)"\n' > '$@/Makefile' # 生成子 Makefile
-	@$(MAKE) --no-print-directory -C '$@' all # 进入子目录执行 all
-
-# include 式示例：大型项目也可 include 子模块片段
--include local.config.mk                  # 缺失时忽略，存在时读取本地配置
-
-# 清理目标：递归清理子目录
-.PHONY: clean $(SUBDIRS)                  # 子目录名作为动作目标
-clean:                                    # 清理动作
-	@rm -rf $(SUBDIRS)                      # 删除示例子目录
+# ===== src/Makefile =====
+SRCS := $(wildcard *.c); OBJS := $(SRCS:.c=.o)
+PROG := $(BUILD_DIR)/program
+$(PROG): $(OBJS) $(BUILD_DIR)/lib/libutils.a
+	$(CC) $^ -o $@
+%.o: %.c; $(CC) $(CFLAGS) -c $< -o $@
 ```
 
-执行命令：
+## Include 式 Make
 
-```shell
-# 预演默认目标，确认将要执行的配方
-make -n
-# 执行并打印目标触发原因
-make --trace
-# 打印 Make 版本，确认默认验证基线
-make --version | sed -n '1p'
+```makefile
+# ===== 顶层 Makefile =====
+BUILD_DIR := $(CURDIR)/build
+include lib/module.mk                  # 所有 .mk 在同一进程——全局命名空间
+include src/module.mk
+
+# ===== lib/module.mk =====
+lib_SRCS := $(wildcard lib/*.c)        # 前缀防冲突：lib_  src_  test_
+lib_OBJS := $(patsubst lib/%.c,$(BUILD_DIR)/lib/%.o,$(lib_SRCS))
+lib_LIB  := $(BUILD_DIR)/lib/libutils.a
+$(lib_LIB): $(lib_OBJS); $(AR) rcs $@ $^
+
+# ===== src/module.mk =====
+src_SRCS := $(wildcard src/*.c)
+src_OBJS := $(patsubst src/%.c,$(BUILD_DIR)/src/%.o,$(src_SRCS))
+$(BUILD_DIR)/program: $(src_OBJS) $(lib_LIB)  # 跨目录依赖直接声明！
+	$(CC) $^ -o $@
 ```
 
-## 语法拆解
+## 两种架构对比
 
-- `$(MAKE) -C dir target` 是递归 Make 的标准写法；含 `$(MAKE)` 的配方行在 `make -n` 下也可能执行。用 shell `printf` 生成 Makefile 片段时，内层格式串的 `%` 需要写成 `%%`，避免被外层 `printf` 消耗。
-- `export VAR := value` 会把变量传给子 Make 环境。
-- `MAKELEVEL` 在子 Make 中自动递增。
-- `MAKEFLAGS` 会传递许多命令行参数，包括并行相关状态。
-- include 式架构把多个 `.mk` 片段合并到同一个 Make 进程中。
-
-## 执行轨迹
-
-```mermaid
-%%{init: {'theme': 'default'}}%%
-flowchart TD
-    CLI[命令行选项和环境] --> Read[读阶段]
-    Read --> Vars[内置变量和特殊目标生效]
-    Vars --> Update[目标更新阶段]
-    Update --> Report[trace/debug/output-sync 观察]
-```
-
-对工程 Makefile 来说，语法正确只是最低要求。更重要的是：用户如何调用、子 Make 如何继承参数、失败是否能被 CI 捕获、并行输出是否可读、调试信息是否足以定位问题。
-
-## 工程化写法
-
-递归式 Make 边界清楚，适合团队或 IP 独立维护；缺点是跨目录依赖不透明，容易串行化。include 式 Make 能看到全局依赖图，更利于并行和最小重建；缺点是全局文件变大，需要更强规范。IC 项目常混用：顶层递归进入 IP，IP 内部用 include 组织规则。
-
-## 常见错误
-
-| 错误现象 | 根因 | 修复 |
+| 维度 | 递归式 | Include 式 |
 |:---|:---|:---|
-| `make -n` 仍进入子 Make | `$(MAKE)` 递归行具有特殊执行语义 | 把递归入口放到显式目标，或确保 dry-run 前置步骤也安全 |
-| 子目录并行失效 | 子 Make 没用 `$(MAKE)` | 使用 `$(MAKE) -C` |
-| 子目录找不到根路径 | 没有导出项目变量 | `export PROJECT_ROOT := $(CURDIR)` |
-| 递归层级无限增长 | 目标递归调用自身 | 用 `MAKELEVEL` 防护或修正目标依赖 |
+| 命名空间 | 隔离——无冲突 | 全局——需前缀约定 |
+| 跨目录依赖 | 间接（lib 构建→src 重链） | 直接声明 |
+| 增量粒度 | 目录级 | 文件级 |
+| 并行度 | 进程级（粗） | 目标级（细） |
+| 团队扩展 | 好——子目录独立 | 需全局命名协调 |
+| IC 适用 | IP 库独立维护 | 顶层流程编排 |
+
+## 选择策略
+
+| 条件 | 推荐 |
+|:---|:---|
+| <10 子目录 + 跨目录依赖多 | Include |
+| >20 子目录 + 子目录独立 | 递归 |
+| IC IP 库独立维护 | 递归——每 IP 自己 Makefile |
+| IC 统一顶层流程 | Include + `config.mk` |
+
+## IC 混合架构
+
+```makefile
+# 顶层 include + IP 层递归——兼顾全局依赖和模块隔离
+export DESIGN_TOP ?= top
+include ips/*/module.mk                # 各 IP 声明 RTL 文件
+include flows/sim.mk flows/syn.mk      # 流程入口
+
+.PHONY: sim syn all
+sim: log/smoke.log
+all: sim syn
+```
 
 ## 关键要点
 
-- 递归 Make 是工程边界工具，不是默认最佳答案。
-- `$(MAKE)` 会启用递归 Make 的特殊处理。
-- `export/unexport` 控制变量传播。
-- out-of-source build 能隔离源文件和产物。
-- include 式架构更容易表达全局依赖。
+1. **`$(MAKE) -C` + `export` = 递归 Make 标准模式。**
+2. **递归式 = 隔离+简单；include 式 = 全局依赖图+精确增量。**
+3. **混合架构最常见：顶层 include 全局 + IP 层递归隔离。**
+4. **out-of-source build：所有产物在 `$(BUILD_DIR)`——源目录清洁。**
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile内置变量与命令行|前一篇]]：提供依赖和规则基础。
-- [[tools/concepts/Makefile调试与性能|后一篇]]：继续推进大型项目或实战应用。
-- [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
+- [[tools/concepts/17-Makefile内置变量与命令行|17]]
+- [[tools/concepts/23-MakefileIC项目构建实战|23]]
 
 ## 小练习
 
-1. 运行 `make -j2 subdirs`，观察两个子目录是否可并行。
-2. 删除 `export` 行，观察子 Make 输出。
-3. 把 `SUBDIRS` 增加 `syn`，观察新增子目录行为。
+1. 建 lib/ src/ 子目录，分别写递归 Makefile
+2. 改为 include 式对比
+3. 改 lib 的一个 .c——递归式 vs include 式重建范围对比

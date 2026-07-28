@@ -1,126 +1,190 @@
 ---
 type: concept
-aliases:
-  - Makefile 内置变量与命令行
-  - Makefile MAKEFLAGS MAKELEVEL
-tags:
-  - tools
-  - makefile
-  - asic
-source_spec: "GNU Make Manual: Options Summary, Recursive Use of make, Special Variables"
+aliases: [Makefile 内置变量与命令行, MAKEFLAGS MAKECMDGOALS MAKELEVEL]
+tags: [tools, makefile, asic]
+source_spec: "GNU Make Manual 5.7, 9.7, 4.8; GNU Make 4.3 --help output"
 queries: 1
 ---
 
-# Makefile内置变量与命令行
+# 17 — Makefile内置变量与命令行
 
 ## 学习目标
 
-读完后，读者应该能使用 `$(MAKE)`、`$(MAKECMDGOALS)`、`$(MAKEFLAGS)`、`$(MAKELEVEL)`、`$(MAKEFILE_LIST)`、`$(CURDIR)`、`$(.FEATURES)` 等内置变量，并能正确区分常用命令行选项。
+本篇是内置变量和命令行选项的完全参考。读完本篇，你应能：
 
-本篇进入工程化 Makefile 的操作层：如何控制 Make 的特殊行为、命令行行为、递归行为和诊断行为。默认环境是 GNU Make 4.3；更新版本能力会明确标注。
+1. 在递归 Make 中正确使用 `$(MAKE)`、`$(MAKEFLAGS)`、`$(MAKELEVEL)`
+2. 用 `$(MAKECMDGOALS)` 判断用户意图实现条件构建
+3. 用 `$(.FEATURES)` 编写跨版本兼容 Makefile
+4. 掌握 20+ 命令行选项的分类和使用场景
 
-## 前置知识
+## Part A：内置变量详解
 
-- 建议先读 [[tools/concepts/Makefile特殊目标手册|前一篇]]。
-- 需要理解规则、变量、自动依赖和配方执行。
-- 后续可继续读 [[tools/concepts/Makefile递归与大型项目|后一篇]]。
-
-## 最小可运行例子
+### 递归 Make 三件套
 
 ```makefile
-# 默认目标：打印常用内置变量
-all:                                     # all 是观察入口
-	@printf 'MAKE=%s\n' '$(MAKE)'          # 递归 Make 应使用 $(MAKE)
-	@printf 'MAKECMDGOALS=%s\n' '$(MAKECMDGOALS)' # 用户请求的目标列表
-	@printf 'MAKEFLAGS=%s\n' '$(MAKEFLAGS)'       # 传递给子 Make 的标志
-	@printf 'MAKELEVEL=%s\n' '$(MAKELEVEL)'       # 递归 Make 层级
-	@printf 'MAKEFILE_LIST=%s\n' '$(MAKEFILE_LIST)' # 已读取 Makefile 列表
-	@printf 'CURDIR=%s\n' '$(CURDIR)'      # Make 记录的当前目录
-	@printf 'FEATURES=%s\n' '$(.FEATURES)' # GNU Make 编译特性列表
+# $(MAKE) — 递归 Make 核心。永远用 $(MAKE) 而非硬编码 make
+subdir:
+	$(MAKE) -C subdir                 # 自动传递 -j/-n/-k 等标志和 jobserver
 
-# 根据命令行目标做条件判断
-ifneq ($(filter clean,$(MAKECMDGOALS)),) # 如果用户请求 clean
-$(info clean was requested)              # 读阶段打印提示
-endif                                    # 结束 Make 条件
+# $(MAKEFLAGS) — 命令行标志传递链
+$(info MAKEFLAGS = $(MAKEFLAGS))       # 例：j4 --no-print-directory
 
-# 递归示例：调用子 Make 时必须使用 $(MAKE)
-.PHONY: sub                              # sub 是动作目标
-sub:                                     # 递归调用当前 Makefile
-	@$(MAKE) --no-print-directory show-level # $(MAKE) 会正确传递 jobserver 等状态
-
-# 子目标：显示递归层级
-.PHONY: show-level                       # show-level 是动作目标
-show-level:                              # 被 sub 调用
-	@printf 'sub MAKELEVEL=%s\n' '$(MAKELEVEL)' # 子 Make 层级会加一
-
-# 清理目标：这里仅打印，不删除文件
-.PHONY: clean                            # clean 是动作目标
-clean:                                   # 演示 MAKECMDGOALS
-	@printf 'clean target\n'               # 打印清理提示
+# $(MAKELEVEL) — 递归深度
+$(info MAKELEVEL = $(MAKELEVEL))       # 顶层=0，子=1，孙=2...
 ```
 
-执行命令：
+### 构建控制变量
 
-```shell
-# 预演默认目标，确认将要执行的配方
-make -n
-# 执行并打印目标触发原因
-make --trace
-# 打印 Make 版本，确认默认验证基线
-make --version | sed -n '1p'
+```makefile
+# $(MAKECMDGOALS) — 用户请求的目标列表
+# make clean all → "clean all"; make → ""（空=默认目标）
+ifneq ($(filter clean,$(MAKECMDGOALS)),)
+$(info clean was requested)            # 用户请求了 clean
+endif
+
+# $(MAKEFILE_LIST) — 已读取的 Makefile 列表
+CURRENT_DIR := $(dir $(lastword $(MAKEFILE_LIST)))  # 当前 Makefile 所在目录
 ```
 
-## 语法拆解
+### 路径与 Shell 变量
 
-- `$(MAKE)` 比硬编码 `make` 更可靠，递归调用时能传递关键状态。
-- `$(MAKECMDGOALS)` 保存用户请求的目标名。
-- `$(MAKEFLAGS)` 保存并传递命令行标志。
-- `$(MAKELEVEL)` 表示递归深度。
-- `$(MAKEFILE_LIST)` 可用于定位当前 Makefile。
-- `-e`/`--environment-overrides` 表示环境变量覆盖 Makefile 变量。
-- `-E STRING` 是 `--eval=STRING`，不是环境覆盖。
+```makefile
+# $(CURDIR) vs $(PWD)
+# CURDIR = Make 记录的绝对工作目录——确定性，不受配方 cd 影响
+# PWD    = Shell 环境变量——可能被配方中的 cd 改变
+BUILD_ROOT := $(CURDIR)
 
-## 执行轨迹
-
-```mermaid
-%%{init: {'theme': 'default'}}%%
-flowchart TD
-    CLI[命令行选项和环境] --> Read[读阶段]
-    Read --> Vars[内置变量和特殊目标生效]
-    Vars --> Update[目标更新阶段]
-    Update --> Report[trace/debug/output-sync 观察]
+# $(SHELL) / $(.SHELLFLAGS)
+SHELL := /bin/bash                     # 切换 Shell（默认 /bin/sh）
+.SHELLFLAGS := -ec                     # -e=errexit, -c=执行命令字符串
 ```
 
-对工程 Makefile 来说，语法正确只是最低要求。更重要的是：用户如何调用、子 Make 如何继承参数、失败是否能被 CI 捕获、并行输出是否可读、调试信息是否足以定位问题。
+### 版本与能力检测
 
-## 工程化写法
+```makefile
+# $(.FEATURES) — GNU Make 编译特性列表——跨版本兼容的唯一依据
+# 检测示例：
+ifeq ($(filter grouped-target,$(.FEATURES)),grouped-target)
+# 有 grouped-target → GNU Make ≥ 4.3 → 可以使用 &:
+else
+# 回退方案
+endif
+# 关键特性：grouped-target(4.3+), second-expansion, order-only, oneshell, load
 
-大型工程应把用户接口集中到少量目标和变量上，例如 `make sim TEST=smoke`、`make syn CORNER=typ`、`make regress -j8`。递归 Make 必须用 `$(MAKE)`，否则并行 jobserver、`MAKEFLAGS` 和特殊递归行为可能丢失。
+# $(.VARIABLES) — 所有已定义变量名的完整列表（调试用）
+# $(.RECIPEPREFIX) — 当前配方前缀字符（默认 TAB）
+```
 
-## 常见错误
+### 命令行覆盖相关
 
-| 错误现象 | 根因 | 修复 |
+```makefile
+# $(MAKEOVERRIDES) — 命令行变量传递机制
+# 陷阱：命令行 `make VAR=val` 通过此变量传给子 Make→覆盖子 Make 的 ?=
+# 清除：MAKEOVERRIDES :=  # 阻止命令行变量传入子 Make
+
+# $(MAKE_RESTARTS) — remake 重启次数（详见 14 篇）
+```
+
+## Part B：命令行选项分类手册
+
+### 构建控制
+
+| 选项 | 含义 | 典型场景 |
 |:---|:---|:---|
-| 子 Make 没继承 `-j` | 配方里硬编码 `make` | 使用 `$(MAKE)` |
-| 把 `-E` 当环境覆盖 | 混淆短选项 | 环境覆盖是 `-e`，`-E STRING` 是 eval |
-| 多目标场景判断错误 | 只比较完整 `MAKECMDGOALS` | 用 `$(filter target,$(MAKECMDGOALS))` |
+| `-j [N]` | 并行 jobs | `make -j$(nproc)` |
+| `-l [N]` | 负载阈值 | `make -j8 -l 6` |
+| `-k` | 错误后继续 | `make -j8 -k` CI 标准 |
+| `-n` / `--dry-run` | 只打印不执行 | 预演验证 |
+| `-B` / `--always-make` | 无条件重建 | 强制全量 |
+| `-o FILE` | 假设 FILE 旧 | 选择性跳过 |
+| `-W FILE` | 假设 FILE 新 | 模拟影响 |
+| `--shuffle` | 打乱顺序 | ≥4.4 竞态检测 |
+
+### 目录/文件
+
+| 选项 | 含义 |
+|:---|:---|
+| `-C DIR` | 切换目录 |
+| `-f FILE` | 指定 Makefile |
+| `-I DIR` | include 搜索路径 |
+
+### 调试/信息
+
+| 选项 | 含义 |
+|:---|:---|
+| `--debug=FLAGS` | a=all, b=basic, v=verbose, i=implicit, j=jobs, m=remake |
+| `-p` | 打印完整数据库 |
+| `--trace` | 实时触发原因 |
+| `-s` | 静默 |
+| `--warn-undefined-variables` | 未定义变量警告 |
+
+### 隐含规则控制
+
+| 选项 | 含义 |
+|:---|:---|
+| `-r` / `--no-builtin-rules` | 禁用内置规则 |
+| `-R` / `--no-builtin-variables` | 不预定义隐含变量 |
+
+### 环境/变量
+
+| 选项 | 含义 |
+|:---|:---|
+| `-e` / `--environment-overrides` | 环境变量覆盖 Makefile |
+| `-E STRING` | ⚠️ **不是**环境覆盖！`-E` = `--eval=STRING` |
+
+### 其他
+
+| 选项 | 含义 |
+|:---|:---|
+| `--output-sync[=TYPE]` | 并行输出同步 (none/line/target/recurse) |
+| `--no-print-directory` | 不打印目录进入/离开 |
+| `-v` / `-h` | 版本/帮助 |
+
+## Part C：实战技法
+
+```makefile
+# 技法 1：命令行变量覆盖
+# make CC=clang → 覆盖 Makefile CC（优先级高于 ?=，低于 override）
+
+# 技法 2：条件感知构建
+ifneq ($(filter debug,$(MAKECMDGOALS)),)
+CFLAGS += -g -O0                      # 用户请求 debug → 挂调试选项
+endif
+
+# 技法 3：版本检测 + 条件启用
+ifeq ($(filter oneshell,$(.FEATURES)),oneshell)
+.ONESHELL:                             # 仅在支持时启用
+endif
+
+# 技法 4：递归 Make 骨架
+export CC CFLAGS                       # 导出跨子目录共享的变量
+SUBDIRS := lib src test
+.PHONY: all clean $(SUBDIRS)
+all: $(SUBDIRS)
+$(SUBDIRS): ; $(MAKE) -C $@            # $(MAKE) 自动传递 -j/-n/-k
+clean: ; for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
+```
 
 ## 关键要点
 
-- `$(MAKE)` 是递归 Make 的标准入口。
-- `MAKEFLAGS` 会把许多命令行标志传给子 Make。
-- `MAKELEVEL` 能检测递归深度。
-- `MAKEFILE_LIST` 可定位当前 Makefile 路径。
-- `-e` 和 `-E STRING` 语义完全不同。
+1. **永远用 `$(MAKE)` 而非 `make`——保证 jobserver 和标志传递。**
+2. **`MAKEFLAGS` 自动传递——子 Make 继承几乎所有命令行选项。**
+3. **`$(MAKECMDGOALS)` + `$(filter ...)` 实现用户意图感知。**
+4. **`$(.FEATURES)` 是跨版本兼容的唯一可靠方式。**
+5. **`-e` = 环境覆盖；`-E STRING` = `--eval`——易混淆。**
+6. **`--warn-undefined-variables` 建议常年开启——捕拼写错误。**
+7. **`-j$(nproc) -k` 是 CI 的标准组合——尽快发现所有错误。**
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile特殊目标手册|前一篇]]：提供依赖和规则基础。
-- [[tools/concepts/Makefile递归与大型项目|后一篇]]：继续推进大型项目或实战应用。
-- [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
+- [[tools/concepts/18-Makefile递归与大型项目|18]]
+- [[tools/concepts/19-Makefile调试与性能|19]]
+- [[tools/concepts/06-Makefile高级变量|06]]
+- [[tools/concepts/16-Makefile特殊目标手册|16]]
 
 ## 小练习
 
-1. 运行 `make sub`，观察 `MAKELEVEL`。
-2. 运行 `make clean`，观察读阶段提示。
-3. 运行 `make --eval="X:=1"`，思考它和 `-e` 的差异。
+1. `make -p | head -200` — 窥探内置数据库
+2. `$(MAKECMDGOALS)` 实现 `make debug` 切换
+3. `$(.FEATURES)` 检测 grouped-target
+4. `make -e CC=clang` vs `make CC=clang` 优先级对比
