@@ -2,12 +2,13 @@
 type: concept
 aliases:
   - Makefile 快速参考与版本兼容
-  - Makefile 快速参考 and 版本兼容
+  - Makefile quick reference
+  - Makefile compatibility table
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual; POSIX make specification; BSD make and Microsoft NMAKE documentation"
+source_spec: "GNU Make Manual; POSIX make specification; BSD make documentation; Microsoft NMAKE documentation"
 queries: 1
 ---
 
@@ -15,111 +16,162 @@ queries: 1
 
 ## 学习目标
 
-本篇属于 Part 10，目标是：提供变量、函数、特殊目标、命令行和版本方言兼容速查。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+本篇提供 Makefile 系列的速查入口。读者不需要从头翻每篇文章，可以在这里快速查变量赋值、自动变量、函数、特殊目标、命令行选项和版本兼容性。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+速查表不是学习替代品。遇到不理解的行为时，应回到对应章节看最小例子和执行轨迹；本篇用于复习和 code review。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile常见错误50例|前一篇]]，再读 [[tools/concepts/Makefile常见错误50例|后一篇]]。
+- 建议先读 [[tools/concepts/Makefile常见错误50例|Makefile 常见错误50例]]。
+- 需要理解 GNU Make 4.3 是本讲义默认验证环境。
+- 可回看 [[tools/concepts/Makefile解决的问题与第一个例子|Makefile 解决的问题与第一个例子]]。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `ref.out`，它足够小，便于观察每一步行为。
-
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: ref.out          # all 是目标；冒号右边的文件是前置条件
+# 默认目标：打印版本、特性和常用自动变量示例
+all: ref.out                              # all 依赖 ref.out
 
-# 真实文件目标：当 ref.out 不存在或依赖更新时执行配方
-ref.out: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 文件目标：生成一个速查观察文件
+ref.out: input.txt                        # ref.out 依赖 input.txt
+	@printf 'MAKE_VERSION=%s\n' '$(MAKE_VERSION)' > '$@' # GNU Make 版本
+	@printf 'FEATURES=%s\n' '$(.FEATURES)' >> '$@'       # GNU Make 特性
+	@printf 'target=%s first=%s all=%s\n' '$@' '$<' '$^' >> '$@' # 自动变量
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
-
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf ref.out input.txt  # 删除示例产物，方便重新实验
+# 输入文件：创建示例输入
+input.txt:                                # 输入文件缺失时生成
+	@printf 'input\n' > '$@'                # 写入一行文本
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
-make clean
-# 只打印将要执行的命令，不真正执行配方
+# 打印将要执行的命令
 make -n
-# 打印规则触发原因，并真正执行构建
+# 执行并显示触发原因
 make --trace
-# 第二次运行，用来观察目标已经最新时的行为
-make --trace
+# 查看 GNU Make 版本
+make --version | sed -n '1p'
 ```
-
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
 
 ## 语法拆解
 
-- `all: ref.out` 表示 `all` 依赖 `ref.out`；`all` 放在最前面，因此成为默认目标。
-- `ref.out: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `ref.out`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `$(MAKE_VERSION)` 是 GNU Make 版本变量。
+- `$(.FEATURES)` 可以检测 GNU Make 编译能力和语法特性。
+- `$@`、`$<`、`$^` 是最常用自动变量。
+- 本篇示例默认只使用 GNU Make 4.3 可验证能力。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+    Need[需要查语法] --> Table[查看速查表]
+    Table --> Example[运行最小例子]
+    Example --> Chapter[回到详细章节]
 ```
-
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
-
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
-
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+项目可以把本篇的表格转化为团队 Makefile 规范：默认目标命名、变量命名、目录约定、命令行覆盖方式、GNU Make 版本下限和禁止使用的方言特性。IC 项目若需要跨 Linux 发行版或 EDA 环境，建议在 `help` 目标中打印 `$(MAKE_VERSION)` 和关键工具版本。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| 使用了 GNU Make 4.4+ 特性但环境是 4.3 | 没有版本基线 | 用 `$(MAKE_VERSION)` 或文档约束检查 |
+| 把 BSD Make 语法复制到 GNU Make | 方言混用 | 标注工具方言并隔离示例 |
+| 命令行覆盖无效 | 变量赋值方式不匹配 | 使用 `?=` 暴露默认值，必要时解释 `override` |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- 本讲义默认验证基线是 GNU Make 4.3。
+- GNU Make 4.4+ 特性必须显式标注，不进入默认路径。
+- POSIX Make 是较小公共子集，不包含大量 GNU 扩展。
+- BSD Make 和 NMAKE 不是 GNU Make 的轻微变体，而是不同方言。
+- 速查表用于回忆语法，行为不明时仍要运行最小例子。
+
+## 变量赋值速查
+
+| 写法 | 名称 | 展开时机 | 常见用途 |
+|:---|:---|:---|:---|
+| `VAR = x` | 递归展开 | 引用时 | 延迟组合变量 |
+| `VAR := x` | 简单展开 | 读阶段 | 缓存 shell 结果 |
+| `VAR ?= x` | 默认赋值 | 未定义时 | 用户可覆盖默认值 |
+| `VAR += x` | 追加赋值 | 取决于原 flavor | 追加编译选项 |
+| `VAR != cmd` | shell 赋值 | 读阶段 | 保存命令输出 |
+
+## 自动变量速查
+
+| 变量 | 含义 | 典型场景 |
+|:---|:---|:---|
+| `$@` | 当前目标 | 输出文件 |
+| `$<` | 第一个前置条件 | 单源编译 |
+| `$^` | 去重后的全部前置条件 | 链接 |
+| `$+` | 保留重复的全部前置条件 | 链接顺序敏感场景 |
+| `$?` | 比目标新的前置条件 | 增量归档 |
+| `$*` | stem | 模式规则 |
+| `$|` | order-only 前置条件 | 目录诊断 |
+
+## 函数速查
+
+| 分类 | 函数 | 用途 |
+|:---|:---|:---|
+| 文本 | `subst`、`patsubst`、`filter`、`filter-out`、`sort` | 词表转换 |
+| 词表 | `word`、`wordlist`、`words`、`firstword`、`lastword` | 取词和计数 |
+| 路径 | `dir`、`notdir`、`suffix`、`basename` | 路径拆分 |
+| 组合 | `addprefix`、`addsuffix`、`join` | 路径和选项组合 |
+| 控制 | `if`、`or`、`and`、`foreach`、`call`、`eval` | 条件、循环、模板 |
+| 诊断 | `info`、`warning`、`error`、`origin`、`flavor`、`value` | 调试 |
+| 外部 | `shell`、`file`、`wildcard` | 命令、文件、通配 |
+
+## 特殊目标速查
+
+| 特殊目标 | 用途 | 注意 |
+|:---|:---|:---|
+| `.PHONY` | 声明动作目标 | 避免同名文件冲突 |
+| `.DELETE_ON_ERROR` | 失败删除目标 | 避免半成品 |
+| `.SECONDARY` | 保留中间文件 | 便于调试 |
+| `.PRECIOUS` | 中断/失败时保留目标 | 防止误删昂贵产物 |
+| `.ONESHELL` | 一个规则一个 shell | 注意错误传播 |
+| `.NOTPARALLEL` | 限制并行 | 不要全局滥用 |
+| `.SUFFIXES:` | 清空后缀规则 | 减少隐含行为 |
+
+## 命令行选项速查
+
+| 选项 | 用途 |
+|:---|:---|
+| `-n` / `--dry-run` | 预演配方 |
+| `--trace` | 显示目标触发原因 |
+| `--warn-undefined-variables` | 未定义变量警告 |
+| `-p` | 打印数据库 |
+| `-r` / `-R` | 禁用内置规则/变量 |
+| `-j N` | 并行构建 |
+| `--output-sync[=TYPE]` | 并行输出同步 |
+| `-e` | 环境变量覆盖 Makefile 变量 |
+| `-E STRING` | `--eval=STRING`，不是环境覆盖 |
+
+## 版本兼容表
+
+| 能力 | GNU Make 4.3 | GNU Make 4.4+ | POSIX Make | BSD Make | NMAKE |
+|:---|:---|:---|:---|:---|:---|
+| 基本规则 | 支持 | 支持 | 支持 | 支持 | 语法不同 |
+| `:=` | 支持 | 支持 | 部分实现 | 支持 | 语法不同 |
+| `$(file ...)` | 支持 | 支持 | 不支持 | 不支持 | 不支持 |
+| `.SECONDEXPANSION` | 支持 | 支持 | 不支持 | 不支持 | 不支持 |
+| grouped targets `&:` | 支持 | 支持 | 不支持 | 不支持 | 不支持 |
+| `--trace` | 支持 | 支持 | 不支持 | 不支持 | 不支持 |
+| `--shuffle` | 不支持 | 支持 | 不支持 | 不支持 | 不支持 |
+| `$(let)` / `$(intcmp)` | 不支持 | 支持 | 不支持 | 不支持 | 不支持 |
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile常见错误50例|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/Makefile常见错误50例|后一篇]]：把本篇概念推进到下一层工程用法。
-- [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
+- [[tools/concepts/Makefile常见错误50例|Makefile 常见错误50例]]：从错误现象回到速查表。
+- [[tools/concepts/Makefile内置变量与命令行|Makefile 内置变量与命令行]]：详细解释命令行选项。
+- [[tools/concepts/Makefile特殊目标手册|Makefile 特殊目标手册]]：详细解释特殊目标。
 
 ## 小练习
 
-1. 把 `ref.out` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 运行示例并查看 `ref.out` 中的 `MAKE_VERSION`。
+2. 从函数速查表中任选 3 个函数，回到对应章节找最小例子。
+3. 检查自己的环境是否支持 `--shuffle`，并解释为什么本讲义不把它放入默认路径。
