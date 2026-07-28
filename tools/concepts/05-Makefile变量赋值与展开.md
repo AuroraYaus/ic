@@ -2,118 +2,278 @@
 type: concept
 aliases:
   - Makefile 变量赋值与展开
-  - Makefile variable flavor
+  - Makefile variable flavor expansion
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual: Flavors, Setting Variables, Shell Assignment"
+source_spec: "GNU Make Manual 6.2: The Two Flavors of Variables, 6.5: Setting Variables, 6.6: Appending More Text, 6.13: Shell Function; POSIX make specification"
 queries: 1
 ---
 
-# Makefile变量赋值与展开
+# 05 — Makefile变量赋值与展开
 
 ## 学习目标
 
-读完后，读者应该能解释 `=`、`:=`、`?=`、`+=`、`!=` 的差异，知道递归展开变量和简单展开变量分别在什么时候求值，并能避免把昂贵的 `$(shell ...)` 放进递归变量导致重复执行。
+本篇是 Makefile 变量系统的核心章节。读完本篇后，你将能：
 
-本篇延续 [[tools/concepts/Makefile心智模型与历史|二阶段执行模型]]：先区分哪些内容在读阶段展开，哪些内容在目标更新阶段展开，再讨论它在工程 Makefile 中的稳定写法。只记语法表很容易忘，能用 `make --trace` 和诊断输出观察行为，才算真正掌握。
+1. 精确区分五种赋值操作符（`=`、`:=`、`?=`、`+=`、`!=`）的展开时机和语义
+2. 用 `$(shell date +%N)` 这类可观测的实验，自己动手验证展开时机的差异
+3. 理解 `+=` 在不同基础 flavor 上的展开差异——这是实战中最容易踩的坑
+4. 用 `$(info ...)` 和 `$(flavor ...)` 诊断变量的最终值和类型
+
+**本篇与 [[tools/concepts/02-Makefile心智模型与历史|02 — 心智模型]] 的二阶段模型紧密绑定。** 变量行为的根源是读阶段 vs 目标更新阶段的展开时机——五种赋值操作符的本质区别就是这个时机的选择。
 
 ## 前置知识
 
-- 建议先读 [[tools/concepts/Makefile配方与Shell|前一篇]]。
-- 需要理解 Make 语法和 Shell 语法的边界。
-- 后续可继续读 [[tools/concepts/Makefile高级变量|后一篇]]。
+- [[tools/concepts/02-Makefile心智模型与历史|02 — 心智模型]]：二阶段执行模型
+- [[tools/concepts/04-Makefile配方与Shell|04 — 配方与 Shell]]：配方中的 `$` 展开
+
+后续：[[tools/concepts/06-Makefile高级变量|06 — 高级变量]]（自动变量、target-specific、`$(origin)`/`$(flavor)`/`$(value)`）。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面内容，然后运行后面的命令。示例默认兼容 GNU Make 4.3。
+### 例子 1：用 `date +%N` 观察展开时机——眼见为实
 
 ```makefile
-# 递归展开变量：右侧文本先保存，引用 NOW_RECURSIVE 时才执行 shell
-NOW_RECURSIVE = $(shell date +%s)        # 每次展开变量都可能重新执行 date
+# ===== 例子 1：五种赋值的展开时机实验 =====
+# $(shell date +%N) 返回纳秒——每次执行结果不同——观察展开了几次
 
-# 简单展开变量：读阶段立即执行 shell，并把结果缓存到变量里
-NOW_SIMPLE := $(shell date +%s)          # 后续引用只使用读阶段保存的值
+# 1. = 递归展开：每次引用都重新执行 date
+NOW_REC  = $(shell date +%N)         # 读阶段：只保存文本，不执行 date
 
-# 默认赋值：只有 MODE 尚未定义时才设置默认值
-MODE ?= debug                            # 用户可用 make MODE=release 覆盖
+# 2. := 简单展开：读阶段执行一次，结果缓存
+NOW_SIMPLE := $(shell date +%N)      # 读阶段：立即执行 date 并保存纳秒值
 
-# 追加赋值：保留原值，关键差异是追加文本的展开时机
-CFLAGS := -Wall                          # 简单展开变量，当前值立即确定
-CFLAGS += -DMODE=\"$(MODE)\"             # 追加后的引用仍使用变量当前 flavor 规则
+# 3. ?= 条件赋值：只在变量未定义时生效
+MODE ?= debug                        # 用户可通过 make MODE=release 覆盖
 
-# shell 赋值：!= 在读阶段运行命令，把标准输出赋给变量
-HOST != uname -s                         # GNU Make 执行 uname -s 并保存结果
+# 4. != Shell 赋值：读阶段运行命令并保存标准输出
+HOST != uname -s                     # 等价于 HOST := $(shell uname -s)
 
-# 默认目标：打印变量，观察展开时机
-all:                                     # all 是伪入口，不生成真实文件
-	@printf 'recursive=%s\n' '$(NOW_RECURSIVE)' # 配方展开时引用递归变量
-	@printf 'simple=%s\n' '$(NOW_SIMPLE)'       # 配方展开时读取已缓存变量
-	@printf 'mode=%s\n' '$(MODE)'               # 输出默认或命令行覆盖值
-	@printf 'cflags=%s\n' '$(CFLAGS)'           # 输出追加后的编译选项
-	@printf 'host=%s\n' '$(HOST)'               # 输出 != 命令保存的结果
+# 5. += 追加：保留原值，展开时机取决于原变量的 flavor
+CFLAGS := -Wall                      # 简单展开
+CFLAGS += -O2                        # += 在简单展开变量上：追加立即展开
+
+# === 验证实验 ===
+.PHONY: all
+all:
+	@printf '=== RECURSIVE (=) ===\n'
+	@printf '  1st: %s\n' '$(NOW_REC)'  # 第一次引用——执行 date
+	@sleep 0.1
+	@printf '  2nd: %s\n' '$(NOW_REC)'  # 第二次引用——再次执行 date——值不同！
+	@printf '\n=== SIMPLE (:=) ===\n'
+	@printf '  1st: %s\n' '$(NOW_SIMPLE)'  # 读阶段缓存的值
+	@sleep 0.1
+	@printf '  2nd: %s\n' '$(NOW_SIMPLE)'  # 相同——缓存不变
+	@printf '\nMODE=%s, HOST=%s, CFLAGS=%s\n' '$(MODE)' '$(HOST)' '$(CFLAGS)'
 ```
 
-执行命令：
+执行：
 
 ```shell
-# 打开未定义变量警告，尽早发现拼写错误
-make --warn-undefined-variables
-# 预演将要执行的配方，观察 Make 展开后的命令
-make -n
-# 显示目标触发原因，并执行默认目标
-make --trace
+make                          # 观察 NOW_REC 两次引用值不同——递归展开证据
+make MODE=release             # 命令行覆盖 ?=
 ```
+
+**预期：** `NOW_REC` 两次输出不同纳秒值；`NOW_SIMPLE` 两次相同。
+
+### 例子 2：`+=` 的展开时机陷阱
+
+```makefile
+# ===== 例子 2：+= 的行为取决于原变量的 flavor =====
+A := initial                    # A = 简单展开（simply expanded）
+A += $(shell date +%s)          # += 在简单展开变量上：date 立即执行
+
+B  = initial                    # B = 递归展开（recursively expanded）
+B += $(shell date +%s)          # += 在递归展开变量上：date 延迟到引用时
+
+.PHONY: all
+all:
+	@printf 'A 1st=%s\n' '$(A)'; sleep 2; @printf 'A 2nd=%s\n' '$(A)'  # A 两次相同
+	@printf 'B 1st=%s\n' '$(B)'; sleep 2; @printf 'B 2nd=%s\n' '$(B)'  # B 两次不同！
+```
+
+**核心结论：`+=` 不改变 flavor——追加文本的展开时机由原变量决定。**
 
 ## 语法拆解
 
-- `=` 保存未展开文本，变量被引用时才展开。
-- `:=` 在读阶段立即展开右侧，适合缓存 `$(shell ...)` 结果。
-- `?=` 只在变量未定义时生效，常用于用户可覆盖默认值。
-- `+=` 不会丢失原值；真正要观察的是追加文本在什么时机展开。
-- `!=` 会运行 shell 命令并保存标准输出，属于 GNU Make 扩展。
+### 五种赋值完整语义表
+
+| 操作符 | 名称 | 展开时机 | 适用场景 | 陷阱 |
+|:---|:---|:---|:---|:---|
+| `=` | 递归展开 | **每次引用时**重新展开 | 需要反映运行时最新值的变量 | `$(shell ...)` 用 `=` → 性能灾难 |
+| `:=` | 简单展开 | **赋值瞬间**（读阶段） | 固定值、缓存 Shell 结果 | 不能引用文件后面才定义的变量 |
+| `?=` | 条件赋值 | 赋值瞬间（仅未定义时） | 默认值——允许命令行覆盖 | "已定义但为空"≠"未定义" |
+| `!=` | Shell 赋值 | 赋值瞬间（读阶段） | `HOST != uname -s`——等价于 `:= $(shell ...)` | GNU Make ≥4.0 |
+| `+=` | 追加 | **取决于原 flavor** | 追加编译选项、文件列表 | 用 `=` 定义的变量上 `+=` → 延迟展开 |
+
+### 递归展开（`=`）的精确行为
+
+```makefile
+# = 保存未展开文本——每次引用时：
+#   1. 展开文本中的所有变量引用
+#   2. 展开所有函数调用
+#   3. 如果展开结果仍含变量引用 → 继续展开（递归）
+
+# 优势：能引用后面才定义的变量
+CFLAGS = -Wall $(EXTRA_CFLAGS)     # EXTRA_CFLAGS 可能在后面才定义
+EXTRA_CFLAGS = -DDEBUG             # 引用 $(CFLAGS) 时会自动包含 -DDEBUG
+
+# 危险：无限循环
+X = $(Y); Y = $(X)                 # 引用 X 或 Y 时触发循环检测
+#   *** Recursive variable 'X' references itself (eventually).  Stop.
+```
+
+### 简单展开（`:=`）的精确行为
+
+```makefile
+# := 在读阶段：立即展开右侧所有变量和函数 → 保存结果字符串
+# 之后引用 → 直接返回字符串，不再展开
+
+# 优势：性能确定——昂贵操作只执行一次
+SRCS := $(shell find . -name '*.c')    # find 读阶段执行一次
+
+# 劣势：不能引用"尚未到达"的变量
+BAR := $(FOO)                           # FOO 尚未定义 → BAR = 空
+FOO := hello                            # FOO 此时才定义——BAR 仍是空
+```
+
+### `?=` 条件赋值
+
+```makefile
+FOO ?= default                    # FOO 未定义 → 赋 default
+BAR  =                            # BAR 已定义（值为空）
+BAR ?= default                    # 不生效——BAR 已定义
+# ?= 检查"是否已定义"，不是"是否为空"
+# 用 $(origin VAR) 诊断：返回 undefined 时才触发
+```
+
+### `!=` Shell 赋值（GNU Make ≥4.0）
+
+```makefile
+HOSTNAME != hostname              # 等价于 HOSTNAME := $(shell hostname)
+GIT_HASH != git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+```
 
 ## 执行轨迹
 
-```mermaid
-%%{init: {'theme': 'default'}}%%
-flowchart TD
-    Read[读阶段: 解析变量、函数、条件和规则] --> DB[规则与变量数据库]
-    DB --> Update[目标更新阶段: 展开配方并执行 shell]
-    Update --> Output[观察 make --trace 输出]
+### 用 `$(info ...)` 追踪展开时机
+
+```makefile
+$(info [READ PHASE] Starting...)
+
+VAR1 := $(shell echo "VAR1 expanded" >&2)       # := 读阶段展开
+VAR2  = $(shell echo "VAR2 expanded" >&2)       # =  不展开——保存文本
+VAR3 != echo "VAR3 expanded" >&2                # != 读阶段展开
+
+$(info [READ PHASE] Done.)
+
+.PHONY: all
+all:
+	@printf 'VAR1=%s\n' '$(VAR1)'
+	@printf 'VAR2=%s\n' '$(VAR2)'                # VAR2 此时才展开！
+	@printf 'VAR3=%s\n' '$(VAR3)'
 ```
 
-观察这类例子时，不要只看最终文件内容。更重要的是比较 `make -n`、`make --trace` 和诊断函数的输出：它们分别暴露“将执行什么”“为什么执行”“读阶段已经展开了什么”。
+```shell
+make
+# 输出顺序：
+# [READ PHASE] Starting...
+# VAR1 expanded        ← := 在读阶段
+# VAR3 expanded        ← != 在读阶段
+# [READ PHASE] Done.
+# VAR2 expanded        ← =  在配方阶段——在 "Done" 之后！
+```
 
 ## 工程化写法
 
-工程 Makefile 中，工具路径、源文件扫描结果和当前平台检测通常应使用 `:=` 缓存，避免每次引用都重新执行 shell。构建模式、工具链前缀和开关适合用 `?=` 提供默认值，让用户通过 `make MODE=release` 或 `make CROSS_COMPILE=aarch64-linux-gnu-` 覆盖。
+### 赋值选择决策树
+
+```text
+要赋什么值？
+├─ 固定字符串（"gcc"、"debug"） → :=
+├─ 含 $(shell ...) 或 $(wildcard ...) → := （缓存！）
+├─ 需要引用后面才定义的变量 → = （但整理顺序更好）
+├─ 用户可从命令行覆盖的默认值 → ?=
+├─ 追加到已有变量 → += ——但先搞清楚原变量的 flavor！
+└─ shell 命令的单次结果 → != 或 := $(shell ...)
+```
+
+### 工程模板
+
+```makefile
+# ===== 工程 Makefile 变量组织模式 =====
+# 1. 工具链——固定路径
+CC       := gcc
+AR       := ar
+
+# 2. 编译选项——:= + ?= + += 组合
+CFLAGS   := -Wall -Wextra
+CFLAGS   += -O2
+DEBUG    ?= 0
+ifeq ($(DEBUG),1)
+CFLAGS   += -g -O0 -DDEBUG
+endif
+
+# 3. 源文件扫描——昂贵，:= 缓存
+SRCS     := $(wildcard src/*.c)
+OBJS     := $(SRCS:.c=.o)
+
+# 4. 平台检测——!= 一次执行
+PLATFORM != uname -s
+ifeq ($(PLATFORM),Darwin)
+LDFLAGS  += -framework CoreFoundation
+endif
+
+# 5. 版本信息——运行时可能变化，用 =
+VERSION   = $(shell git describe --tags 2>/dev/null || echo "dev")
+```
 
 ## 常见错误
 
-| 错误现象 | 根因 | 修复 |
-|:---|:---|:---|
-| `$(shell find ...)` 执行很多次 | 用 `=` 定义递归变量 | 改成 `:=` 缓存扫描结果 |
-| 用户传入 `MODE=release` 无效 | Makefile 用普通赋值覆盖命令行 | 使用 `?=` 或明确解释 `override` |
-| 以为 `+=` 会丢原值 | 混淆追加和展开时机 | 用 `$(flavor)` 检查变量类型 |
+### 错误 1：`$(shell find ...)` 用 `=` 定义
+
+**现象：** make 极慢，find 被执行 N 次。
+
+**修复：** `SRCS := $(shell find . -name '*.c')`
+
+### 错误 2：`+=` 在 `=` 变量上追加 `$(shell ...)` 导致重复执行
+
+**修复：** 先确保基础变量是 `:=` 再 `+=`。
+
+### 错误 3：`?=` 不生效——变量已定义为空
+
+**现象：** `make FOO=` 后 `FOO ?= default` 不生效。
+
+**修复：** 需要空值默认时用 `ifeq ($(FOO),) FOO := default endif`。
+
+### 错误 4：`:=` 变量的顺序依赖
+
+**现象：** `BAR := $(FOO)` 得到空，但 `FOO` 在下面。
+
+**修复：** 把被引用的变量放在引用它的 `:=` 前面。
 
 ## 关键要点
 
-- `=` 和 `:=` 的核心差异是展开时机。
-- `?=` 适合提供默认配置。
-- `+=` 保留原值，差异在变量 flavor。
-- `!=` 是 GNU Make 运行 shell 命令的赋值方式。
-- 昂贵命令输出应缓存，避免重复扫描工程。
+1. **`=` vs `:=` 的核心差异是展开时机，不是"是否递归"。**
+2. **`+=` 不改变原变量的 flavor。** 在 `=` 变量上 `+=` → 追加也延迟展开。
+3. **昂贵操作（`$(shell ...)`、`$(wildcard ...)`）一律用 `:=` 缓存。**
+4. **`?=` 检查"是否已定义"，不是"是否为空"。**
+5. **`!=` 是 `:= $(shell ...)` 的语法糖——GNU Make ≥4.0。**
+6. **`$(flavor VAR)` 和 `$(origin VAR)` 是诊断变量的两个核心工具。**
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile配方与Shell|前一篇]]：提供本篇需要的前置知识。
-- [[tools/concepts/Makefile高级变量|后一篇]]：把本篇能力推进到下一类 Makefile 机制。
-- [[tools/concepts/Makefile调试与性能|Makefile 调试与性能]]：提供更系统的诊断方法。
+- [[tools/concepts/02-Makefile心智模型与历史|02 — 心智模型]]：二阶段模型是变量展开的元理论
+- [[tools/concepts/06-Makefile高级变量|06 — 高级变量]]：自动变量、target-specific、诊断函数
+- [[tools/concepts/10-Makefile条件判断|10 — 条件判断]]：条件在读阶段求值——`=` 变量的延迟影响条件结果
+- [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]：`$(shell ...)` 性能的系统化诊断
 
 ## 小练习
 
-1. 运行 `make MODE=release`，观察 `CFLAGS` 的变化。
-2. 把 `NOW_SIMPLE :=` 改成 `NOW_SIMPLE =`，比较两次引用的行为。
-3. 添加 `$(info $(flavor CFLAGS))`，观察变量 flavor。
+1. **验证展开时机：** 运行例 1，确认 `NOW_REC` 两次值不同而 `NOW_SIMPLE` 两次相同。
+2. **重现 `+=` 陷阱：** 运行例 2，观察 A 和 B 的差异。
+3. **用 `$(flavor)` 诊断：** 插入 `$(info flavor A = $(flavor A))`，验证 `+=` 不改变 flavor。
+4. **测试 `?=` 空值：** `make BAR= && make`，观察 `BAR ?= default` 是否生效。
+5. **性能对比：** `FILES = $(shell find /usr -name '*.h')` vs `:=`——用 `time make` 测差异。
