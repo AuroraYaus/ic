@@ -1,141 +1,92 @@
 ---
 type: concept
-aliases:
-  - Makefile 仿真回归实战
-  - Makefile simulation regression
-tags:
-  - tools
-  - makefile
-  - asic
-source_spec: "GNU Make Manual; Siemens Questa User Manual; Synopsys VCS User Guide; Cadence Xcelium Documentation"
+aliases: [Makefile 仿真回归实战, Simulation regression Questa VCS Xcelium]
+tags: [tools, makefile, asic, verification]
+source_spec: "Questa/VCS/Xcelium Command Reference"
 queries: 1
 ---
 
-# Makefile仿真回归实战
+# 21 — Makefile仿真回归实战
 
 ## 学习目标
 
-读完后，读者应该能设计一个仿真回归入口，组织 simulator 变量、testlist、seed、日志目录、覆盖率合并和失败重跑，并能在没有 EDA 工具时用 mock dry-run 验证调度逻辑。
+本篇覆盖 EDA 仿真回归流的 Makefile 封装：Questa/VCS/Xcelium 命令封装、种子管理、并行仿真调度、覆盖率合并、失败重跑。默认 mock 命令——无商业 EDA 工具也能 dry-run 验证。
 
-实战篇的重点不是展示复杂业务代码，而是把前面学过的规则、变量、函数、自动依赖、递归和调试方法组合成可迁移的工程框架。默认示例全部使用 mock 命令，读者没有商业 EDA 工具也能运行。
-
-## 前置知识
-
-- 建议先读 [[tools/concepts/Makefile小型工程实战|前一篇]]。
-- 需要理解模式规则、自动依赖、伪目标和命令行变量覆盖。
-- 后续可继续读 [[tools/concepts/Makefile综合流程实战|后一篇]]。
-
-## 最小可运行例子
+## Mock 基础骨架
 
 ```makefile
-# 仿真器选择：真实项目可传 SIM=vcs 或 SIM=xcelium
-SIM ?= questa
-SEED ?= 1
-TESTS := smoke alu fifo
-LOG_DIR := logs
-COV_DIR := coverage
-LOGS := $(foreach t,$(TESTS),$(LOG_DIR)/$(t).log)
+SIMULATOR ?= questa                     # questa / vcs / xcelium
+ifeq ($(SIMULATOR),vcs)
+  SIM_CMD := vcs -sverilog -full64
+else ifeq ($(SIMULATOR),xcelium)
+  SIM_CMD := xrun -sv
+else
+  SIM_CMD := vsim -c -do 'run -all; quit'
+endif
 
-# 默认目标：完成全部日志
+# 种子管理
+SEED ?= $(shell date +%s)              # 默认随机，可固定复现：make SEED=42
+export SEED
+
+# 测试列表
+TESTS := smoke sanity stress corner_ff corner_ss
+TEST_LOGS := $(patsubst %,log/%.log,$(TESTS))
+
+.PHONY: all regress cov rerun clean
 all: regress
+regress: $(TEST_LOGS)
+	@printf 'Regression: %d/%d passed\n' \
+		$$(grep -l PASS $^ 2>/dev/null | wc -l) $$(echo $^ | wc -w)
 
-# 动作目标声明：这些目标不代表同名文件
-.PHONY: regress dry-run cov rerun clean
+# 单个测试——成功写 PASS，失败写 FAIL 但保留 .log 诊断
+log/%.log: $(RTL_FILES) filelist.f
+	@mkdir -p log
+	$(SIM_CMD) +testname=$* +seed=$(SEED) -f filelist.f -l $@ \
+		&& printf 'PASS\n' >> $@ \
+		|| { printf 'FAIL\n' >> $@; exit 1; }
 
-# 回归入口：依赖所有日志
-regress: $(LOGS)
-	@printf 'regression done: %s\n' '$^'
+# 覆盖率
+cov: cov/merged.ucdb
+cov/merged.ucdb: $(patsubst %,cov/%.ucdb,$(TESTS))
+	@mkdir -p cov; vcover merge $@ $^
 
-# 单个测试日志规则：用 mock 命令模拟仿真
-$(LOG_DIR)/%.log: | $(LOG_DIR)
-	@printf 'SIM=%s TEST=%s SEED=%s\n' '$(SIM)' '$*' '$(SEED)' > '$@'
-	@printf 'PASS\n' >> '$@'
-
-# 日志目录目标
-$(LOG_DIR):
-	@mkdir -p '$@'
-
-# 覆盖率目录目标
-$(COV_DIR):
-	@mkdir -p '$@'
-
-# 覆盖率合并：依赖回归日志
-cov: regress | $(COV_DIR)
-	@printf 'merge coverage from %s\n' '$(LOGS)' > '$(COV_DIR)/merged.txt'
-
-# 失败重跑：示例中只打印会重跑哪些测试
+# 失败重跑——只重跑 FAIL 的测试（新种子）
 rerun:
-	@printf 'rerun failed tests with SEED=%s\n' '$(SEED)'
+	@for log in $$(grep -l FAIL log/*.log 2>/dev/null); do \
+		t=$$(basename $$log .log); $(MAKE) log/$$t.log SEED=$$(date +%s); done
 
-# dry-run：展示真实工具命令形状
-dry-run:
-	@printf '$(SIM) -do run.do +UVM_TESTNAME=<test> +ntb_random_seed=$(SEED)\n'
-
-# clean：示例中打印清理意图
-clean:
-	@printf 'clean $(LOG_DIR) $(COV_DIR)\n'
+clean:; rm -rf log/ cov/
 ```
 
-执行命令：
+## 使用
 
 ```shell
-# 预演命令，确认不会调用真实商业工具
-make -n
-# 执行默认 mock 流程并显示触发原因
-make --trace
-# 显式运行 dry-run 入口，查看真实项目中应替换的命令
-make dry-run
+make regress -j8       # 8 并行（各测试独立无共享依赖）
+make SEED=42 regress   # 固定种子复现
+make cov               # 覆盖率
+make rerun             # 仅重跑失败（新种子）
 ```
 
-## 语法拆解
+## 工程要点
 
-- `SIM ?= questa` 让用户可切换工具封装。
-- `TESTS` 是 testlist 的 Make 词表版本。
-- `$(foreach ...)` 把测试名映射成日志目标。
-- `logs/%.log` 是每个测试的真实文件目标。
-- `cov` 依赖 `regress`，保证覆盖率合并基于完整日志。
-
-## 执行轨迹
-
-```mermaid
-%%{init: {'theme': 'default'}}%%
-flowchart TD
-    Config[配置变量] --> Inputs[输入列表]
-    Inputs --> Targets[Make 目标]
-    Targets --> Logs[日志/报告/产物]
-    Logs --> Summary[汇总或发布]
-```
-
-实战 Makefile 应该让读者看出三层边界：用户入口目标、内部真实文件目标、外部工具命令。入口目标要稳定，真实文件目标要可缓存，外部工具命令要能被变量替换。
-
-## 工程化写法
-
-真实环境中，`SIM` 不应直接散落在每条配方里，而应封装成变量或脚本，例如 `RUN_SIM = $(SIM_BIN) $(SIM_FLAGS) ...`。日志和覆盖率目录要稳定，失败分类最好由脚本解析日志后输出失败列表，再由 Make 的 rerun 目标读取。
-
-## 常见错误
-
-| 错误现象 | 根因 | 修复 |
-|:---|:---|:---|
-| `make -j` 下日志互相覆盖 | 多个测试写同一个文件 | 每个测试使用独立日志目标 |
-| 没有 EDA 工具无法学习 | 示例直接调用 Questa/VCS | 提供 mock dry-run 路径 |
-| seed 不可复现 | 随机种子没有记录到日志 | 把 TEST/SEED/SIM 写入日志头 |
+| 要点 | 实现 |
+|:---|:---|
+| Mock 优先 | 替换 `$(SIM_CMD)` 为 `echo` 即可无工具验证 |
+| 种子管理 | `?=` + `$(shell date +%s)`——默认随机、可固定 |
+| 并行安全 | 各测试无共享依赖 → `-j` 安全 |
+| 失败日志 | `|| { printf FAIL; exit 1; }`——保留日志诊断 |
+| 重跑 | grep FAIL → 新种子 → 只重跑失败项 |
 
 ## 关键要点
 
-- testlist 可以映射为日志目标列表。
-- 每个测试一个日志文件便于并行和失败定位。
-- seed 必须可配置且可记录。
-- 覆盖率合并应依赖回归结果。
-- 真实 EDA 命令应被变量或脚本封装。
+1. `SEED ?= $(shell date +%s)`——随机稳定两全
+2. 失败保留日志——`|| { printf FAIL; exit 1; }`
+3. 测试独立无共享 → `make -j` 安全并行
+4. `make rerun` 仅重跑失败——grep FAIL
+5. Mock 命令 → 无 EDA 可验证
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile小型工程实战|前一篇]]：提供调试、架构或规则基础。
-- [[tools/concepts/Makefile综合流程实战|后一篇]]：继续推进下一类实战或附录总结。
-- [[tools/concepts/Makefile快速参考与版本兼容|Makefile 快速参考与版本兼容]]：提供命令和变量速查。
-
-## 小练习
-
-1. 运行 `make SEED=42 regress`，查看日志内容。
-2. 给 `TESTS` 添加 `cache`，观察新增日志目标。
-3. 把 `SIM=vcs` 传入 dry-run，观察命令变化。
+- [[tools/concepts/07-Makefile文本变换函数|07]] `$(patsubst %)`
+- [[tools/concepts/17-Makefile内置变量与命令行|17]] `-j` 并行
+- [[tools/concepts/09-Makefile控制函数与诊断函数|09]] `$(shell ...)`

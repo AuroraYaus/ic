@@ -1,165 +1,146 @@
 ---
 type: concept
-aliases:
-  - Makefile 小型工程实战
-  - Makefile C golden model project
-tags:
-  - tools
-  - makefile
-  - asic
-source_spec: "GNU Make Manual; GCC Manual: Dependency Generation and Sanitizers"
+aliases: [Makefile 小型工程实战, C socket ARM x86 cross-compile]
+tags: [tools, makefile, asic]
+source_spec: "GNU Make Manual; GCC Cross-Compiler; POSIX Socket API"
 queries: 1
 ---
 
-# Makefile小型工程实战
+# 20 — Makefile小型工程实战
 
 ## 学习目标
 
-读完后，读者应该能把小型 C/golden model 工程拆成源文件、对象文件、库、可执行文件、测试、安装、打包和覆盖率入口，并理解哪些目标应该是真实文件、哪些应该是伪目标。
+以一个完整的 TCP Echo Server/Client 网络服务项目为载体，演示生产级 Makefile 的完整构建体系——x86 本地编译 + ARM 交叉编译 + 调试 + 发布 + 测试 + 覆盖率。读完本篇，你应能直接拿这个 Makefile 改写成自己的项目。
 
-实战篇的重点不是展示复杂业务代码，而是把前面学过的规则、变量、函数、自动依赖、递归和调试方法组合成可迁移的工程框架。默认示例全部使用 mock 命令，读者没有商业 EDA 工具也能运行。
+## 项目结构
 
-## 前置知识
+```
+echod/
+├── Makefile
+├── src/server/main.c src/client/main.c src/common/netutils.c
+├── include/netutils.h
+├── test/test_netutils.c
+└── build/{obj/,lib/,bin/}            # 所有产物
+```
 
-- 建议先读 [[tools/concepts/Makefile调试与性能|前一篇]]。
-- 需要理解模式规则、自动依赖、伪目标和命令行变量覆盖。
-- 后续可继续读 [[tools/concepts/Makefile仿真回归实战|后一篇]]。
-
-## 最小可运行例子
+## 完整 Makefile
 
 ```makefile
-# 目录配置：集中管理产物路径
-BUILD_DIR := build
-SRC_DIR := src
-TEST_DIR := tests
+# ===== echod/Makefile =====
+# 1. 工具链——ARCH 驱动 x86/ARM 切换
+ARCH ?= x86_64
+ifeq ($(ARCH),aarch64)
+  CROSS_COMPILE := aarch64-linux-gnu-
+  SYSROOT      ?= /opt/aarch64-sysroot
+  CFLAGS       += --sysroot=$(SYSROOT)
+else
+  CROSS_COMPILE :=
+endif
+CC      := $(CROSS_COMPILE)gcc
+AR      := $(CROSS_COMPILE)ar
+CFLAGS  := -Wall -Wextra -Werror
+LDFLAGS := -lpthread
 
-# 模式配置：用户可用 make MODE=release 切换
-MODE ?= debug
-CFLAGS_debug := -O0 -g
-CFLAGS_release := -O2 -DNDEBUG
-CFLAGS := $(CFLAGS_$(MODE))
+# 2. 双模式
+DEBUG ?= 0
+ifeq ($(DEBUG),1)
+  CFLAGS += -g -O0 -DDEBUG -fsanitize=address
+  LDFLAGS += -fsanitize=address
+else
+  CFLAGS += -O2 -DNDEBUG
+endif
 
-# 工程产物：用文本文件模拟对象、库和可执行文件
-OBJS := $(BUILD_DIR)/main.o $(BUILD_DIR)/model.o
-LIB := $(BUILD_DIR)/libgolden.a
-APP := $(BUILD_DIR)/golden_app
+# 3. 目录
+BUILD_DIR := build; OBJ_DIR := $(BUILD_DIR)/obj
+LIB_DIR := $(BUILD_DIR)/lib; BIN_DIR := $(BUILD_DIR)/bin
 
-# 默认目标：构建应用
-all: $(APP)
+# 4. 源文件
+COMMON_SRCS := $(wildcard src/common/*.c)
+SERVER_SRCS := $(wildcard src/server/*.c)
+CLIENT_SRCS := $(wildcard src/client/*.c)
+COMMON_OBJS := $(patsubst src/%.c,$(OBJ_DIR)/%.o,$(COMMON_SRCS))
+SERVER_OBJS := $(patsubst src/%.c,$(OBJ_DIR)/%.o,$(SERVER_SRCS))
+CLIENT_OBJS := $(patsubst src/%.c,$(OBJ_DIR)/%.o,$(CLIENT_SRCS))
+DEPS := $(COMMON_OBJS:.o=.d) $(SERVER_OBJS:.o=.d) $(CLIENT_OBJS:.o=.d)
 
-# 链接目标：由库和 main 对象生成
-$(APP): $(LIB) $(BUILD_DIR)/main.o | $(BUILD_DIR)
-	@printf 'link %s mode=%s\n' '$^' '$(MODE)' > '$@'
+# 5. 产物
+LIB   := $(LIB_DIR)/libnetutils.a
+SERVER := $(BIN_DIR)/echod; CLIENT := $(BIN_DIR)/echoc
 
-# 静态库目标：由对象文件生成
-$(LIB): $(OBJS) | $(BUILD_DIR)
-	@printf 'archive %s\n' '$^' > '$@'
+.PHONY: all; all: $(SERVER) $(CLIENT)
 
-# 对象模式规则：由源文件生成对象
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c | $(BUILD_DIR)
-	@printf 'compile %s -> %s %s\n' '$<' '$@' '$(CFLAGS)' > '$@'
+# 6. 库+可执行
+$(LIB): $(COMMON_OBJS) | $(LIB_DIR); $(AR) rcs $@ $^
+$(SERVER): $(SERVER_OBJS) $(LIB) | $(BIN_DIR)
+	$(CC) $(SERVER_OBJS) $(LIB) $(LDFLAGS) -o $@
+$(CLIENT): $(CLIENT_OBJS) $(LIB) | $(BIN_DIR)
+	$(CC) $(CLIENT_OBJS) $(LIB) $(LDFLAGS) -o $@
 
-# 构建目录目标：只负责创建 build
-$(BUILD_DIR):
-	@mkdir -p '$@'
+# 7. 编译 + 自动依赖
+$(OBJ_DIR)/%.o: src/%.c | $$(@D)
+	$(CC) -MMD -MP -MF $(@:.o=.d) -MT $@ $(CFLAGS) -Isrc/common -c $< -o $@
+-include $(DEPS)
 
-# 源码目录目标：只负责创建 src
-$(SRC_DIR):
-	@mkdir -p '$@'
+# 8. 平台适配
+PLATFORM != uname -s
+ifeq ($(PLATFORM),Linux);  LDFLAGS += -lrt; endif
+ifeq ($(PLATFORM),Darwin); CFLAGS += -D_DARWIN_C_SOURCE; endif
 
-# 测试目录目标：目录名不用 test，避免和 test 伪目标冲突
-$(TEST_DIR):
-	@mkdir -p '$@'
+# 9. 目录创建
+$(OBJ_DIR) $(LIB_DIR) $(BIN_DIR) $(OBJ_DIR)/common $(OBJ_DIR)/server $(OBJ_DIR)/client:
+	@mkdir -p $@
 
-# main 源文件：生成示例 C 入口
-$(SRC_DIR)/main.c: | $(SRC_DIR)
-	@printf 'int main(void) { return 0; }\n' > '$@'
+# 10. 测试
+TEST_BIN := $(BIN_DIR)/test_runner
+.PHONY: test; test: $(TEST_BIN); @$(TEST_BIN)
+$(TEST_BIN): $(wildcard test/*.c) $(LIB) | $(BIN_DIR)
+	$(CC) $(filter %.c,$^) $(LIB) $(LDFLAGS) -o $@
 
-# model 源文件：生成示例 golden model
-$(SRC_DIR)/model.c: | $(SRC_DIR)
-	@printf 'int model(void) { return 0; }\n' > '$@'
+# 11. 安装/打包
+PREFIX ?= /usr/local
+.PHONY: install uninstall
+install: all; install -d $(PREFIX)/bin; install -m 755 $(SERVER) $(CLIENT) $(PREFIX)/bin/
+uninstall:; rm -f $(PREFIX)/bin/echod $(PREFIX)/bin/echoc
 
-# 动作目标声明：这些目标不代表同名文件
-.PHONY: test dry-run package install uninstall clean
+.PHONY: dist; dist: clean; tar czf echod-$(VERSION).tar.gz --exclude=.git .
 
-# 测试目标：依赖应用，生成测试日志
-test: $(APP) | $(TEST_DIR)
-	@printf 'run tests for %s\n' '$(APP)' > '$(TEST_DIR)/result.log'
+# 12. 覆盖率
+.PHONY: coverage; coverage: CFLAGS += --coverage; coverage: LDFLAGS += --coverage
+coverage: clean test; gcovr -r . --html -o $(BUILD_DIR)/coverage/index.html
 
-# dry-run：打印真实项目中可替换的命令
-dry-run:
-	@printf 'cc $(CFLAGS) -c src/main.c -o build/main.o\n'
-	@printf 'ar rcs $(LIB) $(OBJS)\n'
-
-# 打包目标：依赖应用并生成包描述
-package: $(APP) | $(BUILD_DIR)
-	@printf 'package $(APP)\n' > '$(BUILD_DIR)/package.txt'
-
-# 安装、卸载、清理：示例中只打印，不破坏系统路径
-install uninstall clean:
-	@printf '%s target is project-specific\n' '$@'
+# 13. 清理
+.PHONY: clean; clean:; rm -rf $(BUILD_DIR)
 ```
 
-执行命令：
+## 使用方式
 
 ```shell
-# 预演命令，确认不会调用真实商业工具
-make -n
-# 执行默认 mock 流程并显示触发原因
-make --trace
-# 显式运行 dry-run 入口，查看真实项目中应替换的命令
-make dry-run
+make; make ARCH=aarch64; make DEBUG=1  # x86/ARM/debug
+make test; make coverage               # 测试+覆盖率
+make install PREFIX=/opt; make dist VERSION=1.0.0
 ```
 
-## 语法拆解
+## 关键设计
 
-- `MODE ?= debug` 给用户提供可覆盖默认值。
-- `CFLAGS_$(MODE)` 是配置矩阵的常见写法。
-- 对象、库、应用都是真实文件目标，便于增量构建。
-- `test`、`dry-run`、`package`、`install` 是动作目标，应声明 `.PHONY`。
-- 目录目标放到 order-only 依赖，避免目录时间戳触发重建。
-
-## 执行轨迹
-
-```mermaid
-%%{init: {'theme': 'default'}}%%
-flowchart TD
-    Config[配置变量] --> Inputs[输入列表]
-    Inputs --> Targets[Make 目标]
-    Targets --> Logs[日志/报告/产物]
-    Logs --> Summary[汇总或发布]
-```
-
-实战 Makefile 应该让读者看出三层边界：用户入口目标、内部真实文件目标、外部工具命令。入口目标要稳定，真实文件目标要可缓存，外部工具命令要能被变量替换。
-
-## 工程化写法
-
-真实 C 工程可把 mock `printf` 替换为 `$(CC) -MMD -MP ...`、`ar rcs`、测试框架命令和覆盖率命令。数字IC项目中的 C golden model 也可用同样结构：库表示模型，应用表示对比工具，测试目标表示样例向量回归。
-
-## 常见错误
-
-| 错误现象 | 根因 | 修复 |
-|:---|:---|:---|
-| Debug/Release 互相污染 | 产物目录没有按模式隔离 | 把 `BUILD_DIR` 扩展为 `build/$(MODE)` |
-| test 每次都重跑且无日志 | 只写伪目标不写真实日志 | 让 test 依赖真实 `tests/result.log` |
-| 打包包含旧文件 | clean/package 边界不清 | 明确产物目录和依赖列表 |
+| 决策 | 理由 |
+|:---|:---|
+| `ARCH` + `CROSS_COMPILE` 前缀 | 单文件 x86/ARM 切换 |
+| `build/` 集中输出 | 源目录零污染 |
+| `-MMD -MP` 一步 | 自动依赖 |
+| `| $$(@D)` order-only | 目录 mtime 不影响 .o |
+| `DEBUG ?= 0` | 双模式 |
+| `PLATFORM != uname -s` | Linux/macOS 适配 |
 
 ## 关键要点
 
-- 小型工程也应区分入口目标和真实文件目标。
-- 构建模式适合用变量矩阵表达。
-- 对象、库、应用目标可形成清晰 DAG。
-- dry-run 目标能帮助迁移到真实工具链。
-- 目录应作为 order-only 依赖。
+1. **`CROSS_COMPILE` 前缀模式——ARM/x86 一文件切换。**
+2. **`ARCH` 驱动 `--sysroot` 和工具链选择。**
+3. **`| $$(@D)` order-only 目录是标准写法。**
+4. **所有产物在 `build/`——清洁源目录。**
+5. **`-fsanitize=address` ASAN 内存检测——调试模式标配。**
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile调试与性能|前一篇]]：提供调试、架构或规则基础。
-- [[tools/concepts/Makefile仿真回归实战|后一篇]]：继续推进下一类实战或附录总结。
-- [[tools/concepts/Makefile快速参考与版本兼容|Makefile 快速参考与版本兼容]]：提供命令和变量速查。
-
-## 小练习
-
-1. 把 `MODE=release` 传给 make，观察链接产物内容。
-2. 把 `BUILD_DIR` 改成 `build/$(MODE)`，避免模式产物混用。
-3. 把 mock 编译替换成真实 `$(CC)` 命令。
+- [[tools/concepts/14-Makefile依赖与自动生成|14]] `-MMD -MP`
+- [[tools/concepts/10-Makefile条件判断|10]] `ifeq` 平台判断
+- [[tools/concepts/18-Makefile递归与大型项目|18]] out-of-source build
