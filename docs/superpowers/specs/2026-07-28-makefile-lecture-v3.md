@@ -67,7 +67,7 @@
 | # | 文件名 | 核心内容 |
 |:---|:---|:---|
 | 16 | `Makefile特殊目标手册.md` | `.PHONY`/`.DEFAULT`/`.IGNORE`/`.SILENT`/`.PRECIOUS`/`.INTERMEDIATE`/`.SECONDARY`/`.DELETE_ON_ERROR`/`.NOTPARALLEL`/`.ONESHELL`/`.POSIX`/`.RECIPEPREFIX`/`.SUFFIXES`——逐一讲解触发条件、正确用法和常见误用 |
-| 17 | `Makefile内置变量与命令行.md` | `$(MAKECMDGOALS)`/`$(MAKEFLAGS)`/`$(MAKELEVEL)`/`$(MAKEFILE_LIST)`/`$(MAKE_RESTARTS)`/`$(CURDIR)`/`$(.FEATURES)`/`$(.VARIABLES)`/`$(.RECIPEPREFIX)`/`$(.LOADED)`/`$(MAKE)`/`$(MAKEOVERRIDES)` 等；命令行选项完整表（20+ 个选项：`-e`/`-k`/`-n`/`-s`/`-t`/`-B`/`-d`/`-p`/`-r`/`-R`/`-j`/`-l`/`-C`/`-f`/`-I`/`-o`/`-W`/`--trace`/`--shuffle`/`--warn`/`--no-builtin-rules`/`--no-builtin-variables` 等） |
+| 17 | `Makefile内置变量与命令行.md` | **Part A — 内置变量详解（逐个深度剖析）**：`$(MAKE)` — 递归 Make 的核心、为什么必须用 `$(MAKE)` 而非 `make`、传递命令行参数的机制。`$(MAKECMDGOALS)` — 捕获用户命令行目标、条件构建的依据、多目标场景。`$(MAKEFLAGS)` — 命令行标志的完整传递链、`-` 前缀式结构解析、常见陷阱（`$(MAKEFLAGS)` 中的 `--`）。`$(MAKELEVEL)` — 递归深度感知、防止无限递归、条件导出。`$(MAKEFILE_LIST)` — Makefile 文件加载顺序、定位当前 Makefile 所在目录（`$(dir $(lastword $(MAKEFILE_LIST)))`）、多个 `-f` 时的行为。`$(MAKE_RESTARTS)` — remake 重启动计数器、控制重生成逻辑。`$(CURDIR)` vs `$(PWD)` — 绝对路径的确定性与 Shell 环境的不可靠性。`$(.FEATURES)` — 检测 GNU Make 版本能力（`target-specific`/`second-expansion`/`order-only`/`grouped-target`/`load`/`oneshell`/`shortest-stem`）、编写跨版本兼容 Makefile 的依据。`$(.VARIABLES)` — 列出所有已定义变量名的完整列表、调试工具。`$(.RECIPEPREFIX)` — 检测当前配方前缀字符。`$(MAKEOVERRIDES)` — 命令行变量覆盖传递的机制与陷阱。`$(SHELL)`/`$(.SHELLFLAGS)` — 控制配方使用的 Shell 及其参数。**Part B — 命令行选项完全手册（分类详解，每个选项含：语义、典型场景、示例命令、注意事项）**：构建控制组（`-j [N]`/`-l [N]`/`-k`/`-n`/`-t`/`-q`/`-B`/`--always-make`/`-o FILE`/`-W FILE`/`--shuffle`）；调试/信息组（`-d`/`--debug[=FLAGS]`/`-p`/`--print-data-base`/`--trace`/`-s`/`--warn-undefined-variables`/`--eval`）；目录/文件组（`-C DIR`/`-f FILE`/`-I DIR`/`--include-dir`）；隐含规则控制组（`-r`/`-R`/`--no-builtin-rules`/`--no-builtin-variables`）；环境/变量组（`-e`/`-E`/`--environment-overrides`）；兼容性组（`--posix`/`-S`/`--no-keep-going`/`--output-sync`）；版本/帮助组（`-v`/`-h`）。**Part C — 实战技法**：命令行变量覆盖模式（`make VAR=val` vs `?=` vs `override`），多目标并发构建（`make all test`），并行度的工程化配置（`make -j$(nproc)`），条件式 dry-run（`--dry-run` 的流水线化使用），文件搜索路径的灵活控制（`-I` 的应用场景） |
 
 ### Part 8 — 架构与工程化（2 文件）
 
@@ -80,7 +80,7 @@
 
 | # | 文件名 | 核心内容 |
 |:---|:---|:---|
-| 20 | `Makefile通用C项目实战.md` | 从零构建生产级 C/C++ Makefile：多目录、静态库+动态库、自动依赖、交叉编译、安装/卸载、打包发布、测试目标、覆盖率目标。整合前 19 个文件的所有理论知识 |
+| 20 | `Makefile网络服务实战.md` | **项目：TCP Echo Server/Client 网络服务项目**。以完整的 Socket 网络应用（IPv4/IPv6 双栈、多进程/多线程并发模型、连接池）为载体，演示生产级 Makefile 的完整构建体系。**结构**：多级目录（`src/server/`、`src/client/`、`src/common/`）、静态库（libcommon.a）+ 可执行文件（server/client）、自动头文件依赖、单元测试目录。**核心内容**：(1) **x86-64 本地编译** — GCC/Clang 标准编译、`-Wall -Wextra -Werror` 严格警告体系、Debug/Release 双模式、ASAN（Address Sanitizer）内存检测集成 (2) **ARM 交叉编译** — `aarch64-linux-gnu-gcc` 工具链切换、`SYSROOT` 系统根配置、`ARCH` 变量驱动的条件编译、静态链接 vs 动态链接在 ARM 上的选择 (3) **交叉编译工具链管理** — 用条件判断自动检测交叉编译器是否存在、优雅降级到本地编译、`CROSS_COMPILE` 前缀模式 (4) **平台适配** — `uname -m` 自动检测、`-D_XOPEN_SOURCE` 等宏的条件定义、Linux vs macOS 的 Socket API 差异（`SO_REUSEPORT` 等）(5) **完整工程化** — 安装/卸载、打包（tar.gz）、测试自动化、覆盖率目标（gcov/lcov）、CI 就绪的退出码管理。整合前 19 个文件的所有理论知识，做到"看完就能拿去改写成自己的项目"。 |
 | 21 | `Makefile仿真回归实战.md` | EDA 仿真回归流：Questa/VCS/Xcelium 封装，种子管理与随机化，并行仿真调度（`-j` + `.NOTPARALLEL` 精控），覆盖率合并（UCIS/UCDB），失败重跑（regression rerun），日志聚合与失败分类 |
 | 22 | `Makefile综合流程实战.md` | ASIC 综合流：DC/Genus 封装，多 Corner 并行，层次化编译策略，报告自动化（时序/QoR/面积/功耗），ECO 回注（增量综合），Checkpoint 管理 |
 | 23 | `MakefileIC项目构建实战.md` | 层次化 IC 项目 Makefile 框架：IP 库管理，跨 IP 依赖跟踪，版本发布（tag → release），仿真/综合/STA/DFT 统一入口，可复用模板设计，`.config.mk` 配置模式 |
