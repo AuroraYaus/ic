@@ -2,124 +2,152 @@
 type: concept
 aliases:
   - Makefile 配方与 Shell
-  - Makefile 配方 and  Shell
+  - Makefile recipe shell
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual: Recipe Syntax, Choosing the Shell, Errors in Recipes"
+source_spec: "GNU Make Manual: Recipe Syntax, Choosing the Shell, Recipe Echoing, Errors in Recipes, One Shell"
 queries: 1
 ---
 
-# Makefile配方与 Shell
+# Makefile配方与Shell
 
 ## 学习目标
 
-本篇属于 Part 1，目标是：区分 Make 语法和 Shell 语法，理解每行配方的执行环境和错误处理。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+本篇讲清楚 Makefile 中最容易混淆的一层：配方由 Make 触发，但配方内容由 shell 执行。读完后，读者应该能解释 TAB、`@`、`-`、`+`、`SHELL`、`$(.SHELLFLAGS)`、每行独立 shell、`.ONESHELL` 和错误处理的基本行为。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+初学者常把 Makefile 当成 shell 脚本，这会导致 `cd` 不生效、变量转义错误、错误被吞掉或并行构建行为异常。正确心智模型是：Make 先展开配方行中的 Make 变量和函数，再把展开后的命令交给 shell。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile规则详解|前一篇]]，再读 [[tools/concepts/Makefile变量赋值与展开|后一篇]]。
+- 建议先读 [[tools/concepts/Makefile规则详解|Makefile 规则详解]]。
+- 已经知道配方行必须放在规则下面，并以 TAB 开头。
+- 下一篇 [[tools/concepts/Makefile变量赋值与展开|Makefile 变量赋值与展开]] 会解释变量展开时机。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `recipe.out`，它足够小，便于观察每一步行为。
+下面的例子专门观察配方行为。默认目标 `all` 只执行成功路径；错误示例需要手动请求。
 
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: recipe.out          # all 是目标；冒号右边的文件是前置条件
+# 指定配方使用的 shell；GNU Make 在 Unix 上默认通常是 /bin/sh
+SHELL := /bin/sh                         # := 表示立即展开赋值，后续章节会详细解释
 
-# 真实文件目标：当 recipe.out 不存在或依赖更新时执行配方
-recipe.out: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 指定传给 shell 的参数；-c 表示执行后面的命令字符串
+.SHELLFLAGS := -c                        # 保持默认风格，便于观察基础行为
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
+# 默认目标：只运行安全示例，避免一开始就失败
+all: recipe.out                          # all 依赖 recipe.out
 
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf recipe.out input.txt  # 删除示例产物，方便重新实验
+# 文件目标：演示 Make 自动变量先展开，shell 再执行命令
+recipe.out: input.txt                    # input.txt 更新时重建 recipe.out
+	@printf 'make target is %s\n' "$@" > "$@" # @ 让 Make 不回显命令；$@ 由 Make 展开
+	@printf 'first prerequisite is %s\n' "$<" >> "$@" # $< 由 Make 展开为 input.txt
+	@printf 'shell pid is %s\n' "$$$$" >> "$@" # $$$$ 先变成 $$，再由 shell 展开为进程号
+
+# 输入目标：创建一个最小输入文件
+input.txt:                               # 没有前置条件，文件缺失时执行
+	@printf 'recipe input\n' > "$@"       # 写入输入内容
+
+# 陷阱示例：每一行配方默认在独立 shell 中执行
+bad-cd:                                  # 手动运行 make bad-cd 观察失败
+	@mkdir -p work                         # 创建目录
+	@cd work                               # 这一行的 cd 只影响当前 shell 进程
+	@pwd | grep '/work$$'                  # 新 shell 已回到原目录，所以 grep 通常失败
+
+# 正确写法：把 cd 和后续命令放在同一行 shell 中
+.PHONY: good-cd                          # good-cd 是动作目标
+good-cd:                                 # 目标行不能以 TAB 开头，否则会被当作配方
+	@mkdir -p work                         # 创建目录
+	@cd work && pwd | grep '/work$$'       # cd 与 pwd 在同一个 shell 中执行
+
+# 容错示例：- 前缀让 Make 忽略该行错误
+ignore-error:                            # 手动运行 make ignore-error
+	-false                                 # false 返回非零；- 前缀告诉 Make 忽略错误
+	@printf 'still running\n'              # 前一行被忽略后，这一行仍会执行
+
+# 清理目标：删除示例产物
+.PHONY: clean bad-cd ignore-error        # 声明动作目标，避免同名文件冲突
+clean:                                   # 清理动作
+	@rm -rf recipe.out input.txt work      # 删除文件和目录
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
+# 清理示例目录，保证从确定状态开始
 make clean
-# 只打印将要执行的命令，不真正执行配方
+# 预演默认目标，观察 Make 展开后的 shell 命令
 make -n
-# 打印规则触发原因，并真正执行构建
+# 执行默认目标，并显示触发原因
 make --trace
-# 第二次运行，用来观察目标已经最新时的行为
-make --trace
+# 手动运行错误示例，观察 cd 为什么不能跨配方行保留
+make bad-cd
+# 手动运行修复示例，观察 cd 与 pwd 在同一 shell 中成功
+make good-cd
+# 手动运行容错示例，观察 - 前缀如何忽略 false 的错误
+make ignore-error
 ```
-
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
 
 ## 语法拆解
 
-- `all: recipe.out` 表示 `all` 依赖 `recipe.out`；`all` 放在最前面，因此成为默认目标。
-- `recipe.out: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `recipe.out`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `SHELL := /bin/sh` 控制配方使用哪个 shell，不控制 Makefile 语法本身。
+- `$(.SHELLFLAGS)` 控制 shell 参数；常见默认语义是让 shell 执行一段命令字符串。
+- 配方行开头的 TAB 告诉 Make 这一行属于上一条规则。
+- `@` 前缀只影响命令回显，不影响命令是否执行。
+- `-` 前缀只影响错误处理，让该配方行失败时 Make 继续执行。
+- `+` 前缀常用于递归 Make 或 dry-run 场景，表示即使 `make -n` 也可能执行该行。
+- 默认情况下，每一行配方由一个新的 shell 执行，所以单独一行 `cd work` 不会影响下一行。
+- shell 变量需要写成 `$$VAR`，因为单个 `$` 会先被 Make 消费。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
-flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+sequenceDiagram
+    participant M as GNU Make
+    participant S1 as shell line 1
+    participant S2 as shell line 2
+    M->>M: 展开 $@、$<、$$
+    M->>S1: 执行第一行配方
+    S1-->>M: 返回退出码
+    M->>S2: 执行第二行配方
+    S2-->>M: 返回退出码
 ```
 
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
-
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
+`.ONESHELL` 会改变这个模型：同一条规则下的所有配方行会交给一个 shell 执行。它能让多行脚本更自然，但也会改变错误暴露方式；如果 shell flags 没有设置好，中间行失败可能不容易被 Make 捕获。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
+工程 Makefile 中，短命令可以保留一行一 shell；复杂脚本建议写成独立 `.sh`、`.tcl` 或 `.py` 文件，再由 Makefile 调用。这样调试边界清楚，也不会把 Make 变量展开、shell 引号、EDA 工具命令三层语法混在一起。
 
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+数字IC流程尤其要注意错误处理。仿真失败、综合失败、报告解析失败都应该让目标返回非零退出码，避免 CI 误判通过。只有在“允许失败并继续收集信息”的场景，才应使用 `-` 前缀或等价容错写法。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| `cd dir` 后下一行仍在原目录 | 每行配方默认是独立 shell | 写成 `cd dir && command`，或谨慎使用 `.ONESHELL` |
+| shell 变量为空 | 写成 `$VAR` 被 Make 先展开 | 在配方中写 `$$VAR` 交给 shell |
+| 构建失败但 make 仍成功 | 误用了 `-` 前缀或命令吞掉退出码 | 保留失败退出码，只在明确容错时忽略错误 |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- Make 负责决定是否执行配方，shell 负责执行配方内容。
+- TAB 是 Make 语法，不是普通缩进风格。
+- `@`、`-`、`+` 是 Make 的配方前缀，各自影响回显、错误和强制执行。
+- 每行配方默认运行在独立 shell 中。
+- shell 变量和 Make 变量都使用 `$`，因此配方中经常需要 `$$` 转义。
+- IC 工程中应让失败目标返回非零退出码，便于自动化和 CI 判断。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile规则详解|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/Makefile变量赋值与展开|后一篇]]：把本篇概念推进到下一层工程用法。
-- [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
+- [[tools/concepts/Makefile规则详解|Makefile 规则详解]]：配方必须挂在具体规则之下。
+- [[tools/concepts/Makefile变量赋值与展开|Makefile 变量赋值与展开]]：解释 `$` 在 Make 读阶段和配方展开阶段的行为。
+- [[tools/concepts/Makefile特殊目标手册|Makefile 特殊目标手册]]：后续系统讲 `.ONESHELL`、`.IGNORE`、`.DELETE_ON_ERROR`。
 
 ## 小练习
 
-1. 把 `recipe.out` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 把 `$$$$` 改成 `$$`，运行后解释 shell pid 输出为什么变化。
+2. 删除 `ignore-error` 中 `false` 前面的 `-`，观察 Make 的退出行为。
+3. 把 `good-cd` 改写成 `.ONESHELL` 风格，并说明需要额外注意什么。

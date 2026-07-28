@@ -2,12 +2,12 @@
 type: concept
 aliases:
   - Makefile 心智模型与历史
-  - Makefile 心智模型 and 历史
+  - Makefile DAG 与二阶段执行
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual: How make Reads a Makefile; POSIX make specification"
+source_spec: "GNU Make Manual: How make Reads a Makefile, How make Processes a Makefile; POSIX make specification"
 queries: 1
 ---
 
@@ -15,111 +15,122 @@ queries: 1
 
 ## 学习目标
 
-本篇属于 Part 0，目标是：建立 DAG 和二阶段执行模型，再理解 Make 在现代工具链中的定位。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+本篇建立 Makefile 的两个底层心智模型：有向无环图（Directed Acyclic Graph, DAG）和二阶段执行模型。读完后，读者应该能解释为什么 Make 不是从上到下执行所有命令，也能解释变量、条件和配方为什么经常出现“看起来和 shell 不一样”的行为。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+Make 最早诞生于 Unix 软件构建场景，后来 GNU Make 成为 Linux 工程中最常见的实现之一。数字IC项目继续大量使用 Make，不是因为它最新，而是因为它轻量、可组合、容易包装外部工具，并且天然适合描述“输入文件变化导致哪些产物需要重建”。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile解决的问题与第一个例子|前一篇]]，再读 [[tools/concepts/Makefile规则详解|后一篇]]。
+- 建议先读 [[tools/concepts/Makefile解决的问题与第一个例子|Makefile 解决的问题与第一个例子]]。
+- 需要知道目标、前置条件、配方的基本含义。
+- 后续可继续阅读 [[tools/concepts/Makefile规则详解|Makefile 规则详解]]。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `model.txt`，它足够小，便于观察每一步行为。
+下面的例子模拟一个极小的 IC 流程：RTL 列表生成仿真日志，仿真日志生成摘要报告。所有文件都用 `printf` 模拟，不依赖真实 EDA 工具。
 
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: model.txt          # all 是目标；冒号右边的文件是前置条件
+# 读阶段输出：$(info ...) 在 Make 读取 Makefile 时立即展开
+$(info [read phase] loading Makefile)      # 这行不属于配方，运行 make -n 也会打印
 
-# 真实文件目标：当 model.txt 不存在或依赖更新时执行配方
-model.txt: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 默认目标：最终希望得到 summary.rpt
+all: summary.rpt                           # all 依赖最终报告
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
+# 报告目标：报告依赖仿真日志
+summary.rpt: sim.log                       # sim.log 更新后，summary.rpt 需要重建
+	@printf 'summary from %s\n' "$<" > "$@" # $< 是 sim.log；$@ 是 summary.rpt
 
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf model.txt input.txt  # 删除示例产物，方便重新实验
+# 仿真日志目标：这里用 echo 模拟仿真工具输出
+sim.log: filelist.f                        # filelist.f 更新后，sim.log 需要重建
+	@printf 'run simulator with %s\n' "$<" > "$@" # 写入模拟仿真日志
+
+# 文件列表目标：真实项目中通常由脚本维护或手写
+filelist.f:                                # 文件不存在时创建最小 filelist
+	@printf 'rtl/top.sv\n' > "$@"          # 写入一个示例 RTL 路径
+
+# 伪目标：清理所有示例产物
+.PHONY: clean                              # clean 是动作目标，不参与时间戳判断
+clean:                                     # 删除示例文件
+	@rm -f summary.rpt sim.log filelist.f    # 清理报告、日志和文件列表
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
+# 清理示例文件，保证依赖图从空状态开始
 make clean
-# 只打印将要执行的命令，不真正执行配方
+# 预演命令；注意读阶段的 $(info ...) 仍会打印
 make -n
-# 打印规则触发原因，并真正执行构建
+# 显示每个目标被重建的原因
 make --trace
-# 第二次运行，用来观察目标已经最新时的行为
-make --trace
+# 查看 Make 内部数据库的 all 目标附近内容
+make -p | sed -n '/^all:/,/^# Files/p'
 ```
-
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
 
 ## 语法拆解
 
-- `all: model.txt` 表示 `all` 依赖 `model.txt`；`all` 放在最前面，因此成为默认目标。
-- `model.txt: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `model.txt`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `$(info ...)` 是 Make 函数，在读阶段展开；它不是 shell 命令。
+- `all: summary.rpt` 建立从默认入口到最终报告的依赖边。
+- `summary.rpt: sim.log` 表示报告由日志派生。
+- `sim.log: filelist.f` 表示仿真日志由文件列表派生。
+- `filelist.f:` 没有前置条件，因此只在文件缺失时创建。
+- 配方中的 `$<` 和 `$@` 要等到目标更新阶段、具体规则被执行时才有值。
+- `make -n` 不执行配方，但仍会读取 Makefile，所以读阶段函数仍可能输出信息。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+    Filelist[filelist.f] --> Sim[sim.log]
+    Sim --> Summary[summary.rpt]
+    Summary --> All[all]
 ```
 
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
+```mermaid
+%%{init: {'theme': 'default'}}%%
+flowchart TD
+    A[启动 make] --> B[读阶段: 读取 Makefile]
+    B --> C[展开立即展开变量、条件、include、info]
+    C --> D[建立规则数据库和依赖图]
+    D --> E[目标更新阶段: 从请求目标开始遍历]
+    E --> F[比较目标和依赖时间戳]
+    F --> G[只执行过期目标的配方]
+```
 
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
+二阶段模型是理解 Makefile 的基石。很多初学者以为 Make 会“读到哪行就执行哪行”，但实际不是：规则和变量先被读入数据库，之后 Make 才从目标开始决定哪些配方需要执行。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
+在数字IC工程中，DAG 可以对应真实流程：`rtl/*.sv` 影响 `filelist.f`，`filelist.f` 影响 `sim.log`，`sim.log` 影响 `summary.rpt`，覆盖率数据库再影响覆盖率报告。把这种链条写成 Make 依赖后，工具流就具备了最小重跑能力。
 
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+历史上 Make 主要服务 C 程序编译；现代工程中，CMake、Ninja、Bazel 各自解决更复杂的配置、速度和分布式构建问题。但 Make 仍常见于 IC 项目，因为 EDA 工具多数本身就是命令行程序，Make 可以低成本地把它们组合成统一入口。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| 以为 `make -n` 不会有任何输出 | `$(info ...)` 在读阶段执行，不属于配方 | 区分 Make 函数输出和配方执行 |
+| 改了最终报告却不重跑仿真 | Make 只关心目标和依赖时间戳，不倒推业务语义 | 把真实输入依赖写完整 |
+| 依赖关系形成环 | A 依赖 B，B 又依赖 A | 重新拆分中间目标，保持 DAG 无环 |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- Makefile 的依赖关系可以理解为 DAG。
+- Make 先读文件并建立数据库，再更新目标。
+- 读阶段函数和目标更新阶段配方不是同一个执行时机。
+- `make -n` 只跳过配方执行，不跳过 Makefile 读取。
+- GNU Make 是本讲义默认方言；BSD Make、NMAKE、POSIX Make 需要单独标注差异。
+- IC 流程天然适合被建模为文件产物 DAG。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile解决的问题与第一个例子|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/Makefile规则详解|后一篇]]：把本篇概念推进到下一层工程用法。
-- [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
+- [[tools/concepts/Makefile解决的问题与第一个例子|Makefile 解决的问题与第一个例子]]：提供第一个可运行实验。
+- [[tools/concepts/Makefile规则详解|Makefile 规则详解]]：继续拆解 DAG 中每条边和节点的语法。
+- [[tools/concepts/Makefile调试与性能|Makefile 调试与性能]]：后续系统使用 `--trace` 和 `--debug` 观察内部行为。
 
 ## 小练习
 
-1. 把 `model.txt` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 修改 `filelist.f` 后运行 `make --trace`，观察哪些目标重建。
+2. 把 `summary.rpt: sim.log` 改成 `summary.rpt:`，解释为什么依赖断开。
+3. 在文件顶部添加第二个 `$(info ...)`，观察 `make -n` 和 `make` 是否都会打印。

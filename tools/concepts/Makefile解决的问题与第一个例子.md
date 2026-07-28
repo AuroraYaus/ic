@@ -2,12 +2,12 @@
 type: concept
 aliases:
   - Makefile 解决的问题与第一个例子
-  - Makefile 解决的问题 and 第一个例子
+  - Makefile 入门第一课
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual: Introduction, Rule Introduction; POSIX make specification"
+source_spec: "GNU Make Manual: Introduction, Rule Introduction, Phony Targets; POSIX make specification"
 queries: 1
 ---
 
@@ -15,111 +15,114 @@ queries: 1
 
 ## 学习目标
 
-本篇属于 Part 0，目标是：从零开始理解 Makefile 解决什么问题，并完成第一个可重复运行的增量构建。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+本篇从零开始回答一个最基础的问题：Makefile 到底解决什么问题。读完后，读者应该能写出第一个可运行的 Makefile，能解释目标（target）、前置条件（prerequisite）、配方（recipe）三者的关系，并能通过 `make -n` 和 `make --trace` 观察 Make 为什么执行或跳过某个命令。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+Makefile 的核心价值不是“少敲几行命令”，而是把工程产物之间的依赖关系写清楚。普通 shell 脚本通常按顺序重跑所有步骤；Make 会检查目标文件和依赖文件的修改时间，只重建过期的那一部分。这一点在数字IC工程里尤其重要：一次完整仿真、综合或覆盖率合并可能很慢，增量重跑能节省大量时间。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile心智模型与历史|前一篇]]，再读 [[tools/concepts/Makefile心智模型与历史|后一篇]]。
+- 会在终端进入一个目录并运行命令。
+- 知道文件有修改时间；新文件通常比旧文件“更新”。
+- 后续可继续阅读 [[tools/concepts/Makefile心智模型与历史|Makefile 心智模型与历史]] 和 [[tools/concepts/Makefile规则详解|Makefile 规则详解]]。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `hello.txt`，它足够小，便于观察每一步行为。
+在一个空目录中创建名为 `Makefile` 的文件，复制下面内容。注意配方行前面必须是真实 TAB，不是空格。
 
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: hello.txt          # all 是目标；冒号右边的文件是前置条件
+# 默认目标：用户只输入 make 时，GNU Make 会选择第一个普通目标
+all: hello.txt                    # all 依赖 hello.txt；hello.txt 必须先被更新
 
-# 真实文件目标：当 hello.txt 不存在或依赖更新时执行配方
-hello.txt: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 真实文件目标：hello.txt 是磁盘上会生成的文件
+hello.txt: source.txt             # hello.txt 依赖 source.txt；source 更新会触发重建
+	@printf 'build from %s\n' "$<" > "$@"   # $< 是第一个前置条件；$@ 是当前目标
+	@printf 'done at %s\n' "$$(date +%H:%M:%S)" >> "$@" # $$ 把 $ 留给 shell 的 date 命令
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
+# 输入文件目标：source.txt 不存在时，用配方生成一个最小输入
+source.txt:                       # 这个目标没有前置条件，只在文件缺失时执行
+	@printf 'hello make\n' > "$@"  # $@ 展开为 source.txt，写入一行输入文本
 
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf hello.txt input.txt  # 删除示例产物，方便重新实验
+# 伪目标声明：clean 是动作，不是要生成的真实文件
+.PHONY: clean                     # 即使目录里有 clean 文件，make clean 也会执行
+clean:                            # 清理目标，方便重复实验
+	@rm -f hello.txt source.txt     # 删除构建产物和输入文件
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
+# 清空上一次实验留下的文件，保证从确定状态开始
 make clean
-# 只打印将要执行的命令，不真正执行配方
+# 预演构建命令，只打印配方，不真正生成文件
 make -n
-# 打印规则触发原因，并真正执行构建
+# 执行构建并显示每条规则为什么被触发
 make --trace
-# 第二次运行，用来观察目标已经最新时的行为
+# 再执行一次，观察目标已经最新时 Make 不会重复生成 hello.txt
+make --trace
+# 修改输入文件时间戳，让 source.txt 比 hello.txt 新
+sleep 1 && touch source.txt
+# 再次执行，观察 hello.txt 因依赖更新而重建
 make --trace
 ```
 
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
+第一次 `make --trace` 会生成 `source.txt` 和 `hello.txt`。第二次 `make --trace` 通常只会报告 `all` 目标已满足，不会重新执行生成 `hello.txt` 的配方。`touch source.txt` 之后，依赖文件比目标文件新，Make 才会重新执行 `hello.txt` 的配方。
 
 ## 语法拆解
 
-- `all: hello.txt` 表示 `all` 依赖 `hello.txt`；`all` 放在最前面，因此成为默认目标。
-- `hello.txt: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `hello.txt`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `all: hello.txt` 是一条规则；冒号左侧是目标，右侧是前置条件。
+- `hello.txt: source.txt` 表示 `hello.txt` 的正确性依赖 `source.txt`。
+- 以 TAB 开头的两行是 `hello.txt` 的配方；配方由 shell 执行。
+- `$@` 是 Make 自动变量，表示当前目标名；这里是 `hello.txt` 或 `source.txt`。
+- `$<` 是 Make 自动变量，表示第一个前置条件；这里是 `source.txt`。
+- `$$` 表示把一个 `$` 交给 shell；如果只写 `$`，会先被 Make 当成变量展开。
+- `.PHONY: clean` 表示 `clean` 是伪目标（phony target），永远按动作处理。
+- `@` 前缀表示不回显配方本身，让示例输出更干净。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+    Source[source.txt] --> Hello[hello.txt]
+    Hello --> All[all]
+    Clean[clean 伪目标] -.手动执行.-> Remove[删除 hello.txt 和 source.txt]
 ```
 
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
+Make 的执行可以拆成两层：先读取 Makefile，建立规则和变量数据库；再从用户请求的目标开始，递归检查依赖是否需要更新。用户只输入 `make` 时，默认目标是第一个普通目标 `all`，于是 Make 先检查 `hello.txt`，再检查 `source.txt`。
 
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
+这个模型和普通 shell 脚本不同。shell 脚本通常是“第一行、第二行、第三行”顺序执行；Makefile 是“为了更新目标，需要先满足哪些依赖”。因此，Make 更适合描述产物网络，而不是描述一次性命令流水账。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
+真实项目会把 `source.txt` 换成源代码、RTL 文件、约束文件或 testlist，把 `hello.txt` 换成对象文件、仿真日志、综合报告或覆盖率数据库。只要这些产物能落到文件系统里，就可以被 Make 当作目标管理。
 
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+数字IC流程中常见目标包括 `sim.log`、`regress.pass`、`syn/qor.rpt`、`cov/merged.ucdb`。如果 Makefile 正确写出它们和输入文件之间的依赖关系，工程师就可以只重跑受影响的步骤，而不是每次从头开始。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| `missing separator` | 配方行用了空格而不是真实 TAB | 使用真实 TAB，或在高级场景中设置 `.RECIPEPREFIX` |
+| 第二次 `make` 仍然重建 | 目标不是文件，或配方总是更新依赖 | 区分真实文件目标和 `.PHONY` 目标 |
+| 修改输入后没有重建 | 输入文件没有列在前置条件中 | 把真实输入写到目标右侧依赖列表 |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- Makefile 的第一核心是依赖关系，不是命令缩写。
+- 第一个普通目标是默认目标，常用 `all` 作为入口。
+- 真实文件目标是否重建主要由目标和依赖的时间戳决定。
+- 配方由 shell 执行，但配方中的 `$@`、`$<` 等先由 Make 展开。
+- `make -n` 用于预演，`make --trace` 用于解释触发原因。
+- `.PHONY` 应用于动作目标，例如 `clean`、`test`、`help`。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile心智模型与历史|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/Makefile心智模型与历史|后一篇]]：把本篇概念推进到下一层工程用法。
+- [[tools/concepts/Makefile心智模型与历史|Makefile 心智模型与历史]]：进一步解释 DAG 和二阶段执行模型。
+- [[tools/concepts/Makefile规则详解|Makefile 规则详解]]：系统拆解 target、prerequisite、recipe。
 - [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
 
 ## 小练习
 
-1. 把 `hello.txt` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 把 `hello.txt` 改名为 `report.txt`，观察 `$@` 输出如何变化。
+2. 删除 `source.txt` 后运行 `make --trace`，解释 Make 为什么先生成输入文件。
+3. 创建一个名为 `clean` 的普通文件，再删除 `.PHONY: clean`，观察 `make clean` 的行为差异。

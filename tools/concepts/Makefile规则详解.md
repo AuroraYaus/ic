@@ -2,12 +2,12 @@
 type: concept
 aliases:
   - Makefile 规则详解
-  - Makefile 规则详解
+  - Makefile target prerequisite recipe
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual: Rule Syntax, Phony Targets"
+source_spec: "GNU Make Manual: Rule Syntax, Multiple Targets, Phony Targets"
 queries: 1
 ---
 
@@ -15,111 +15,128 @@ queries: 1
 
 ## 学习目标
 
-本篇属于 Part 1，目标是：掌握 target、prerequisite、recipe 的边界，并能解释 Make 如何选择默认目标。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+本篇系统拆解 Makefile 规则。读完后，读者应该能准确区分目标、前置条件和配方，能解释默认目标如何选择，能识别真实文件目标和伪目标的差异，并能处理目标名与文件名冲突的问题。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+规则是 Makefile 的最小工程单元。变量、函数、条件、模式规则和自动依赖最终都服务于规则：让 Make 知道“为了得到某个目标，需要哪些输入，以及输入变化后应该执行什么命令”。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile心智模型与历史|前一篇]]，再读 [[tools/concepts/Makefile配方与Shell|后一篇]]。
+- 建议先读 [[tools/concepts/Makefile心智模型与历史|Makefile 心智模型与历史]]。
+- 已经知道 Make 会根据目标和依赖的时间戳决定是否执行配方。
+- 下一篇 [[tools/concepts/Makefile配方与Shell|Makefile 配方与 Shell]] 会专门讲配方执行细节。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `rule.out`，它足够小，便于观察每一步行为。
+这个例子展示四类规则：默认目标、普通文件目标、多目标规则、伪目标。
 
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: rule.out          # all 是目标；冒号右边的文件是前置条件
+# 默认目标：第一个普通目标是用户输入 make 时的入口
+all: build/app report.txt             # all 依赖两个产物，二者都完成后 all 才满足
 
-# 真实文件目标：当 rule.out 不存在或依赖更新时执行配方
-rule.out: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 普通文件目标：build/app 由 main.c 生成
+build/app: main.c | build              # 竖线右侧 build 是 order-only 依赖，先记住这个形状
+	@printf 'compile %s -> %s\n' "$<" "$@" > "$@" # 用文本模拟编译输出
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
+# 目录目标：目录本身只负责存在，不代表业务输入变化
+build:                                # build 目录不存在时执行
+	@mkdir -p "$@"                      # 创建目录，$@ 展开为 build
 
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf rule.out input.txt  # 删除示例产物，方便重新实验
+# 普通文件目标：报告依赖同一个源文件
+report.txt: main.c                     # main.c 更新后，报告也需要重建
+	@printf 'report for %s\n' "$<" > "$@" # 写入报告内容
+
+# 输入文件目标：没有 main.c 时创建一个最小输入
+main.c:                                # 真实项目中 main.c 通常由工程师手写
+	@printf 'int main(void) { return 0; }\n' > "$@" # 创建示例 C 文件
+
+# 多目标规则：stamp.a 和 stamp.b 由同一条配方生成
+stamp.a stamp.b: main.c                # 两个目标共享同一个前置条件
+	@printf 'stamp from %s\n' "$<" > stamp.a # 写入第一个 stamp 文件
+	@cp stamp.a stamp.b                  # 复制得到第二个 stamp 文件
+
+# 伪目标声明：这些名字表示动作，不表示真实文件
+.PHONY: clean show                     # clean 和 show 永远执行配方
+show: all                              # show 依赖 all，先确保产物存在
+	@printf 'targets are ready\n'         # 打印一个观察信息
+
+# 清理规则：删除所有示例产物
+clean:                                 # 清理动作不生成 clean 文件
+	@rm -rf build report.txt main.c stamp.a stamp.b # 删除构建产物和输入
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
+# 删除历史产物，保证实验从空目录开始
 make clean
-# 只打印将要执行的命令，不真正执行配方
+# 预演默认目标会触发哪些配方
 make -n
-# 打印规则触发原因，并真正执行构建
+# 执行默认目标并显示触发原因
 make --trace
-# 第二次运行，用来观察目标已经最新时的行为
-make --trace
+# 手动请求 show 伪目标，观察它每次都会执行
+make --trace show
+# 创建同名 clean 文件，验证 .PHONY 可以避免冲突
+printf 'not a target\n' > clean && make --trace clean
 ```
-
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
 
 ## 语法拆解
 
-- `all: rule.out` 表示 `all` 依赖 `rule.out`；`all` 放在最前面，因此成为默认目标。
-- `rule.out: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `rule.out`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `all: build/app report.txt` 中，`all` 是目标，`build/app report.txt` 是前置条件列表。
+- `build/app: main.c | build` 中，`main.c` 是普通前置条件，`build` 是 order-only 前置条件；本篇先关注规则形状。
+- 配方只能属于紧邻的上一条规则；空行不会自动延续上一条规则。
+- 多目标规则 `stamp.a stamp.b: main.c` 表示一条规则有多个目标。
+- `.PHONY: clean show` 是特殊目标，用来声明后面的名字不是文件产物。
+- `show: all` 是伪目标依赖真实构建入口的常见写法。
+- 第一个普通目标是默认目标，所以辅助目标通常放在 `all` 后面。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+    Main[main.c] --> App[build/app]
+    Main --> Report[report.txt]
+    Build[build 目录] -.order-only.-> App
+    App --> All[all]
+    Report --> All
+    All --> Show[show 伪目标]
 ```
 
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
+Make 从用户请求的目标开始向下找依赖。只输入 `make` 时，请求的是 `all`；输入 `make show` 时，请求的是 `show`。`show` 是伪目标，所以即使没有文件变化，它的配方也会执行。
 
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
+目标名和文件名共享同一个命名空间。若没有 `.PHONY`，目录中出现一个名为 `clean` 的文件时，Make 可能认为 `clean` 已经是最新目标，于是跳过清理配方。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
+大型项目通常把入口目标设计成少量稳定命令：`all`、`test`、`clean`、`install`、`package`、`help`。真实文件目标则放在内部，例如对象文件、日志、报告和数据库。这样用户接口稳定，内部依赖仍然精确。
 
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+数字IC Makefile 中常见模式是：`sim` 是伪目标，依赖一个真实日志文件 `logs/smoke.log`；`cov` 是伪目标，依赖真实覆盖率报告 `cov/index.html`。这样既有易用入口，也保留增量构建能力。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| 用户输入 `make` 运行了错误目标 | 文件顶部第一个普通目标不是预期入口 | 把 `all` 或 `help` 放在第一个普通目标位置 |
+| `make clean` 被跳过 | `clean` 没有声明为 `.PHONY` 且存在同名文件 | 添加 `.PHONY: clean` |
+| 一个配方误以为属于多个规则 | 配方只绑定到最近的上一条规则 | 明确分开规则，避免悬空 TAB 行 |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- 规则由目标、前置条件、配方三部分构成。
+- 默认目标由 Makefile 中第一个普通目标决定。
+- 真实文件目标适合表达可缓存产物。
+- 伪目标适合表达动作入口。
+- 目标名可能与真实文件冲突，`.PHONY` 是常见修复手段。
+- 多目标规则要谨慎使用，后续 grouped targets 会进一步区分语义。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile心智模型与历史|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/Makefile配方与Shell|后一篇]]：把本篇概念推进到下一层工程用法。
-- [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
+- [[tools/concepts/Makefile心智模型与历史|Makefile 心智模型与历史]]：解释规则如何组成 DAG。
+- [[tools/concepts/Makefile配方与Shell|Makefile 配方与 Shell]]：解释规则下方配方如何执行。
+- [[tools/concepts/Makefile高级依赖|Makefile 高级依赖]]：深入讲 order-only 前置条件。
 
 ## 小练习
 
-1. 把 `rule.out` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 把 `show` 移到文件第一条规则，观察直接运行 `make` 的变化。
+2. 删除 `.PHONY: show`，创建一个名为 `show` 的文件，再运行 `make show`。
+3. 修改 `main.c` 后运行 `make --trace`，说明 `build/app` 和 `report.txt` 为什么都会重建。
