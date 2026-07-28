@@ -2,7 +2,7 @@
 type: concept
 aliases:
   - Makefile 高级变量
-  - Makefile 高级变量
+  - Makefile automatic variables
 tags:
   - tools
   - makefile
@@ -15,111 +15,104 @@ queries: 1
 
 ## 学习目标
 
-本篇属于 Part 2，目标是：使用自动变量、目标专属变量和诊断函数定位变量来源与展开方式。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+读完后，读者应该能使用自动变量简化规则，能用 target-specific 变量给单个目标设置编译选项，并能用 `$(origin)`、`$(flavor)`、`$(value)` 定位变量从哪里来、如何展开。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+本篇延续 [[tools/concepts/Makefile心智模型与历史|二阶段执行模型]]：先区分哪些内容在读阶段展开，哪些内容在目标更新阶段展开，再讨论它在工程 Makefile 中的稳定写法。只记语法表很容易忘，能用 `make --trace` 和诊断输出观察行为，才算真正掌握。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile变量赋值与展开|前一篇]]，再读 [[tools/concepts/Makefile文本变换函数|后一篇]]。
+- 建议先读 [[tools/concepts/Makefile变量赋值与展开|前一篇]]。
+- 需要理解 Make 语法和 Shell 语法的边界。
+- 后续可继续读 [[tools/concepts/Makefile文本变换函数|后一篇]]。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `auto.out`，它足够小，便于观察每一步行为。
+在空目录中创建 `Makefile`，复制下面内容，然后运行后面的命令。示例默认兼容 GNU Make 4.3。
 
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: auto.out          # all 是目标；冒号右边的文件是前置条件
+# 普通变量：作为全局默认编译选项
+CFLAGS ?= -Wall                          # ?= 允许命令行 CFLAGS=... 覆盖默认值
 
-# 真实文件目标：当 auto.out 不存在或依赖更新时执行配方
-auto.out: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 目标专属变量：只影响 app.o 这条目标及其相关构建上下文
+app.o: CFLAGS += -DAPP                   # 为 app.o 追加一个局部宏定义
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
+# 默认目标：构建 app.o 并打印变量诊断信息
+all: app.o                               # all 依赖 app.o
+	@printf 'origin CFLAGS=%s\n' '$(origin CFLAGS)' # 查看 CFLAGS 来源
+	@printf 'flavor CFLAGS=%s\n' '$(flavor CFLAGS)' # 查看 CFLAGS 展开类型
+	@printf 'raw CFLAGS=%s\n' '$(value CFLAGS)'     # 查看未再次展开的原始值
 
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf auto.out input.txt  # 删除示例产物，方便重新实验
+# 对象目标：使用自动变量写通用配方
+app.o: app.c                             # app.o 由 app.c 生成
+	@printf 'target=%s\n' '$@' > '$@'      # $@ 是当前目标 app.o
+	@printf 'first=%s\n' '$<' >> '$@'      # $< 是第一个前置条件 app.c
+	@printf 'all=%s\n' '$^' >> '$@'        # $^ 是去重后的全部前置条件
+	@printf 'cflags=%s\n' '$(CFLAGS)' >> '$@' # 输出目标专属后的 CFLAGS
+
+# 输入文件：创建最小源文件
+app.c:                                   # 文件缺失时生成示例源文件
+	@printf 'int app(void) { return 0; }\n' > '$@' # 写入一个 C 函数
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
-make clean
-# 只打印将要执行的命令，不真正执行配方
+# 打开未定义变量警告，尽早发现拼写错误
+make --warn-undefined-variables
+# 预演将要执行的配方，观察 Make 展开后的命令
 make -n
-# 打印规则触发原因，并真正执行构建
-make --trace
-# 第二次运行，用来观察目标已经最新时的行为
+# 显示目标触发原因，并执行默认目标
 make --trace
 ```
 
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
-
 ## 语法拆解
 
-- `all: auto.out` 表示 `all` 依赖 `auto.out`；`all` 放在最前面，因此成为默认目标。
-- `auto.out: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `auto.out`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `$@` 表示当前目标，适合输出文件名。
+- `$<` 表示第一个前置条件，常用于单源文件编译。
+- `$^` 表示去重后的所有前置条件，常用于链接命令。
+- `target: VAR += value` 是目标专属变量，不应误认为全局赋值。
+- `$(origin)`、`$(flavor)`、`$(value)` 是变量诊断三件套。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+    Read[读阶段: 解析变量、函数、条件和规则] --> DB[规则与变量数据库]
+    DB --> Update[目标更新阶段: 展开配方并执行 shell]
+    Update --> Output[观察 make --trace 输出]
 ```
 
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
-
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
+观察这类例子时，不要只看最终文件内容。更重要的是比较 `make -n`、`make --trace` 和诊断函数的输出：它们分别暴露“将执行什么”“为什么执行”“读阶段已经展开了什么”。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
-
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+大型 Makefile 中，自动变量让模式规则和静态模式规则更短、更可靠。目标专属变量适合给某个 IP、某个 test 或某个 corner 单独追加选项，避免把局部配置污染到全局。调试变量覆盖问题时，优先打印 `origin` 和 `flavor`，不要只猜命令行是否生效。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| `$@` 在全局变量中为空 | 自动变量只在规则上下文中有效 | 只在配方或二次展开规则中使用自动变量 |
+| 局部选项影响范围不清 | 混用全局变量和目标专属变量 | 用 target-specific 变量限制作用域 |
+| 命令行变量为何覆盖不了不清楚 | 不知道变量来源 | 用 `$(origin VAR)` 诊断 |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- 自动变量依赖具体规则上下文。
+- `$<` 常用于编译，`$^` 常用于链接。
+- target-specific 变量能控制局部选项。
+- `origin/flavor/value` 是调试变量的基本工具。
+- 环境变量、命令行变量和 Makefile 变量有优先级差异。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile变量赋值与展开|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/Makefile文本变换函数|后一篇]]：把本篇概念推进到下一层工程用法。
-- [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
+- [[tools/concepts/Makefile变量赋值与展开|前一篇]]：提供本篇需要的前置知识。
+- [[tools/concepts/Makefile文本变换函数|后一篇]]：把本篇能力推进到下一类 Makefile 机制。
+- [[tools/concepts/Makefile调试与性能|Makefile 调试与性能]]：提供更系统的诊断方法。
 
 ## 小练习
 
-1. 把 `auto.out` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 运行 `make CFLAGS=-O2`，观察 `origin CFLAGS`。
+2. 把 `app.o: CFLAGS += -DAPP` 改成全局赋值，比较输出。
+3. 添加第二个前置条件，观察 `$^` 如何变化。
