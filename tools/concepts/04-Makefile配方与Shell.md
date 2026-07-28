@@ -2,152 +2,299 @@
 type: concept
 aliases:
   - Makefile 配方与 Shell
-  - Makefile recipe shell
+  - Makefile recipe shell execution
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual: Recipe Syntax, Choosing the Shell, Recipe Echoing, Errors in Recipes, One Shell"
+source_spec: "GNU Make Manual: Recipe Syntax, Recipe Echoing, Recipe Execution, Choosing the Shell, Errors in Recipes, One Shell; POSIX shell specification"
 queries: 1
 ---
 
-# Makefile配方与Shell
+# 04 — Makefile配方与Shell
 
 ## 学习目标
 
-本篇讲清楚 Makefile 中最容易混淆的一层：配方由 Make 触发，但配方内容由 shell 执行。读完后，读者应该能解释 TAB、`@`、`-`、`+`、`SHELL`、`$(.SHELLFLAGS)`、每行独立 shell、`.ONESHELL` 和错误处理的基本行为。
+本篇讲清 Makefile 中最容易混淆的一层：**配方（Recipe）由 Make 触发，但内容由 Shell 执行。** 读完本篇后，你将能：
 
-初学者常把 Makefile 当成 shell 脚本，这会导致 `cd` 不生效、变量转义错误、错误被吞掉或并行构建行为异常。正确心智模型是：Make 先展开配方行中的 Make 变量和函数，再把展开后的命令交给 shell。
+1. 掌握 TAB、`.RECIPEPREFIX`、`@`/`-`/`+` 前缀的完整语义和组合规则
+2. 理解"每行配方独立 Shell"的默认行为——为什么 `cd dir` 后下一行还在原目录
+3. 正确使用 `.ONESHELL`、`SHELL`、`.SHELLFLAGS` 控制配方执行环境
+4. 掌握配方中的错误处理策略：`-` 前缀、`.DELETE_ON_ERROR`、`-k` 选项
+5. 准确处理 `$$` 转义——Make 变量展开与 Shell 变量展开的分层模型
+
+**核心心智模型：Make 先展开配方行中的 Make 变量和函数（将 `$$` → `$`、`$@` → target name），然后把展开后的字符串交给 `/bin/sh -c` 执行。** Make 和 Shell 是两层，不是一层。
 
 ## 前置知识
 
-- 建议先读 [[tools/concepts/Makefile规则详解|Makefile 规则详解]]。
-- 已经知道配方行必须放在规则下面，并以 TAB 开头。
-- 下一篇 [[tools/concepts/Makefile变量赋值与展开|Makefile 变量赋值与展开]] 会解释变量展开时机。
+- [[tools/concepts/03-Makefile规则详解|03 — 规则详解]]：配方必须挂在规则之下
+- [[tools/concepts/02-Makefile心智模型与历史|02 — 心智模型]]：配方在目标更新阶段执行，读阶段函数不在此列
+
+后续：[[tools/concepts/05-Makefile变量赋值与展开|05 — 变量赋值与展开]]。
 
 ## 最小可运行例子
 
-下面的例子专门观察配方行为。默认目标 `all` 只执行成功路径；错误示例需要手动请求。
+### 例子 1：配方前缀和 Shell 行为的完整演示
 
 ```makefile
-# 指定配方使用的 shell；GNU Make 在 Unix 上默认通常是 /bin/sh
-SHELL := /bin/sh                         # := 表示立即展开赋值，后续章节会详细解释
+# ===== 例子 1：@ / - / $$ 四者行为实验 =====
+SHELL := /bin/sh                     # 指定配方使用的 Shell（默认值）
+.SHELLFLAGS := -c                    # -c = 执行后面的命令字符串
 
-# 指定传给 shell 的参数；-c 表示执行后面的命令字符串
-.SHELLFLAGS := -c                        # 保持默认风格，便于观察基础行为
+all: demo.out
 
-# 默认目标：只运行安全示例，避免一开始就失败
-all: recipe.out                          # all 依赖 recipe.out
+demo.out: input.txt
+# @ 前缀：不回显配方行本身——只执行，不打印
+	@printf '--- demo.out recipe start ---\n'
+# 不加 @：Make 会先打印这行再交给 Shell
+	printf 'target name = %s\n' "$@" > "$@"
+#                             ^^  $@ → Make 展开为 demo.out
+# - 前缀：忽略该行的非零退出码，继续执行后续配方行
+	-false                            # false 始终返回退出码 1——但 - 前缀让 Make 继续
+	@printf 'still running after false\n' >> "$@"
+# $$ 转义：$$ → $ → Shell 看到命令替换
+	@printf 'shell pid=%s\n' "$$$$" >> "$@"      # $$$$ → Make: $$ → Shell: $$ = PID
+	@printf 'pwd=%s\n' "$$(pwd)" >> "$@"         # $$(pwd) → Make: $(pwd) → Shell 执行命令替换
 
-# 文件目标：演示 Make 自动变量先展开，shell 再执行命令
-recipe.out: input.txt                    # input.txt 更新时重建 recipe.out
-	@printf 'make target is %s\n' "$@" > "$@" # @ 让 Make 不回显命令；$@ 由 Make 展开
-	@printf 'first prerequisite is %s\n' "$<" >> "$@" # $< 由 Make 展开为 input.txt
-	@printf 'shell pid is %s\n' "$$$$" >> "$@" # $$$$ 先变成 $$，再由 shell 展开为进程号
+input.txt:
+	@printf 'input data\n' > "$@"
 
-# 输入目标：创建一个最小输入文件
-input.txt:                               # 没有前置条件，文件缺失时执行
-	@printf 'recipe input\n' > "$@"       # 写入输入内容
+# === cd 陷阱演示 ===
+.PHONY: bad-cd good-cd
+bad-cd:                               # 每行独立 Shell——cd 不跨行生效
+	@mkdir -p work
+	@cd work                          # 只对这个 Shell 进程生效
+	@pwd                               # 新 Shell——已回到原目录！
 
-# 陷阱示例：每一行配方默认在独立 shell 中执行
-bad-cd:                                  # 手动运行 make bad-cd 观察失败
-	@mkdir -p work                         # 创建目录
-	@cd work                               # 这一行的 cd 只影响当前 shell 进程
-	@pwd | grep '/work$$'                  # 新 shell 已回到原目录，所以 grep 通常失败
+good-cd:                              # 同一行 = 同一 Shell = cd 生效
+	@mkdir -p work
+	@cd work && pwd                   # && 确保 cd 成功才执行 pwd
 
-# 正确写法：把 cd 和后续命令放在同一行 shell 中
-.PHONY: good-cd                          # good-cd 是动作目标
-good-cd:                                 # 目标行不能以 TAB 开头，否则会被当作配方
-	@mkdir -p work                         # 创建目录
-	@cd work && pwd | grep '/work$$'       # cd 与 pwd 在同一个 shell 中执行
+# === 行延续演示 ===
+.PHONY: long-line
+long-line:
+	@printf 'this is a long command' \
+		' that spans multiple lines' \
+		' but is one shell invocation\n'
+#       ^ 续行符 \ 必须是该行的最后一个字符——后面不能有空格！
 
-# 容错示例：- 前缀让 Make 忽略该行错误
-ignore-error:                            # 手动运行 make ignore-error
-	-false                                 # false 返回非零；- 前缀告诉 Make 忽略错误
-	@printf 'still running\n'              # 前一行被忽略后，这一行仍会执行
-
-# 清理目标：删除示例产物
-.PHONY: clean bad-cd ignore-error        # 声明动作目标，避免同名文件冲突
-clean:                                   # 清理动作
-	@rm -rf recipe.out input.txt work      # 删除文件和目录
+.PHONY: clean
+clean:
+	@rm -rf demo.out input.txt work
 ```
 
-执行命令：
+执行：
 
 ```shell
-# 清理示例目录，保证从确定状态开始
-make clean
-# 预演默认目标，观察 Make 展开后的 shell 命令
-make -n
-# 执行默认目标，并显示触发原因
-make --trace
-# 手动运行错误示例，观察 cd 为什么不能跨配方行保留
-make bad-cd
-# 手动运行修复示例，观察 cd 与 pwd 在同一 shell 中成功
-make good-cd
-# 手动运行容错示例，观察 - 前缀如何忽略 false 的错误
-make ignore-error
+make clean && make --trace           # 正常流程
+make bad-cd                          # 观察 cd 为什么"不生效"
+make good-cd                         # 观察正确写法
 ```
+
+### 例子 2：`.ONESHELL` 改变配方执行模型
+
+```makefile
+.ONESHELL:                            # 本文件中所有规则的配方在同一个 Shell 中执行
+.SHELLFLAGS := -ec                    # -e = 任何命令失败立即退出，-c = 执行命令字符串
+
+all: oneshell-demo.out
+
+oneshell-demo.out:
+	@cd /tmp                          # 第一行：cd 到 /tmp
+	@pwd > "$@"                       # 第二行：pwd 的结果是 /tmp！
+# 没有 .ONESHELL：两行在不同 Shell → pwd 输出原目录
+# 有 .ONESHELL：两行在同一 Shell → cd 效果保留
+
+.PHONY: clean
+clean:
+	@rm -f oneshell-demo.out
+```
+
+```shell
+make clean && make                    # 观察输出：pwd 结果是 /tmp
+```
+
+**`.ONESHELL` 的代价：** 中间行失败默认不停止——必须配合 `.SHELLFLAGS := -ec` 使用。
 
 ## 语法拆解
 
-- `SHELL := /bin/sh` 控制配方使用哪个 shell，不控制 Makefile 语法本身。
-- `$(.SHELLFLAGS)` 控制 shell 参数；常见默认语义是让 shell 执行一段命令字符串。
-- 配方行开头的 TAB 告诉 Make 这一行属于上一条规则。
-- `@` 前缀只影响命令回显，不影响命令是否执行。
-- `-` 前缀只影响错误处理，让该配方行失败时 Make 继续执行。
-- `+` 前缀常用于递归 Make 或 dry-run 场景，表示即使 `make -n` 也可能执行该行。
-- 默认情况下，每一行配方由一个新的 shell 执行，所以单独一行 `cd work` 不会影响下一行。
-- shell 变量需要写成 `$$VAR`，因为单个 `$` 会先被 Make 消费。
+### 配方前缀 `@`、`-`、`+` 的完整语义
+
+| 前缀 | 名称 | 作用 | `make -n` 下 | `make -t` 下 | `make -q` 下 |
+|:---|:---|:---|:---|:---|:---|
+| (无) | 普通 | 打印配方行 + 执行 | 只打印不执行 | 不执行 | 不执行 |
+| `@` | 静默 | 执行但不打印配方行 | 不执行不打印 | 不执行 | 不执行 |
+| `-` | 忽略错误 | 忽略非零退出码，继续执行 | 不执行 | 不执行 | 不执行 |
+| `+` | 强制执行 | **始终执行** | **执行** | **执行** | **执行** |
+| `@-` / `-@` | 组合 | 静默 + 忽略错误 | — | — | — |
+
+**前缀必须出现在 TAB 和命令之间：**
+
+```makefile
+target:
+	@echo "quiet"                     # TAB + @ + 命令
+	-rm -f *.tmp                      # TAB + - + 命令
+	+$(MAKE) -C subdir                # TAB + + + 命令（递归 Make 必需）
+	@-rm -f *.log                     # TAB + @- + 命令（组合）
+```
+
+### `$$` 转义的完整规则
+
+```
+Makefile 中的文本  →  Make 展开后  →  Shell 看到的
+─────────────────     ────────────     ──────────────
+$$                   $                 $ (字面美元符)
+$$(VAR)              $(VAR)            $(VAR) — Shell 命令替换
+$$$$                 $$                $$ — Shell 当前进程 PID
+$$@                  $@                $@ — Shell 位置参数（通常为空）
+$@                   target_name       字面文件名——已由 Make 展开完毕
+```
+
+**黄金法则：想让 Shell 看到 `$X` → 在 Makefile 中写 `$$X`。**
+
+### Shell 环境控制变量
+
+```makefile
+SHELL := /bin/bash                    # 使用 bash 替代默认 /bin/sh
+.SHELLFLAGS := -c                     # 默认：-c 执行命令字符串
+.SHELLFLAGS := -ec                    # -e=errexit（命令失败立即退出）
+.SHELLFLAGS := -ex -o pipefail -c     # -x=打印每行, pipefail=管道失败检测
+```
+
+### 错误处理四层机制
+
+| 机制 | 作用域 | 行为 | 适用场景 |
+|:---|:---|:---|:---|
+| `-` 前缀 | 单行配方 | 忽略该行失败，继续执行 | `rm -f`、非关键的清理操作 |
+| `.IGNORE` | 特殊目标 | 忽略**所有**配方的所有错误 | 几乎从不使用——太危险 |
+| `.DELETE_ON_ERROR` | 特殊目标 | 目标构建失败时自动删除目标文件 | **推荐在所有 Makefile 中使用** |
+| `-k` 选项 | 命令行 | 一个目标失败时继续构建其他独立目标 | `make -j8 -k`——发现所有错误 |
 
 ## 执行轨迹
+
+### 默认模式：每行独立 Shell
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 sequenceDiagram
     participant M as GNU Make
-    participant S1 as shell line 1
-    participant S2 as shell line 2
-    M->>M: 展开 $@、$<、$$
-    M->>S1: 执行第一行配方
-    S1-->>M: 返回退出码
-    M->>S2: 执行第二行配方
-    S2-->>M: 返回退出码
+    participant S1 as /bin/sh (line 1)
+    participant S2 as /bin/sh (line 2)
+
+    M->>M: 1. 展开 Make 变量：$@→demo.out, $$→$, $$(pwd)→$(pwd)
+    M->>S1: 2. /bin/sh -c 'printf "target=demo.out" > demo.out'
+    S1-->>M: 3. 返回退出码 0
+    M->>M: 4. 展开第二行配方
+    M->>S2: 5. /bin/sh -c 'printf "pwd=$(pwd)" >> demo.out'
+    S2-->>M: 6. 返回退出码 0
+    Note over M,S2: 每行配方是一个新 /bin/sh 进程<br/>cd、export、umask 不跨行保留
 ```
 
-`.ONESHELL` 会改变这个模型：同一条规则下的所有配方行会交给一个 shell 执行。它能让多行脚本更自然，但也会改变错误暴露方式；如果 shell flags 没有设置好，中间行失败可能不容易被 Make 捕获。
+### `.ONESHELL` 模式：单 Shell 执行
+
+```mermaid
+%%{init: {'theme': 'default'}}%%
+sequenceDiagram
+    participant M as GNU Make
+    participant S as /bin/sh -ec (单实例)
+
+    M->>M: 1. 展开所有配方行的 Make 变量
+    M->>M: 2. 拼接所有行为一个 Shell 脚本
+    M->>S: 3. /bin/sh -ec '<整个脚本>'
+    Note over S: 4. Shell 逐行执行<br/>cd 在当前进程中生效<br/>变量赋值跨行保留
+    S-->>M: 5. 返回最终退出码
+```
 
 ## 工程化写法
 
-工程 Makefile 中，短命令可以保留一行一 shell；复杂脚本建议写成独立 `.sh`、`.tcl` 或 `.py` 文件，再由 Makefile 调用。这样调试边界清楚，也不会把 Make 变量展开、shell 引号、EDA 工具命令三层语法混在一起。
+### 错误处理实践
 
-数字IC流程尤其要注意错误处理。仿真失败、综合失败、报告解析失败都应该让目标返回非零退出码，避免 CI 误判通过。只有在“允许失败并继续收集信息”的场景，才应使用 `-` 前缀或等价容错写法。
+```makefile
+.DELETE_ON_ERROR:                     # 推荐全局启用——构建失败时自动删除残次产物
+
+# IC 仿真目标：失败时不应留下虚假的"通过"日志
+logs/smoke.log: $(RTL) filelist.f
+	vcs -f filelist.f -l $@ \
+		|| { printf 'SIM FAILED\n'; exit 1; }  # || 捕获失败、报告后退出
+
+# 清理目标：rm 失败通常无害
+clean:
+	-rm -f *.o *.a *.log              # - 前缀：文件不存在也不报错
+	-rmdir build 2>/dev/null          # rmdir 目录非空时失败——忽略
+```
+
+### 何时用外部脚本
+
+| 方案 | 何时用 | 示例 |
+|:---|:---|:---|
+| 内联配方 | 1-5 行简单命令 | `gcc -c $< -o $@` |
+| 外部 `.sh` 脚本 | 复杂逻辑、多条命令 | `./scripts/run_sim.sh $< $@` |
+| 外部 `.tcl` 脚本 | EDA 工具 TCL 接口 | `dc_shell -f scripts/syn.tcl` |
+| 外部 `.py` 脚本 | 数据处理、报告生成 | `python3 scripts/gen_report.py` |
+
+**原则：Makefile 负责编排，脚本负责实现。** 不要把 50 行 Shell 塞进配方。
 
 ## 常见错误
 
-| 错误现象 | 根因 | 修复 |
-|:---|:---|:---|
-| `cd dir` 后下一行仍在原目录 | 每行配方默认是独立 shell | 写成 `cd dir && command`，或谨慎使用 `.ONESHELL` |
-| shell 变量为空 | 写成 `$VAR` 被 Make 先展开 | 在配方中写 `$$VAR` 交给 shell |
-| 构建失败但 make 仍成功 | 误用了 `-` 前缀或命令吞掉退出码 | 保留失败退出码，只在明确容错时忽略错误 |
+### 错误 1：`cd dir` 后下一行在原目录
+
+**现象：** `cd build` + `pwd` 输出的是原目录。
+
+**根因：** 每行配方在新 Shell 进程中执行——`cd` 效果不跨进程。
+
+**修复：**
+```makefile
+	@cd build && command              # && 确保 cd 成功后才执行后续
+	@cd build; command               # 或用 ;（不检查 cd 是否成功——不推荐）
+```
+
+### 错误 2：`$$` 转义层数混乱
+
+```makefile
+# 错误：想让 Shell 展开 $HOME
+wrong:
+	echo $HOME                        # Make 先展开 $H → 空，$OME → 空 → echo 输出空行
+
+# 正确：
+correct:
+	echo $$HOME                       # Make: $$→$ → Shell: 看到 $HOME
+```
+
+### 错误 3：`.ONESHELL` 中间命令失败被吞
+
+**现象：** `.ONESHELL` 下 `false` 后的 `echo` 仍然执行。
+
+**修复：**
+```makefile
+.ONESHELL:
+.SHELLFLAGS := -ec                    # -e = errexit：任何命令失败立即退出
+```
+
+### 错误 4：`@` 前缀在调试时隐藏问题
+
+**修复：** 调试时用 `make -n` 或设置 `V=1` 变量控制回显——详见 [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]。
 
 ## 关键要点
 
-- Make 负责决定是否执行配方，shell 负责执行配方内容。
-- TAB 是 Make 语法，不是普通缩进风格。
-- `@`、`-`、`+` 是 Make 的配方前缀，各自影响回显、错误和强制执行。
-- 每行配方默认运行在独立 shell 中。
-- shell 变量和 Make 变量都使用 `$`，因此配方中经常需要 `$$` 转义。
-- IC 工程中应让失败目标返回非零退出码，便于自动化和 CI 判断。
+1. **配方由 Shell 执行，不是 Make。** Make 先展开 Make 变量，再把字符串交给 Shell。
+2. **TAB 不是风格选择，是语法规则。** 空格≠TAB。用 `cat -A` 诊断。
+3. **默认每行配方在新 Shell 中执行。** `cd`、`export` 不跨行。
+4. **`$$` 是 Makefile 中最重要转义：想让 Shell 看到 `$X` → 写 `$$X`。**
+5. **`+` 前缀最特殊：`make -n` 下也执行配方行。** 递归 Make 必须用 `$(MAKE)` + `+`。
+6. **`.ONESHELL` 改变配方执行模型——须配合 `-e` 使用。**
+7. **`.DELETE_ON_ERROR` 防止残次文件被误判为"已最新"。** 推荐全局启用。
+8. **Makefile 负责编排，脚本负责实现。** 长逻辑提取到独立脚本文件。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile规则详解|Makefile 规则详解]]：配方必须挂在具体规则之下。
-- [[tools/concepts/Makefile变量赋值与展开|Makefile 变量赋值与展开]]：解释 `$` 在 Make 读阶段和配方展开阶段的行为。
-- [[tools/concepts/Makefile特殊目标手册|Makefile 特殊目标手册]]：后续系统讲 `.ONESHELL`、`.IGNORE`、`.DELETE_ON_ERROR`。
+- [[tools/concepts/03-Makefile规则详解|03 — 规则详解]]：配方挂在规则之下
+- [[tools/concepts/05-Makefile变量赋值与展开|05 — 变量赋值与展开]]：`$` 展开的二阶段时机
+- [[tools/concepts/16-Makefile特殊目标手册|16 — 特殊目标手册]]：`.ONESHELL`、`.DELETE_ON_ERROR` 系统讲解
+- [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]：配方调试工具
 
 ## 小练习
 
-1. 把 `$$$$` 改成 `$$`，运行后解释 shell pid 输出为什么变化。
-2. 删除 `ignore-error` 中 `false` 前面的 `-`，观察 Make 的退出行为。
-3. 把 `good-cd` 改写成 `.ONESHELL` 风格，并说明需要额外注意什么。
+1. **观察独立 Shell：** 写三行配方 `export X=1`、`echo $$X`、`echo $$X`。解释输出差异。
+2. **修复 cd 陷阱：** 先写有 bug 的版本（每行独立 cd），再修复（`&&` 或 `.ONESHELL`）。
+3. **验证 `.DELETE_ON_ERROR`：** 写一个必定失败的配方，分别在有/无 `.DELETE_ON_ERROR` 时运行，检查目标文件残留。
+4. **探索 `-e`：** 在 `.ONESHELL` 下 `false` + `echo`，分别用 `-c` 和 `-ec` 测试。
