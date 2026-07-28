@@ -23,6 +23,7 @@ queries: 1
 | 验证 | [[verification/功能验证|验证 MOC]] | UVM, SVA, 覆盖率, 形式验证 |
 | 体系结构 | [[architecture/体系结构|体系结构 MOC]] | 流水线, 乱序执行, 缓存, 总线, SoC |
 | ASIC 流程 | [[asic-flow/ASIC流程|ASIC 流程 MOC]] | 综合, STA, DFT, 布局布线, Signoff |
+| 工具与脚本 | [[tools/工具与脚本|工具与脚本 MOC]] | Makefile, TCL, Perl/Python, Shell, Git |
 
 ## 跨领域概念
 

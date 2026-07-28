@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "verification/concepts/UVM方法学.md",
+                "file": "rtl-design/concepts/跨时钟域设计.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "UVM方法学"
+              "title": "跨时钟域设计"
             }
           }
         ]
@@ -74,7 +74,8 @@
               "title": "书签"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "horizontal",
@@ -182,20 +183,24 @@
   },
   "active": "d0028a1d304122f7",
   "lastOpenFiles": [
-    "projects/uvm-memory/TLM_pull_mod_AXI_tx/code/sedlQKtro",
-    "verification/concepts/UVM方法学.md.tmp.4417.31184d7d9285",
-    "projects/uvm-memory/UVM_config_db/code/mem_drv.sv.tmp.4417.47f661bd3718",
-    "projects/uvm-memory/UVM_config_db/code/mem_drv.sv.tmp.4417.839587e9cbb0",
-    "projects/uvm-memory/phase4/code/seq_lib.sv.tmp.4417.b2c7030339e3",
-    "projects/uvm-memory/phase4/code/seq_lib.sv.tmp.4417.8de80ebeb114",
-    "CLAUDE.md.tmp.4417.9c2ec2f28620",
-    "projects/uvm-memory/AXI Interface/code/mem_agent.sv.tmp.4417.6bd0133053b8",
-    "verification/concepts/UVM方法学.md.tmp.4417.0b53bfa2df47",
-    "README.md.tmp.4417.ed1b26470fd6",
-    "verification/concepts/UVM方法学.md.tmp.4417.2f28c1b39f65",
+    "cross-domain/concepts/跨时钟域设计.md",
+    "rtl-design/concepts/FIFO设计.md",
+    "verification/concepts/UVM方法学.md",
+    "architecture/concepts/指令集架构基础.md",
+    "projects/uvm-memory/phase4/code/mem_mon.sv.tmp.1266727.eeceae310424",
+    "projects/uvm-memory/phase4/code/mem_sbd.sv.tmp.1266727.32e8d70d588a",
+    "projects/uvm-memory/TLM_broadcast_mod_AXI_tx/code/my_sub.sv.tmp.1266727.b6dd4e1d41f7",
+    "clang-format",
+    "projects/uvm-memory/Overriding/overriding_by_instance/code/sedHOcr4o",
+    "projects/uvm-memory/Overriding/overriding_by_instance/code/axi_agent.sv.tmp",
+    "projects/uvm-memory/Overriding/overriding_by_instance/code/sed1hNVk2",
+    "projects/uvm-memory/Overriding/overriding_by_instance/code/mem_mon.sv.tmp",
+    "projects/uvm-memory/Overriding/overriding_by_instance/code/mem_env.sv.tmp",
+    "projects/uvm-memory/Overriding/overriding_by_instance/code/mem_sqr.sv.tmp",
+    "concepts/CMOS基础.md",
+    "CLAUDE.md",
     "verification/concepts/assets/reference-model-architecture.svg",
     "verification/concepts/形式验证.md",
-    "verification/concepts/UVM方法学.md",
     "verification/concepts/assets/tlm-port-connection.svg",
     "verification/concepts/assets/uvm-class-diagram.svg",
     "verification/concepts/assets/build-connect-phase.svg",
@@ -208,9 +213,7 @@
     "projects/uvm-memory/phase4/code/waveform.png",
     "projects/uvm-memory/phase4/code/coverage.png",
     "projects/uvm-memory/phase4/code/assertions.png",
-    "concepts/CMOS基础.md",
     "rtl-design/concepts/SystemVerilog.md",
-    "rtl-design/concepts/FIFO设计.md",
     "asic-flow/concepts/静态时序分析.md",
     "数字IC入口.md",
     "cross-domain/concepts/复位策略.md",
@@ -218,7 +221,6 @@
     "数字IC_入口.md",
     "README.en.md",
     "architecture/concepts/DMA与中断.md",
-    "architecture/concepts/指令集架构基础.md",
     "architecture/concepts/外设总线协议.md",
     "rtl-design/concepts/assets/cdc-synchronizer.svg",
     "rtl-design/concepts/assets/fsm-moore-mealy.svg",
@@ -226,7 +228,6 @@
     "verification/concepts/覆盖率模型.md",
     "verification/concepts/约束随机验证.md",
     "rtl-design/RTL设计.md",
-    "rtl-design/concepts/跨时钟域设计.md",
-    "rtl-design/concepts/算术电路.md"
+    "rtl-design/concepts/跨时钟域设计.md"
   ]
 }

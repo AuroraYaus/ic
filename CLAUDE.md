@@ -101,7 +101,7 @@ assert property (@(posedge clk) disable iff (rst_n)
 
 ### 6. 项目背景
 
-本项目是数字IC全栈知识库，覆盖六大领域：
+本项目是数字IC全栈知识库，覆盖七大领域：
 
 - `rtl-design/` — RTL 设计与编码（Verilog/SystemVerilog，FSM，CDC，流水线）
 - `verification/` — 功能验证（UVM，SVA，覆盖率，形式验证）
@@ -109,6 +109,7 @@ assert property (@(posedge clk) disable iff (rst_n)
 - `asic-flow/` — ASIC 实现流程（综合，STA，DFT，布局布线，Signoff）
 - `cross-domain/` — 跨领域概念（时序收敛，低功耗，复位策略，CDC）
 - `concepts/` — 数字IC基础（CMOS，数制，亚稳态，半导体基础）
+- `tools/` — 工具与脚本（Makefile，TCL，Perl/Python，Shell，Git）
 
 ### 7. 内容质量标准
 

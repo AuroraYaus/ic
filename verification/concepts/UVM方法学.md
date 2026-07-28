@@ -482,7 +482,7 @@ TLM 端口连接有严格的类型和方向约束，且必须在 `connect_phase`
 
 连接链（单向）：Port 发起端 → Export 中间转发 → Imp 最终实现
 
-![TLM 端口连接](assets/tlm-port-connection.svg)
+![TLM 端口连接|739](assets/tlm-port-connection.svg)
 
 **约束：**
 
