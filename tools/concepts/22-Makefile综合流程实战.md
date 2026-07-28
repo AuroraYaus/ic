@@ -83,6 +83,6 @@ make DESIGN=alu CORNERS="typ slow" syn
 
 ## 与其他概念的关系
 
-- [[tools/concepts/12-Makefile模式规则|12]] `$*` 模式匹配
-- [[tools/concepts/21-Makefile仿真回归实战|21]] 并行模式
-- [[tools/concepts/23-MakefileIC项目构建实战|23]] 流程集成
+- [[tools/concepts/12-Makefile模式规则|Makefile模式规则]] `$*` 模式匹配
+- [[tools/concepts/21-Makefile仿真回归实战|Makefile仿真回归实战]] 并行模式
+- [[tools/concepts/23-MakefileIC项目构建实战|MakefileIC项目构建实战]] 流程集成

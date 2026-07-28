@@ -87,6 +87,6 @@ make rerun             # 仅重跑失败（新种子）
 
 ## 与其他概念的关系
 
-- [[tools/concepts/07-Makefile文本变换函数|07]] `$(patsubst %)`
-- [[tools/concepts/17-Makefile内置变量与命令行|17]] `-j` 并行
-- [[tools/concepts/09-Makefile控制函数与诊断函数|09]] `$(shell ...)`
+- [[tools/concepts/07-Makefile文本变换函数|Makefile文本变换函数]] `$(patsubst %)`
+- [[tools/concepts/17-Makefile内置变量与命令行|Makefile内置变量与命令行]] `-j` 并行
+- [[tools/concepts/09-Makefile控制函数与诊断函数|Makefile控制函数与诊断函数]] `$(shell ...)`

@@ -27,10 +27,10 @@ queries: 1
 
 ## 前置知识
 
-- [[tools/concepts/03-Makefile规则详解|03 — 规则详解]]：配方必须挂在规则之下
-- [[tools/concepts/02-Makefile心智模型与历史|02 — 心智模型]]：配方在目标更新阶段执行，读阶段函数不在此列
+- [[tools/concepts/03-Makefile规则详解|Makefile规则详解]]：配方必须挂在规则之下
+- [[tools/concepts/02-Makefile心智模型与历史|Makefile心智模型与历史]]：配方在目标更新阶段执行，读阶段函数不在此列
 
-后续：[[tools/concepts/05-Makefile变量赋值与展开|05 — 变量赋值与展开]]。
+后续：[[tools/concepts/05-Makefile变量赋值与展开|Makefile变量赋值与展开]]。
 
 ## 最小可运行例子
 
@@ -272,7 +272,7 @@ correct:
 
 ### 错误 4：`@` 前缀在调试时隐藏问题
 
-**修复：** 调试时用 `make -n` 或设置 `V=1` 变量控制回显——详见 [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]。
+**修复：** 调试时用 `make -n` 或设置 `V=1` 变量控制回显——详见 [[tools/concepts/19-Makefile调试与性能|Makefile调试与性能]]。
 
 ## 关键要点
 
@@ -287,10 +287,10 @@ correct:
 
 ## 与其他概念的关系
 
-- [[tools/concepts/03-Makefile规则详解|03 — 规则详解]]：配方挂在规则之下
-- [[tools/concepts/05-Makefile变量赋值与展开|05 — 变量赋值与展开]]：`$` 展开的二阶段时机
-- [[tools/concepts/16-Makefile特殊目标手册|16 — 特殊目标手册]]：`.ONESHELL`、`.DELETE_ON_ERROR` 系统讲解
-- [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]：配方调试工具
+- [[tools/concepts/03-Makefile规则详解|Makefile规则详解]]：配方挂在规则之下
+- [[tools/concepts/05-Makefile变量赋值与展开|Makefile变量赋值与展开]]：`$` 展开的二阶段时机
+- [[tools/concepts/16-Makefile特殊目标手册|Makefile特殊目标手册]]：`.ONESHELL`、`.DELETE_ON_ERROR` 系统讲解
+- [[tools/concepts/19-Makefile调试与性能|Makefile调试与性能]]：配方调试工具
 
 ## 小练习
 

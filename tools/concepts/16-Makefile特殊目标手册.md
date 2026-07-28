@@ -79,9 +79,9 @@ GNU Make 提供 13 个特殊目标（以 `.` 开头），每个改变 Make 的�
 
 ## 与其他概念的关系
 
-- [[tools/concepts/01-Makefile解决的问题与第一个例子|01]] — `.PHONY`
-- [[tools/concepts/04-Makefile配方与Shell|04]] — `.ONESHELL` `.DELETE_ON_ERROR`
-- [[tools/concepts/13-Makefile隐含规则|13]] — `.SUFFIXES`
+- [[tools/concepts/01-Makefile解决的问题与第一个例子|Makefile解决的问题与第一个例子]] — `.PHONY`
+- [[tools/concepts/04-Makefile配方与Shell|Makefile配方与Shell]] — `.ONESHELL` `.DELETE_ON_ERROR`
+- [[tools/concepts/13-Makefile隐含规则|Makefile隐含规则]] — `.SUFFIXES`
 
 ## 小练习
 

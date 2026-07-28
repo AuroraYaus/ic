@@ -110,9 +110,9 @@ SED_INPLACE := $(if $(filter Darwin,$(PLATFORM)),sed -i '',sed -i)
 
 ## 与其他概念的关系
 
-- [[tools/concepts/09-Makefile控制函数与诊断函数|09]]
-- [[tools/concepts/05-Makefile变量赋值与展开|05]]
-- [[tools/concepts/04-Makefile配方与Shell|04]]
+- [[tools/concepts/09-Makefile控制函数与诊断函数|Makefile控制函数与诊断函数]]
+- [[tools/concepts/05-Makefile变量赋值与展开|Makefile变量赋值与展开]]
+- [[tools/concepts/04-Makefile配方与Shell|Makefile配方与Shell]]
 
 ## 小练习
 

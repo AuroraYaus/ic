@@ -26,10 +26,10 @@ queries: 1
 
 ## 前置知识
 
-- 已阅读 [[tools/concepts/01-Makefile解决的问题与第一个例子|01 — 第一个例子]]：目标、前置条件、配方三要素
-- 已阅读 [[tools/concepts/02-Makefile心智模型与历史|02 — 心智模型]]：DAG 和二阶段执行
+- 已阅读 [[tools/concepts/01-Makefile解决的问题与第一个例子|Makefile解决的问题与第一个例子]]：目标、前置条件、配方三要素
+- 已阅读 [[tools/concepts/02-Makefile心智模型与历史|Makefile心智模型与历史]]：DAG 和二阶段执行
 
-后续：[[tools/concepts/04-Makefile配方与Shell|04 — 配方与 Shell]]（配方的执行层）、[[tools/concepts/12-Makefile模式规则|12 — 模式规则]]。
+后续：[[tools/concepts/04-Makefile配方与Shell|Makefile配方与Shell]]（配方的执行层）、[[tools/concepts/12-Makefile模式规则|Makefile模式规则]]。
 
 ## 最小可运行例子
 
@@ -261,10 +261,10 @@ reports/timing.rpt: syn/netlist.v constraints.sdc
 
 ## 与其他概念的关系
 
-- [[tools/concepts/02-Makefile心智模型与历史|02 — 心智模型]]：DAG 的节点=目标，边=前置条件
-- [[tools/concepts/04-Makefile配方与Shell|04 — 配方与 Shell]]：深入规则的配方执行层
-- [[tools/concepts/12-Makefile模式规则|12 — 模式规则]]：从显式规则到 `%` 模式
-- [[tools/concepts/15-Makefile高级依赖|15 — 高级依赖]]：双冒号规则和 order-only 的完整讨论
+- [[tools/concepts/02-Makefile心智模型与历史|Makefile心智模型与历史]]：DAG 的节点=目标，边=前置条件
+- [[tools/concepts/04-Makefile配方与Shell|Makefile配方与Shell]]：深入规则的配方执行层
+- [[tools/concepts/12-Makefile模式规则|Makefile模式规则]]：从显式规则到 `%` 模式
+- [[tools/concepts/15-Makefile高级依赖|Makefile高级依赖]]：双冒号规则和 order-only 的完整讨论
 
 ## 小练习
 

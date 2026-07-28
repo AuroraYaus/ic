@@ -22,14 +22,14 @@ queries: 1
 3. 理解 `+=` 在不同基础 flavor 上的展开差异——这是实战中最容易踩的坑
 4. 用 `$(info ...)` 和 `$(flavor ...)` 诊断变量的最终值和类型
 
-**本篇与 [[tools/concepts/02-Makefile心智模型与历史|02 — 心智模型]] 的二阶段模型紧密绑定。** 变量行为的根源是读阶段 vs 目标更新阶段的展开时机——五种赋值操作符的本质区别就是这个时机的选择。
+**本篇与 [[tools/concepts/02-Makefile心智模型与历史|Makefile心智模型与历史]] 的二阶段模型紧密绑定。** 变量行为的根源是读阶段 vs 目标更新阶段的展开时机——五种赋值操作符的本质区别就是这个时机的选择。
 
 ## 前置知识
 
-- [[tools/concepts/02-Makefile心智模型与历史|02 — 心智模型]]：二阶段执行模型
-- [[tools/concepts/04-Makefile配方与Shell|04 — 配方与 Shell]]：配方中的 `$` 展开
+- [[tools/concepts/02-Makefile心智模型与历史|Makefile心智模型与历史]]：二阶段执行模型
+- [[tools/concepts/04-Makefile配方与Shell|Makefile配方与Shell]]：配方中的 `$` 展开
 
-后续：[[tools/concepts/06-Makefile高级变量|06 — 高级变量]]（自动变量、target-specific、`$(origin)`/`$(flavor)`/`$(value)`）。
+后续：[[tools/concepts/06-Makefile高级变量|Makefile高级变量]]（自动变量、target-specific、`$(origin)`/`$(flavor)`/`$(value)`）。
 
 ## 最小可运行例子
 
@@ -265,10 +265,10 @@ VERSION   = $(shell git describe --tags 2>/dev/null || echo "dev")
 
 ## 与其他概念的关系
 
-- [[tools/concepts/02-Makefile心智模型与历史|02 — 心智模型]]：二阶段模型是变量展开的元理论
-- [[tools/concepts/06-Makefile高级变量|06 — 高级变量]]：自动变量、target-specific、诊断函数
-- [[tools/concepts/10-Makefile条件判断|10 — 条件判断]]：条件在读阶段求值——`=` 变量的延迟影响条件结果
-- [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]：`$(shell ...)` 性能的系统化诊断
+- [[tools/concepts/02-Makefile心智模型与历史|Makefile心智模型与历史]]：二阶段模型是变量展开的元理论
+- [[tools/concepts/06-Makefile高级变量|Makefile高级变量]]：自动变量、target-specific、诊断函数
+- [[tools/concepts/10-Makefile条件判断|Makefile条件判断]]：条件在读阶段求值——`=` 变量的延迟影响条件结果
+- [[tools/concepts/19-Makefile调试与性能|Makefile调试与性能]]：`$(shell ...)` 性能的系统化诊断
 
 ## 小练习
 

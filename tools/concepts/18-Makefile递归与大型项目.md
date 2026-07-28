@@ -14,7 +14,7 @@ queries: 1
 
 ## 前置知识
 
-- [[tools/concepts/17-Makefile内置变量与命令行|17]]：`$(MAKE)`、`$(MAKEFLAGS)`、`$(MAKELEVEL)`
+- [[tools/concepts/17-Makefile内置变量与命令行|Makefile内置变量与命令行]]：`$(MAKE)`、`$(MAKEFLAGS)`、`$(MAKELEVEL)`
 
 ## 递归式 Make
 
@@ -110,8 +110,8 @@ all: sim syn
 
 ## 与其他概念的关系
 
-- [[tools/concepts/17-Makefile内置变量与命令行|17]]
-- [[tools/concepts/23-MakefileIC项目构建实战|23]]
+- [[tools/concepts/17-Makefile内置变量与命令行|Makefile内置变量与命令行]]
+- [[tools/concepts/23-MakefileIC项目构建实战|MakefileIC项目构建实战]]
 
 ## 小练习
 

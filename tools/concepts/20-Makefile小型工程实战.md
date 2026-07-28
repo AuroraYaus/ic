@@ -141,6 +141,6 @@ make install PREFIX=/opt; make dist VERSION=1.0.0
 
 ## 与其他概念的关系
 
-- [[tools/concepts/14-Makefile依赖与自动生成|14]] `-MMD -MP`
-- [[tools/concepts/10-Makefile条件判断|10]] `ifeq` 平台判断
-- [[tools/concepts/18-Makefile递归与大型项目|18]] out-of-source build
+- [[tools/concepts/14-Makefile依赖与自动生成|Makefile依赖与自动生成]] `-MMD -MP`
+- [[tools/concepts/10-Makefile条件判断|Makefile条件判断]] `ifeq` 平台判断
+- [[tools/concepts/18-Makefile递归与大型项目|Makefile递归与大型项目]] out-of-source build

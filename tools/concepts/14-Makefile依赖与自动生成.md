@@ -19,8 +19,8 @@ queries: 1
 
 ## 前置知识
 
-- [[tools/concepts/12-Makefile模式规则|12 — 模式规则]]
-- [[tools/concepts/02-Makefile心智模型与历史|02 — 心智模型]]
+- [[tools/concepts/12-Makefile模式规则|Makefile模式规则]]
+- [[tools/concepts/02-Makefile心智模型与历史|Makefile心智模型与历史]]
 
 ## include 指令
 
@@ -135,9 +135,9 @@ endif
 
 ## 与其他概念的关系
 
-- [[tools/concepts/12-Makefile模式规则|12 — 模式规则]]
-- [[tools/concepts/15-Makefile高级依赖|15 — 高级依赖]]
-- [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]
+- [[tools/concepts/12-Makefile模式规则|Makefile模式规则]]
+- [[tools/concepts/15-Makefile高级依赖|Makefile高级依赖]]
+- [[tools/concepts/19-Makefile调试与性能|Makefile调试与性能]]
 
 ## 小练习
 

@@ -19,8 +19,8 @@ GNU Make 自带一套庞大的**隐含规则数据库（Implicit Rule Database�
 
 ## 前置知识
 
-- [[tools/concepts/12-Makefile模式规则|12 — 模式规则]]：隐含规则是 Make 预定义的模式规则
-- [[tools/concepts/06-Makefile高级变量|06 — 高级变量]]：`$(origin CC)` → `default`
+- [[tools/concepts/12-Makefile模式规则|Makefile模式规则]]：隐含规则是 Make 预定义的模式规则
+- [[tools/concepts/06-Makefile高级变量|Makefile高级变量]]：`$(origin CC)` → `default`
 
 ## 查看隐含规则数据库
 
@@ -118,9 +118,9 @@ MAKEFLAGS += -r --warn-undefined-variables
 
 ## 与其他概念的关系
 
-- [[tools/concepts/12-Makefile模式规则|12 — 模式规则]]
-- [[tools/concepts/06-Makefile高级变量|06 — 高级变量]]
-- [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]
+- [[tools/concepts/12-Makefile模式规则|Makefile模式规则]]
+- [[tools/concepts/06-Makefile高级变量|Makefile高级变量]]
+- [[tools/concepts/19-Makefile调试与性能|Makefile调试与性能]]
 
 ## 小练习
 

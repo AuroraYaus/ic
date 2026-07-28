@@ -177,10 +177,10 @@ clean: ; for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
 
 ## 与其他概念的关系
 
-- [[tools/concepts/18-Makefile递归与大型项目|18]]
-- [[tools/concepts/19-Makefile调试与性能|19]]
-- [[tools/concepts/06-Makefile高级变量|06]]
-- [[tools/concepts/16-Makefile特殊目标手册|16]]
+- [[tools/concepts/18-Makefile递归与大型项目|Makefile递归与大型项目]]
+- [[tools/concepts/19-Makefile调试与性能|Makefile调试与性能]]
+- [[tools/concepts/06-Makefile高级变量|Makefile高级变量]]
+- [[tools/concepts/16-Makefile特殊目标手册|Makefile特殊目标手册]]
 
 ## 小练习
 

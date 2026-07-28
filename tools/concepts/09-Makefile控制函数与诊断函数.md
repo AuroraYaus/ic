@@ -22,12 +22,12 @@ queries: 1
 3. 理解 `$(shell ...)` 的正确姿势与性能陷阱
 4. 用 `$(error)`/`$(warning)`/`$(info)` 做构建前/中的诊断输出
 
-> **注意：** `$(call)` 和 `$(eval)` 的深入讨论在 [[tools/concepts/11-Makefile宏与元编程|11 — 宏与元编程]]——本篇只介绍基本用法和风险边界。
+> **注意：** `$(call)` 和 `$(eval)` 的深入讨论在 [[tools/concepts/11-Makefile宏与元编程|Makefile宏与元编程]]——本篇只介绍基本用法和风险边界。
 
 ## 前置知识
 
-- [[tools/concepts/05-Makefile变量赋值与展开|05 — 变量赋值与展开]]：展开时机决定 `$(shell ...)` 的行为
-- [[tools/concepts/07-Makefile文本变换函数|07 — 文本变换函数]]：`$(foreach)` 输出常由文本函数处理
+- [[tools/concepts/05-Makefile变量赋值与展开|Makefile变量赋值与展开]]：展开时机决定 `$(shell ...)` 的行为
+- [[tools/concepts/07-Makefile文本变换函数|Makefile文本变换函数]]：`$(foreach)` 输出常由文本函数处理
 
 ## 条件函数：`$(if)` / `$(or)` / `$(and)`
 
@@ -155,10 +155,10 @@ $(foreach d,$(DIRS),$(eval $(d)_SRCS := $$(wildcard $(d)/*.c)))
 
 ## 与其他概念的关系
 
-- [[tools/concepts/07-Makefile文本变换函数|07 — 文本变换函数]]：`$(foreach)` 的输出常由文本函数后续处理
-- [[tools/concepts/10-Makefile条件判断|10 — 条件判断]]：`$(if)` vs `ifeq`——函数 vs 指令、展开时 vs 读阶段
-- [[tools/concepts/11-Makefile宏与元编程|11 — 宏与元编程]]：`$(call)` 和 `$(eval)` 的完整讨论
-- [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]：诊断输出的系统化方法和 V=1 模式
+- [[tools/concepts/07-Makefile文本变换函数|Makefile文本变换函数]]：`$(foreach)` 的输出常由文本函数后续处理
+- [[tools/concepts/10-Makefile条件判断|Makefile条件判断]]：`$(if)` vs `ifeq`——函数 vs 指令、展开时 vs 读阶段
+- [[tools/concepts/11-Makefile宏与元编程|Makefile宏与元编程]]：`$(call)` 和 `$(eval)` 的完整讨论
+- [[tools/concepts/19-Makefile调试与性能|Makefile调试与性能]]：诊断输出的系统化方法和 V=1 模式
 
 ## 小练习
 

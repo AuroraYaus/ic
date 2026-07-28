@@ -25,8 +25,8 @@ queries: 1
 
 ## 前置知识
 
-- [[tools/concepts/05-Makefile变量赋值与展开|05 — 变量赋值与展开]]：五种赋值操作符和二阶段展开
-- [[tools/concepts/03-Makefile规则详解|03 — 规则详解]]：配方上下文——自动变量只在配方中有效
+- [[tools/concepts/05-Makefile变量赋值与展开|Makefile变量赋值与展开]]：五种赋值操作符和二阶段展开
+- [[tools/concepts/03-Makefile规则详解|Makefile规则详解]]：配方上下文——自动变量只在配方中有效
 
 ## 最小可运行例子
 
@@ -196,10 +196,10 @@ test_stress.vsim: UVM_VERBOSITY := UVM_NONE
 
 ## 与其他概念的关系
 
-- [[tools/concepts/05-Makefile变量赋值与展开|05 — 变量赋值与展开]]：五种赋值——本篇的自动变量和诊断函数建立在其上
-- [[tools/concepts/12-Makefile模式规则|12 — 模式规则]]：`$*` 和 Pattern-specific 的主战场
-- [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]：诊断函数系统化使用
-- [[tools/concepts/17-Makefile内置变量与命令行|17 — 内置变量与命令行]]：`$(MAKE)` 等内置变量
+- [[tools/concepts/05-Makefile变量赋值与展开|Makefile变量赋值与展开]]：五种赋值——本篇的自动变量和诊断函数建立在其上
+- [[tools/concepts/12-Makefile模式规则|Makefile模式规则]]：`$*` 和 Pattern-specific 的主战场
+- [[tools/concepts/19-Makefile调试与性能|Makefile调试与性能]]：诊断函数系统化使用
+- [[tools/concepts/17-Makefile内置变量与命令行|Makefile内置变量与命令行]]：`$(MAKE)` 等内置变量
 
 ## 小练习
 

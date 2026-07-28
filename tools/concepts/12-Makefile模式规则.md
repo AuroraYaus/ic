@@ -19,8 +19,8 @@ queries: 1
 
 ## 前置知识
 
-- [[tools/concepts/03-Makefile规则详解|03 — 规则详解]]：显式规则是模式规则的特例
-- [[tools/concepts/06-Makefile高级变量|06 — 高级变量]]：`$*` 在模式规则中 = stem
+- [[tools/concepts/03-Makefile规则详解|Makefile规则详解]]：显式规则是模式规则的特例
+- [[tools/concepts/06-Makefile高级变量|Makefile高级变量]]：`$*` 在模式规则中 = stem
 
 ## 模式规则基础
 
@@ -116,9 +116,9 @@ $(LIBS): work/%.so: rtl/%.sv; vlog -work work $<
 
 ## 与其他概念的关系
 
-- [[tools/concepts/03-Makefile规则详解|03 — 规则详解]]
-- [[tools/concepts/13-Makefile隐含规则|13 — 隐含规则]]
-- [[tools/concepts/14-Makefile依赖与自动生成|14 — 依赖与自动生成]]
+- [[tools/concepts/03-Makefile规则详解|Makefile规则详解]]
+- [[tools/concepts/13-Makefile隐含规则|Makefile隐含规则]]
+- [[tools/concepts/14-Makefile依赖与自动生成|Makefile依赖与自动生成]]
 
 ## 小练习
 

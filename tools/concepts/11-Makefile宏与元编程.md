@@ -25,8 +25,8 @@ queries: 1
 
 ## 前置知识
 
-- [[tools/concepts/09-Makefile控制函数与诊断函数|09 — 控制与诊断函数]]：`$(foreach)` 常与 `$(eval)` 组合
-- [[tools/concepts/05-Makefile变量赋值与展开|05 — 变量赋值与展开]]：`$$` 双重展开是 `$(eval)` 的关键
+- [[tools/concepts/09-Makefile控制函数与诊断函数|Makefile控制函数与诊断函数]]：`$(foreach)` 常与 `$(eval)` 组合
+- [[tools/concepts/05-Makefile变量赋值与展开|Makefile变量赋值与展开]]：`$$` 双重展开是 `$(eval)` 的关键
 
 ## `define`/`endef` — 多行变量
 
@@ -142,9 +142,9 @@ $(foreach t,$(TEST_LIST),$(eval $(call TEST_RULE,$(t))))
 
 ## 与其他概念的关系
 
-- [[tools/concepts/09-Makefile控制函数与诊断函数|09 — 控制与诊断函数]]：`$(foreach)` + `$(eval)` 标准组合
-- [[tools/concepts/12-Makefile模式规则|12 — 模式规则]]：优先于 eval
-- [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]：eval 代码的调试方法
+- [[tools/concepts/09-Makefile控制函数与诊断函数|Makefile控制函数与诊断函数]]：`$(foreach)` + `$(eval)` 标准组合
+- [[tools/concepts/12-Makefile模式规则|Makefile模式规则]]：优先于 eval
+- [[tools/concepts/19-Makefile调试与性能|Makefile调试与性能]]：eval 代码的调试方法
 
 ## 小练习
 

@@ -27,10 +27,10 @@ queries: 1
 
 ## 前置知识
 
-- 已阅读 [[tools/concepts/01-Makefile解决的问题与第一个例子|01 — 第一个例子]]：理解目标、前置条件、配方的基本语法和时间戳增量构建
+- 已阅读 [[tools/concepts/01-Makefile解决的问题与第一个例子|Makefile解决的问题与第一个例子]]：理解目标、前置条件、配方的基本语法和时间戳增量构建
 - **不需要**事先理解变量展开、函数调用、条件判断——那些是后续篇章用本篇的模型来解释的
 
-后续衔接：[[tools/concepts/03-Makefile规则详解|03 — Makefile 规则详解]]、[[tools/concepts/05-Makefile变量赋值与展开|05 — Makefile 变量赋值与展开]]。
+后续衔接：[[tools/concepts/03-Makefile规则详解|Makefile规则详解]]、[[tools/concepts/05-Makefile变量赋值与展开|Makefile变量赋值与展开]]。
 
 ## 最小可运行例子
 
@@ -371,10 +371,10 @@ output.txt: input.txt
 
 ## 与其他概念的关系
 
-- [[tools/concepts/01-Makefile解决的问题与第一个例子|01 — 第一个例子]]：本篇的心智模型是对上一篇直观体验的理论化
-- [[tools/concepts/05-Makefile变量赋值与展开|05 — 变量赋值与展开]]：二阶段模型直接解释了 `=` 和 `:=` 的区别
-- [[tools/concepts/10-Makefile条件判断|10 — 条件判断]]：条件判断在读阶段求值——不能用它检测配方执行结果
-- [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]：`--debug` 让你直接"看到"二阶段执行的每一步
+- [[tools/concepts/01-Makefile解决的问题与第一个例子|Makefile解决的问题与第一个例子]]：本篇的心智模型是对上一篇直观体验的理论化
+- [[tools/concepts/05-Makefile变量赋值与展开|Makefile变量赋值与展开]]：二阶段模型直接解释了 `=` 和 `:=` 的区别
+- [[tools/concepts/10-Makefile条件判断|Makefile条件判断]]：条件判断在读阶段求值——不能用它检测配方执行结果
+- [[tools/concepts/19-Makefile调试与性能|Makefile调试与性能]]：`--debug` 让你直接"看到"二阶段执行的每一步
 - [[tools/工具与脚本|工具与脚本 MOC]]：本系列所在的工具领域内容地图
 
 ## 小练习

@@ -14,8 +14,8 @@ queries: 1
 
 ## 前置知识
 
-- [[tools/concepts/03-Makefile规则详解|03 — 规则详解]]
-- [[tools/concepts/14-Makefile依赖与自动生成|14 — 依赖与自动生成]]
+- [[tools/concepts/03-Makefile规则详解|Makefile规则详解]]
+- [[tools/concepts/14-Makefile依赖与自动生成|Makefile依赖与自动生成]]
 
 ## Order-Only 前置条件：`|`
 
@@ -86,9 +86,9 @@ test: $$(SRCS_$$*)                     # $$* → test → $(SRCS_test)
 
 ## 与其他概念的关系
 
-- [[tools/concepts/03-Makefile规则详解|03 — 规则详解]]
-- [[tools/concepts/14-Makefile依赖与自动生成|14 — 依赖与自动生成]]
-- [[tools/concepts/06-Makefile高级变量|06 — 高级变量]]
+- [[tools/concepts/03-Makefile规则详解|Makefile规则详解]]
+- [[tools/concepts/14-Makefile依赖与自动生成|Makefile依赖与自动生成]]
+- [[tools/concepts/06-Makefile高级变量|Makefile高级变量]]
 
 ## 小练习
 

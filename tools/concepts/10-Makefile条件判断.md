@@ -19,8 +19,8 @@ queries: 1
 
 ## 前置知识
 
-- [[tools/concepts/05-Makefile变量赋值与展开|05 — 变量赋值与展开]]：条件在读阶段求值——`=` 变量的延迟展开影响条件结果
-- [[tools/concepts/09-Makefile控制函数与诊断函数|09 — 控制与诊断函数]]：`$(if ...)` 函数级条件 vs 本篇 `ifeq` 指令级条件
+- [[tools/concepts/05-Makefile变量赋值与展开|Makefile变量赋值与展开]]：条件在读阶段求值——`=` 变量的延迟展开影响条件结果
+- [[tools/concepts/09-Makefile控制函数与诊断函数|Makefile控制函数与诊断函数]]：`$(if ...)` 函数级条件 vs 本篇 `ifeq` 指令级条件
 
 ## 语法全解
 
@@ -129,9 +129,9 @@ build:
 
 ## 与其他概念的关系
 
-- [[tools/concepts/09-Makefile控制函数与诊断函数|09 — 控制与诊断函数]]：`$(if)` vs `ifeq`
-- [[tools/concepts/05-Makefile变量赋值与展开|05 — 变量赋值与展开]]：延迟展开影响条件结果
-- [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]：`--warn-undefined-variables`
+- [[tools/concepts/09-Makefile控制函数与诊断函数|Makefile控制函数与诊断函数]]：`$(if)` vs `ifeq`
+- [[tools/concepts/05-Makefile变量赋值与展开|Makefile变量赋值与展开]]：延迟展开影响条件结果
+- [[tools/concepts/19-Makefile调试与性能|Makefile调试与性能]]：`--warn-undefined-variables`
 
 ## 小练习
 

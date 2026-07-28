@@ -23,7 +23,7 @@ Makefile 的函数全部是**纯文本变换**：输入一段文本，输出一�
 
 ## 前置知识
 
-- [[tools/concepts/05-Makefile变量赋值与展开|05 — 变量赋值与展开]]：函数的展开时机（`$(call ...)` / `$(shell ...)` 在各自赋值风格下的展开时刻）
+- [[tools/concepts/05-Makefile变量赋值与展开|Makefile变量赋值与展开]]：函数的展开时机（`$(call ...)` / `$(shell ...)` 在各自赋值风格下的展开时刻）
 - Make 的函数调用语法：`$(function arguments...)`——函数名和第一个参数之间是空格，不是逗号
 
 ## 替换与变换函数
@@ -131,9 +131,9 @@ DUT_FILES := $(filter-out %_tb.sv,$(RTL_FILES))
 
 ## 与其他概念的关系
 
-- [[tools/concepts/08-Makefile路径与文件函数|08 — 路径与文件函数]]：目录/文件名操作——文本变换的下游
-- [[tools/concepts/09-Makefile控制函数与诊断函数|09 — 控制与诊断函数]]：`$(foreach)` 和 `$(eval)` 与文本函数组合
-- [[tools/concepts/14-Makefile依赖与自动生成|14 — 依赖与自动生成]]：`$(patsubst ...)` 在 .d 路径换算中的应用
+- [[tools/concepts/08-Makefile路径与文件函数|Makefile路径与文件函数]]：目录/文件名操作——文本变换的下游
+- [[tools/concepts/09-Makefile控制函数与诊断函数|Makefile控制函数与诊断函数]]：`$(foreach)` 和 `$(eval)` 与文本函数组合
+- [[tools/concepts/14-Makefile依赖与自动生成|Makefile依赖与自动生成]]：`$(patsubst ...)` 在 .d 路径换算中的应用
 
 ## 小练习
 

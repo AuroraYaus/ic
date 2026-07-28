@@ -24,7 +24,7 @@ queries: 1
 
 ## 前置知识
 
-- [[tools/concepts/07-Makefile文本变换函数|07 — 文本变换函数]]：`$(addprefix)`/`$(addsuffix)` 与路径函数天然搭配
+- [[tools/concepts/07-Makefile文本变换函数|Makefile文本变换函数]]：`$(addprefix)`/`$(addsuffix)` 与路径函数天然搭配
 - Make 的词表模型：路径的每个目录段是独立的词
 
 ## 路径拆解函数
@@ -112,9 +112,9 @@ FILELIST := $(RTL_SV) $(RTL_V)
 
 ## 与其他概念的关系
 
-- [[tools/concepts/07-Makefile文本变换函数|07 — 文本变换函数]]：`$(addprefix)`/`$(addsuffix)` 与路径函数配合
-- [[tools/concepts/15-Makefile高级依赖|15 — 高级依赖]]：order-only 前置条件——目录创建的标准写法
-- [[tools/concepts/14-Makefile依赖与自动生成|14 — 依赖与自动生成]]：`.d` 文件路径映射
+- [[tools/concepts/07-Makefile文本变换函数|Makefile文本变换函数]]：`$(addprefix)`/`$(addsuffix)` 与路径函数配合
+- [[tools/concepts/15-Makefile高级依赖|Makefile高级依赖]]：order-only 前置条件——目录创建的标准写法
+- [[tools/concepts/14-Makefile依赖与自动生成|Makefile依赖与自动生成]]：`.d` 文件路径映射
 
 ## 小练习
 

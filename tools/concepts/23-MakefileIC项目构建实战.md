@@ -94,6 +94,6 @@ make release VERSION=1.0.0
 
 ## 与其他概念的关系
 
-- [[tools/concepts/18-Makefile递归与大型项目|18]]
-- [[tools/concepts/21-Makefile仿真回归实战|21]]
-- [[tools/concepts/22-Makefile综合流程实战|22]]
+- [[tools/concepts/18-Makefile递归与大型项目|Makefile递归与大型项目]]
+- [[tools/concepts/21-Makefile仿真回归实战|Makefile仿真回归实战]]
+- [[tools/concepts/22-Makefile综合流程实战|Makefile综合流程实战]]

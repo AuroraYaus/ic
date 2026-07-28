@@ -25,7 +25,7 @@ queries: 1
 
 Makefile 的核心价值不是"少敲几行命令"——那只是副作用。真正的价值在于把工程产物之间的**依赖关系写成声明**（declarative specification），然后由 Make 的依赖图引擎自动判断哪些需要重建、哪些可以跳过。Shell 脚本按顺序重跑所有步骤，Make 只重建过期的部分。在数字IC工程中——一次完整仿真可能跑数小时，一次综合可能跑一晚上——增量重跑的价值是直接的工程时间压缩。
 
-**本篇只讲 MAKE 层（Makefile 语法）的最基本要素，不展开 Shell 层（配方内部）的细节。** Shell 层的深入讨论见 [[tools/concepts/03-Makefile规则详解|03 — Makefile 规则详解]]。
+**本篇只讲 MAKE 层（Makefile 语法）的最基本要素，不展开 Shell 层（配方内部）的细节。** Shell 层的深入讨论见 [[tools/concepts/03-Makefile规则详解|Makefile规则详解]]。
 
 ## 前置知识
 
@@ -33,7 +33,7 @@ Makefile 的核心价值不是"少敲几行命令"——那只是副作用。真
 - 知道文件有**修改时间**（modification time, mtime）：新写入的文件比旧文件"更新"
 - **不需要**事先理解变量、函数、模式规则等概念——那些是后续篇章的主题
 
-本篇是 Makefile 系列的第一篇，不依赖系列内其他文件。后续衔接：[[tools/concepts/03-Makefile规则详解|03 — Makefile 规则详解]]。
+本篇是 Makefile 系列的第一篇，不依赖系列内其他文件。后续衔接：[[tools/concepts/03-Makefile规则详解|Makefile规则详解]]。
 
 ## 最小可运行例子
 
@@ -76,7 +76,7 @@ make
 
 **关键观察：** 配方行（Recipe）必须以 **TAB 字符**（ASCII 0x09）开头，不能是 8 个空格。这是 Makefile 历史上最著名的设计缺陷——IDE 的"TAB 转空格"功能是 Makefile 的头号杀手。如果你不确定编辑器是否插入了真正的 TAB，用 `cat -A Makefile` 检查：配方行开头应该显示 `^I` 而非空格。
 
-> **版本说明：** GNU Make 4.0+ 支持 `.RECIPEPREFIX` 特殊目标来更换配方前缀字符（如换成 `>`），但绝大多数既有 Makefile 使用 TAB。本书默认使用 TAB，`.RECIPEPREFIX` 的详细讨论见 [[tools/concepts/04-Makefile配方与Shell|04 — Makefile 配方与 Shell]]。
+> **版本说明：** GNU Make 4.0+ 支持 `.RECIPEPREFIX` 特殊目标来更换配方前缀字符（如换成 `>`），但绝大多数既有 Makefile 使用 TAB。本书默认使用 TAB，`.RECIPEPREFIX` 的详细讨论见 [[tools/concepts/04-Makefile配方与Shell|Makefile配方与Shell]]。
 
 修正后的例子 2：
 
@@ -273,7 +273,7 @@ quiet:
 
 `@` 是开发者体验工具——它让输出更干净。但调试时应该去掉 `@`（或使用 `make -n`），否则看不见实际执行的命令。
 
-`@` 可以与 `-` 组合（如 `@-rm -f *.o`），详细讨论见 [[tools/concepts/04-Makefile配方与Shell|04 — Makefile 配方与 Shell]]。
+`@` 可以与 `-` 组合（如 `@-rm -f *.o`），详细讨论见 [[tools/concepts/04-Makefile配方与Shell|Makefile配方与Shell]]。
 
 ## 执行轨迹
 
@@ -429,7 +429,7 @@ make clean && make --trace
 # 注意：main.o 和 utils.o 的编译顺序取决于 Make 的依赖图遍历——不一定按文件顺序
 ```
 
-这个版本的关键局限：每增加一个 `.c` 文件就需要手动增加一条 `xxx.o: xxx.c` 规则。模式规则（`%.o: %.c`）解决这个问题——详见 [[tools/concepts/12-Makefile模式规则|12 — Makefile 模式规则]]。
+这个版本的关键局限：每增加一个 `.c` 文件就需要手动增加一条 `xxx.o: xxx.c` 规则。模式规则（`%.o: %.c`）解决这个问题——详见 [[tools/concepts/12-Makefile模式规则|Makefile模式规则]]。
 
 ### 数字IC工程中的对应物
 
@@ -475,7 +475,7 @@ Makefile:2: *** missing separator.  Stop.
 
 **根因：** Makefile 中只有 `main.o: main.c`，没有声明 `main.o` 也依赖 `config.h`。
 
-**修复：** 短期的——手动把 `.h` 文件加到前置条件：`main.o: main.c config.h`。长期的——使用编译器的自动依赖生成（`-MMD` / `-MF`），详见 [[tools/concepts/14-Makefile依赖与自动生成|14 — Makefile 依赖与自动生成]]。
+**修复：** 短期的——手动把 `.h` 文件加到前置条件：`main.o: main.c config.h`。长期的——使用编译器的自动依赖生成（`-MMD` / `-MF`），详见 [[tools/concepts/14-Makefile依赖与自动生成|Makefile依赖与自动生成]]。
 
 ### 错误 4：`make` 默认目标不是你期望的
 
@@ -485,7 +485,7 @@ Makefile:2: *** missing separator.  Stop.
 
 **修复：** 把 `all` 作为 Makefile 的第一个目标。
 
-**预防：** 约定俗成——`all` 永远写在 Makefile 最前面，紧接 `.PHONY: all` 声明。`.DEFAULT_GOAL := all` 可以显式指定默认目标——详见 [[tools/concepts/16-Makefile特殊目标手册|16 — Makefile 特殊目标手册]]。
+**预防：** 约定俗成——`all` 永远写在 Makefile 最前面，紧接 `.PHONY: all` 声明。`.DEFAULT_GOAL := all` 可以显式指定默认目标——详见 [[tools/concepts/16-Makefile特殊目标手册|Makefile特殊目标手册]]。
 
 ### 错误 5：clean 被同名文件阻挡
 
@@ -509,9 +509,9 @@ Makefile:2: *** missing separator.  Stop.
 
 ## 与其他概念的关系
 
-- [[tools/concepts/03-Makefile规则详解|03 — Makefile 规则详解]]：展开本篇未深入的目标类型、多目标规则、依赖图遍历算法
-- [[tools/concepts/04-Makefile配方与Shell|04 — Makefile 配方与 Shell]]：深入配方执行的 Shell 层面——`@`/`-`/`+` 前缀、`.ONESHELL`、`SHELL` 变量选择
-- [[tools/concepts/05-Makefile变量赋值与展开|05 — Makefile 变量赋值与展开]]：把脚本中重复的字符串替换为变量——Makefile 从"玩具"到"工程"的第一步
+- [[tools/concepts/03-Makefile规则详解|Makefile规则详解]]：展开本篇未深入的目标类型、多目标规则、依赖图遍历算法
+- [[tools/concepts/04-Makefile配方与Shell|Makefile配方与Shell]]：深入配方执行的 Shell 层面——`@`/`-`/`+` 前缀、`.ONESHELL`、`SHELL` 变量选择
+- [[tools/concepts/05-Makefile变量赋值与展开|Makefile变量赋值与展开]]：把脚本中重复的字符串替换为变量——Makefile 从"玩具"到"工程"的第一步
 - [[tools/工具与脚本|工具与脚本 MOC]]：本系列所在的工具领域内容地图
 
 ## 小练习
