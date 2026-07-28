@@ -2,12 +2,12 @@
 type: concept
 aliases:
   - Makefile 高级依赖
-  - Makefile 高级依赖
+  - Makefile order-only secondary expansion
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual: Prerequisite Types, Secondary Expansion, Double-Colon Rules"
+source_spec: "GNU Make Manual: Types of Prerequisites, Secondary Expansion, Double-Colon Rules"
 queries: 1
 ---
 
@@ -15,111 +15,112 @@ queries: 1
 
 ## 学习目标
 
-本篇属于 Part 6，目标是：用 order-only、二次展开和双冒号规则处理复杂依赖边界。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+读完后，读者应该能解释 order-only 前置条件、双冒号规则和二次展开的用途，能正确处理目录创建、锁文件、延迟依赖和同一目标多个独立动作。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+这一组内容把 Makefile 从“手写单条规则”推进到“可扩展规则系统”。只要项目文件数量超过几个，模式规则、隐含规则和自动依赖就会成为可维护性的分水岭。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile依赖与自动生成|前一篇]]，再读 [[tools/concepts/Makefile特殊目标手册|后一篇]]。
+- 建议先读 [[tools/concepts/Makefile依赖与自动生成|前一篇]]。
+- 需要熟悉变量、函数、自动变量和基本规则。
+- 后续可继续读 [[tools/concepts/Makefile特殊目标手册|后一篇]]。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `build/stamp`，它足够小，便于观察每一步行为。
-
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: build/stamp          # all 是目标；冒号右边的文件是前置条件
+# 开启二次展开：依赖列表中的 $$ 会在目标更新阶段再次展开
+.SECONDEXPANSION:                        # 允许后续规则使用二次展开
 
-# 真实文件目标：当 build/stamp 不存在或依赖更新时执行配方
-build/stamp: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 目标列表：用目录加 stamp 模拟构建产物
+TARGETS := build/a.stamp build/b.stamp   # 两个目标文件
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
+# 默认目标：依赖全部 stamp
+all: $(TARGETS)                          # all 触发两个 stamp 文件
 
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf build input.txt  # 删除示例产物，方便重新实验
+# 每个目标的局部变量：根据目标名定义输入文件
+build/a.stamp: INPUT := inputs/a.txt     # a.stamp 的专属输入
+build/b.stamp: INPUT := inputs/b.txt     # b.stamp 的专属输入
+
+# 二次展开规则：$$(INPUT) 延迟到目标上下文确定后再展开
+$(TARGETS): $$(INPUT) | build inputs     # INPUT 在二次展开时变成目标专属变量
+	@printf 'target=%s input=%s\n' '$@' '$<' > '$@' # 写入目标和输入
+
+# 输入文件模式规则：创建 inputs/a.txt 或 inputs/b.txt
+inputs/%.txt: | inputs                   # 输入文件依赖 inputs 目录存在
+	@printf 'input %s\n' '$*' > '$@'       # $* 是 a 或 b
+
+# 目录规则：order-only 依赖只保证目录存在
+build inputs:                            # 目录缺失时创建
+	@mkdir -p '$@'                         # 创建目录
+
+# 双冒号示例：同一目标可以有多个独立规则
+.PHONY: audit                            # audit 是动作目标
+audit::                                  # 第一条 audit 动作
+	@printf 'check logs\n'                 # 打印日志检查
+audit::                                  # 第二条 audit 动作
+	@printf 'check reports\n'              # 打印报告检查
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
-make clean
-# 只打印将要执行的命令，不真正执行配方
+# 预演默认目标，确认模式或依赖展开后的命令
 make -n
-# 打印规则触发原因，并真正执行构建
+# 执行默认目标，并显示每个目标触发原因
 make --trace
-# 第二次运行，用来观察目标已经最新时的行为
-make --trace
+# 打开未定义变量警告，检查变量拼写问题
+make --warn-undefined-variables
 ```
-
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
 
 ## 语法拆解
 
-- `all: build/stamp` 表示 `all` 依赖 `build/stamp`；`all` 放在最前面，因此成为默认目标。
-- `build/stamp: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `build/stamp`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `| build inputs` 是 order-only 前置条件，不参与目标过期判断。
+- `.SECONDEXPANSION` 允许依赖列表里的 `$$` 延迟展开。
+- `$$(INPUT)` 第一阶段保留为 `$(INPUT)`，第二阶段按目标专属变量展开。
+- 双冒号规则 `audit::` 允许同一目标有多个独立规则。
+- 二次展开强大但难读，应只在普通变量和模式规则不够时使用。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+    Src[源文件或输入列表] --> Rule[规则选择]
+    Rule --> Dep[依赖检查]
+    Dep --> Out[目标产物]
+    Dir[目录或 order-only 依赖] -.不参与过期判断.-> Out
 ```
 
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
-
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
+`make --trace` 是观察规则选择的第一工具；`make -p` 适合查看隐含规则数据库；自动依赖问题则要同时检查 `.d` 文件内容和 Make 重启次数。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
-
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+高级依赖常用于大型项目目录、自动生成输入和目标专属依赖。IC 项目中，不同 test/corner/IP 可能有自己的 config 和 manifest；二次展开可以把目标专属变量转成依赖，但如果团队不熟悉，生成 `.mk` 文件通常更直观。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| 目录时间戳触发重建 | 目录作为普通依赖 | 把目录放到 `|` 右侧 |
+| `$$(VAR)` 没展开 | 忘记 `.SECONDEXPANSION` | 在相关规则前启用特殊目标 |
+| 同一目标多条规则互相覆盖 | 普通单冒号重复规则 | 需要独立动作时使用双冒号并解释原因 |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- Order-only 依赖适合目录和环境准备。
+- 二次展开能在依赖列表中延迟使用变量。
+- 目标专属变量可配合二次展开表达局部依赖。
+- 双冒号规则是少用但有明确语义的工具。
+- 高级依赖应优先服务可读性，而不是增加抽象。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile依赖与自动生成|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/Makefile特殊目标手册|后一篇]]：把本篇概念推进到下一层工程用法。
-- [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
+- [[tools/concepts/Makefile依赖与自动生成|前一篇]]：提供变量、函数或模板基础。
+- [[tools/concepts/Makefile特殊目标手册|后一篇]]：继续推进依赖和工程化能力。
+- [[tools/concepts/Makefile调试与性能|Makefile 调试与性能]]：用于观察隐含规则和依赖重建行为。
 
 ## 小练习
 
-1. 把 `build/stamp` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 运行 `touch build && make --trace`，观察 stamp 是否重建。
+2. 把 `$$(INPUT)` 改成 `$(INPUT)`，解释为什么依赖为空。
+3. 运行 `make audit`，观察双冒号两条规则都执行。

@@ -2,12 +2,12 @@
 type: concept
 aliases:
   - Makefile 依赖与自动生成
-  - Makefile 依赖 and 自动生成
+  - Makefile auto dependency
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual: Include, Remaking Makefiles; GCC Dependency Generation Options"
+source_spec: "GNU Make Manual: Include, Remaking Makefiles; GCC Manual: Options for Dependency Generation"
 queries: 1
 ---
 
@@ -15,111 +15,112 @@ queries: 1
 
 ## 学习目标
 
-本篇属于 Part 6，目标是：掌握 include 和 .d 自动依赖文件，确保头文件变化能触发正确重建。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+读完后，读者应该能使用 `include`/`-include` 管理拆分 Makefile，理解 `.d` 文件自动依赖的基本写法，并知道 `-MMD`、`-MP`、`-MF`、`-MT` 等编译器选项解决什么问题。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+这一组内容把 Makefile 从“手写单条规则”推进到“可扩展规则系统”。只要项目文件数量超过几个，模式规则、隐含规则和自动依赖就会成为可维护性的分水岭。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile隐含规则|前一篇]]，再读 [[tools/concepts/Makefile高级依赖|后一篇]]。
+- 建议先读 [[tools/concepts/Makefile隐含规则|前一篇]]。
+- 需要熟悉变量、函数、自动变量和基本规则。
+- 后续可继续读 [[tools/concepts/Makefile高级依赖|后一篇]]。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `build/main.o`，它足够小，便于观察每一步行为。
-
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: build/main.o          # all 是目标；冒号右边的文件是前置条件
+# 编译器变量：默认使用 cc，用户可以命令行覆盖
+CC ?= cc                                 # C 编译器，默认 cc
+CFLAGS ?= -Wall -Wextra                  # 基础警告选项
+CPPFLAGS ?= -Iinclude                    # 头文件搜索路径
 
-# 真实文件目标：当 build/main.o 不存在或依赖更新时执行配方
-build/main.o: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 文件列表：一个源文件、一个对象文件、一个依赖文件
+SRC := src/main.c                        # 源文件路径
+OBJ := build/main.o                      # 对象文件路径
+DEP := build/main.d                      # 自动依赖文件路径
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
+# 默认目标：生成对象文件
+all: $(OBJ)                              # all 依赖对象文件
 
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf build input.txt  # 删除示例产物，方便重新实验
+# 自动依赖文件：首次不存在时不要报错
+-include $(DEP)                          # 读阶段尝试包含 .d 文件，缺失则忽略
+
+# 编译规则：同时生成 .o 和 .d
+$(OBJ): $(SRC) include/main.h | build src include # 普通依赖加目录依赖
+	@$(CC) $(CPPFLAGS) $(CFLAGS) -MMD -MP -MF $(DEP) -MT '$@' -c '$<' -o '$@' # 编译并生成依赖
+
+# 目录目标：保证目录存在
+build src include:                       # 三个目录共用一条规则
+	@mkdir -p '$@'                         # 创建当前目录目标
+
+# 源文件：创建最小 C 文件
+src/main.c: | src include                # 源文件依赖目录存在
+	@printf '#include "main.h"\nint main(void) { return VALUE; }\n' > '$@' # 写入 C 源码
+
+# 头文件：创建最小头文件
+include/main.h: | include                # 头文件依赖 include 目录
+	@printf '#define VALUE 0\n' > '$@'     # 写入宏定义
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
-make clean
-# 只打印将要执行的命令，不真正执行配方
+# 预演默认目标，确认模式或依赖展开后的命令
 make -n
-# 打印规则触发原因，并真正执行构建
+# 执行默认目标，并显示每个目标触发原因
 make --trace
-# 第二次运行，用来观察目标已经最新时的行为
-make --trace
+# 打开未定义变量警告，检查变量拼写问题
+make --warn-undefined-variables
 ```
-
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
 
 ## 语法拆解
 
-- `all: build/main.o` 表示 `all` 依赖 `build/main.o`；`all` 放在最前面，因此成为默认目标。
-- `build/main.o: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `build/main.o`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `-include $(DEP)` 在读阶段包含依赖文件；文件缺失不报错。
+- `.d` 文件通常由编译器生成，记录 `.o` 对 `.c/.h` 的依赖。
+- `-MMD` 生成用户头文件依赖，通常不包含系统头。
+- `-MP` 为头文件生成伪目标，减少删除头文件后的报错。
+- `-MF` 指定依赖文件路径，`-MT` 指定依赖文件里的目标名。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+    Src[源文件或输入列表] --> Rule[规则选择]
+    Rule --> Dep[依赖检查]
+    Dep --> Out[目标产物]
+    Dir[目录或 order-only 依赖] -.不参与过期判断.-> Out
 ```
 
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
-
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
+`make --trace` 是观察规则选择的第一工具；`make -p` 适合查看隐含规则数据库；自动依赖问题则要同时检查 `.d` 文件内容和 Make 重启次数。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
-
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+C/C++ 工程可直接使用编译器自动依赖。数字IC工程中，类似思想也适用于 filelist、testlist、IP manifest：先生成可 include 的依赖片段，再让 Make 根据片段决定重跑范围。依赖文件是构建系统和文件扫描脚本之间的稳定接口。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| 修改头文件不重编译 | `.d` 文件没有 include 或生成不正确 | 使用 `-include $(DEPS)` 并检查 `.d` 内容 |
+| 首次构建找不到 `.d` | 用了 `include` 而不是 `-include` | 首次自动依赖用 `-include` |
+| 删除头文件后 make 报错 | `.d` 仍引用旧头文件 | 加 `-MP` 或清理依赖文件 |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- `include` 在读阶段嵌入其他 Makefile 文本。
+- `-include` 适合首次不存在的自动依赖文件。
+- `.d` 文件让头文件变化能触发正确重建。
+- 依赖文件可能触发 Makefile remake 和重启动。
+- `$(MAKE_RESTARTS)` 可用于观察重启动次数。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile隐含规则|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/Makefile高级依赖|后一篇]]：把本篇概念推进到下一层工程用法。
-- [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
+- [[tools/concepts/Makefile隐含规则|前一篇]]：提供变量、函数或模板基础。
+- [[tools/concepts/Makefile高级依赖|后一篇]]：继续推进依赖和工程化能力。
+- [[tools/concepts/Makefile调试与性能|Makefile 调试与性能]]：用于观察隐含规则和依赖重建行为。
 
 ## 小练习
 
-1. 把 `build/main.o` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 构建后查看 `build/main.d` 内容。
+2. 修改 `include/main.h` 后运行 `make --trace`。
+3. 把 `-MP` 去掉，删除头文件后观察报错差异。
