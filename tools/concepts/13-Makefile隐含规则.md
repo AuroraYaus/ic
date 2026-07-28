@@ -1,114 +1,130 @@
 ---
 type: concept
-aliases:
-  - Makefile 隐含规则
-  - Makefile implicit rules
-tags:
-  - tools
-  - makefile
-  - asic
-source_spec: "GNU Make Manual: Implicit Rules, Catalogue of Built-In Rules, Canceling Implicit Rules"
+aliases: [Makefile 隐含规则, Implicit rules make -p suffix rules]
+tags: [tools, makefile, asic]
+source_spec: "GNU Make Manual 10: Using Implicit Rules"
 queries: 1
 ---
 
-# Makefile隐含规则
+# 13 — Makefile隐含规则
 
 ## 学习目标
 
-读完后，读者应该能解释 GNU Make 为什么在没有显式配方时仍可能调用编译器，能用 `make -p` 查看内置规则，并知道何时使用 `-r`、`-R` 或 `.SUFFIXES:` 禁用隐含行为。
+GNU Make 自带一套庞大的**隐含规则数据库（Implicit Rule Database）**——即使你的 Makefile 只有 `program: main.o`（没有 `%.o: %.c`），Make 也知道如何从 `.c` 编译 `.o`。这既是便利也是陷阱。读完本篇，你将能：
 
-这一组内容把 Makefile 从“手写单条规则”推进到“可扩展规则系统”。只要项目文件数量超过几个，模式规则、隐含规则和自动依赖就会成为可维护性的分水岭。
+1. 用 `make -p` 查看完整的隐含规则数据库
+2. 理解隐含规则链——一个 `.c` 如何经过多步变成可执行文件
+3. 用 `make -r` 禁用隐含规则——大型项目的标准做法
+4. 识别旧式后缀规则（`.c.o:`）并转换为现代写法
 
 ## 前置知识
 
-- 建议先读 [[tools/concepts/Makefile模式规则|前一篇]]。
-- 需要熟悉变量、函数、自动变量和基本规则。
-- 后续可继续读 [[tools/concepts/Makefile依赖与自动生成|后一篇]]。
+- [[tools/concepts/12-Makefile模式规则|12 — 模式规则]]：隐含规则是 Make 预定义的模式规则
+- [[tools/concepts/06-Makefile高级变量|06 — 高级变量]]：`$(origin CC)` → `default`
 
-## 最小可运行例子
-
-```makefile
-# 显式设置隐含变量：即使不用真实编译，也能观察变量如何传递
-CC := printf                             # 用 printf 模拟编译器，避免依赖真实工具链
-CFLAGS := 'implicit compile %s\n'        # 传给模拟编译器的格式字符串
-
-# 默认目标：依赖一个由显式规则生成的观察文件
-all: implicit.out                        # all 依赖 implicit.out
-
-# 显式规则：本例不触发真实内置编译，只打印隐含变量
-implicit.out: main.c                     # main.c 是输入
-	@$(CC) $(CFLAGS) '$<' > '$@'           # 使用 CC/CFLAGS 变量模拟隐含规则风格
-
-# 输入文件：创建一个 C 源文件
-main.c:                                  # main.c 不存在时创建
-	@printf 'int main(void) { return 0; }\n' > '$@' # 写入示例 C 代码
-
-# 查看提示：help 是伪目标
-.PHONY: help                             # help 是动作目标
-help:                                    # 打印观察建议
-	@printf 'run: make -p | grep -n "COMPILE.c"\n' # 提示查看内置规则
-```
-
-执行命令：
+## 查看隐含规则数据库
 
 ```shell
-# 预演默认目标，确认模式或依赖展开后的命令
-make -n
-# 执行默认目标，并显示每个目标触发原因
-make --trace
-# 打开未定义变量警告，检查变量拼写问题
-make --warn-undefined-variables
+make -p | head -100                   # 打印 Make 全部内置规则（数千行）
+make -p | grep -A3 '^%.o.*:.*%.c'     # 只看 .c → .o 的隐含规则
 ```
 
-## 语法拆解
-
-- GNU Make 自带大量隐含规则和隐含变量。
-- `CC`、`CFLAGS`、`CPPFLAGS`、`LDFLAGS` 等变量会影响内置规则。
-- `make -p` 可以打印规则数据库，包括内置规则。
-- `make -r` 禁用内置规则，`make -R` 禁用内置变量。
-- `.SUFFIXES:` 可以清空历史后缀规则。
-
-## 执行轨迹
-
-```mermaid
-%%{init: {'theme': 'default'}}%%
-flowchart TD
-    Src[源文件或输入列表] --> Rule[规则选择]
-    Rule --> Dep[依赖检查]
-    Dep --> Out[目标产物]
-    Dir[目录或 order-only 依赖] -.不参与过期判断.-> Out
+```text
+# 典型输出（简化）：
+%.o: %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) -c      # Make 内置的 .c → .o 规则
+%: %.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@  # .c → 可执行
 ```
 
-`make --trace` 是观察规则选择的第一工具；`make -p` 适合查看隐含规则数据库；自动依赖问题则要同时检查 `.d` 文件内容和 Make 重启次数。
+**关键发现：** 即使你的 Makefile 只有 `program: main.o`，Make 也能通过内置规则编译——但这是双刃剑。
 
-## 工程化写法
+## 隐含变量
 
-生产 Makefile 中，如果希望行为完全可控，可以在顶部使用 `MAKEFLAGS += -rR` 或 `.SUFFIXES:` 减少隐含行为。若项目很小，借用内置 C 编译规则也可以；但 IC 流程通常包装 EDA 工具，显式规则和模板更容易维护。
+```makefile
+# 隐含规则使用的变量及其默认值
+CC       = cc                           # 默认 C 编译器（不是 gcc！）
+CXX      = g++                          # C++ 编译器
+CFLAGS   = （空）                        # 编译选项——无默认值
+LDFLAGS  = （空）                        # 链接选项
+LDLIBS   = （空）                        # 链接库
 
-## 常见错误
+# 最简单的覆盖方式——在你的 Makefile 中定义：
+CC      := gcc
+CFLAGS  := -Wall -Wextra -O2
+LDFLAGS := -lm                          # 链接数学库
+```
 
-| 错误现象 | 根因 | 修复 |
-|:---|:---|:---|
-| Make 调用了意料之外的编译器 | 隐含规则匹配了目标 | 用 `make --trace` 和 `make -p` 定位，必要时 `-r` |
-| 改了 `CFLAGS` 影响范围不清 | 隐含变量被内置规则读取 | 显式写规则或局部化变量 |
-| 后缀规则干扰模式规则 | 历史 `.SUFFIXES` 仍启用 | 用 `.SUFFIXES:` 清理 |
+## 隐含规则链
+
+```makefile
+# Make 可以将多个隐含规则串联
+# 只需这一行 Makefile：
+CC := gcc
+program: main.o util.o                  # 只声明依赖——没有 %.o: %.c
+
+# make 通过隐含规则链完成：
+# 步骤 1：program 需要 main.o → %.o: %.c → gcc -c main.c → main.o
+# 步骤 2：需要 util.o → %.o: %.c → gcc -c util.c → util.o
+# 步骤 3：program → %: %.o → gcc main.o util.o -o program
+
+# ⚠️ 中间文件 .o 会被自动删除——Make 认为它们是"中间产物"
+# 保留中间文件：.SECONDARY: 或显式将它们列为目标
+```
+
+## 后缀规则（历史遗产）
+
+```makefile
+# 后缀规则：模式规则的前身——老 Makefile 中常见
+.c.o:                                  # 等价于 %.o: %.c（旧式写法）
+	$(CC) $(CFLAGS) -c $< -o $@
+
+.SUFFIXES: .c .o .s                    # 声明已知后缀
+.SUFFIXES:                              # 清空 = 禁用所有后缀规则
+
+# ⚠️ 新代码不要写 .c.o: —— 一律用 %.o: %.c
+```
+
+## 控制隐含规则
+
+```makefile
+# 1. 禁用所有内置隐含规则——大型项目标准做法
+MAKEFLAGS += -r                        # 或用 make -r
+
+# 2. 只禁用隐含变量（保留规则）
+MAKEFLAGS += -R                        # 不预定义 CC/CFLAGS 等
+
+# 3. 覆盖特定规则——用同名模式规则替代
+%.o: %.c                                # 会覆盖 Make 内置的 %.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# 4. 删除特定隐含规则——声明无配方的同名规则
+%.o: %.s                                # 取消内置的 .s → .o 规则
+
+# 推荐组合：
+MAKEFLAGS += -r --warn-undefined-variables
+%.o: %.c; $(CC) $(CFLAGS) -c $< -o $@  # 显式：清晰、可预测
+%: %.o; $(CC) $(LDFLAGS) $^ $(LDLIBS) -o $@
+```
 
 ## 关键要点
 
-- 隐含规则是 Make 的内置推导能力。
-- 隐含变量会影响内置规则行为。
-- `make -p` 是理解隐含数据库的入口。
-- 可用 `-r/-R` 减少内置行为。
-- 大型 IC Makefile 通常偏向显式规则。
+1. **GNU Make 自带庞大的隐含规则数据库——`make -p` 查看。**
+2. **隐含变量 `CC`=`cc`（不是 `gcc`）——覆盖它们来定制。**
+3. **隐含规则链让极简 Makefile 也能工作——但行为不够透明。**
+4. **大型项目建议 `make -r` 禁用隐含——可预测性 > 便利性。**
+5. **`.c.o:` 是历史遗留——新代码一律用 `%.o: %.c`。**
+6. **中间文件默认被删除——`.SECONDARY:` 可保留它们。**
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile模式规则|前一篇]]：提供变量、函数或模板基础。
-- [[tools/concepts/Makefile依赖与自动生成|后一篇]]：继续推进依赖和工程化能力。
-- [[tools/concepts/Makefile调试与性能|Makefile 调试与性能]]：用于观察隐含规则和依赖重建行为。
+- [[tools/concepts/12-Makefile模式规则|12 — 模式规则]]
+- [[tools/concepts/06-Makefile高级变量|06 — 高级变量]]
+- [[tools/concepts/19-Makefile调试与性能|19 — 调试与性能]]
 
 ## 小练习
 
-1. 运行 `make -p | grep -n COMPILE.c` 查看内置编译规则。
-2. 运行 `make -r --trace`，比较行为。
-3. 把 `CC := printf` 改成 `CC := echo`，观察输出。
+1. **空 Makefile 实验：** 创建 `main.c`，写只含 `program:` 的 Makefile。`make program` 能成功吗？为什么？
+2. **查看隐含规则：** `make -p | grep '^%.o'`——列出所有生成 .o 的规则。
+3. **禁用隐含：** `make -r` 后同样的 Makefile 为什么失败？
+4. **覆盖隐含变量：** `CC := gcc` + `CFLAGS := -Wall`。
