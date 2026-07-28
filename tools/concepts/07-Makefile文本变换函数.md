@@ -2,117 +2,142 @@
 type: concept
 aliases:
   - Makefile 文本变换函数
-  - Makefile word list functions
+  - subst patsubst filter sort word
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual: Text Functions"
+source_spec: "GNU Make Manual 8.2: Functions for String Substitution and Analysis"
 queries: 1
 ---
 
-# Makefile文本变换函数
+# 07 — Makefile文本变换函数
 
 ## 学习目标
 
-读完后，读者应该能理解 Make 函数多数处理的是空格分隔词表，并能用 `filter`、`filter-out`、`patsubst` 等函数从源文件列表推导对象文件、测试文件和编译选项。
+Makefile 的函数全部是**纯文本变换**：输入一段文本，输出一段文本。没有副作用，没有状态。
 
-本篇延续 [[tools/concepts/Makefile心智模型与历史|二阶段执行模型]]：先区分哪些内容在读阶段展开，哪些内容在目标更新阶段展开，再讨论它在工程 Makefile 中的稳定写法。只记语法表很容易忘，能用 `make --trace` 和诊断输出观察行为，才算真正掌握。
+本篇覆盖 GNU Make 的 13 个文本变换函数，每个给出工程场景示例。读完本篇后，你将能在 Makefile 中自由操控文件名列表、编译选项和路径——从"写死文件名"升级到"自动化构建系统"的关键一步。
+
+**Make 的词表模型：所有变量值都是空格分隔的词（word）列表——这是所有文本函数操作的基本单元。**
 
 ## 前置知识
 
-- 建议先读 [[tools/concepts/Makefile高级变量|前一篇]]。
-- 需要理解 Make 语法和 Shell 语法的边界。
-- 后续可继续读 [[tools/concepts/Makefile路径与文件函数|后一篇]]。
+- [[tools/concepts/05-Makefile变量赋值与展开|05 — 变量赋值与展开]]：函数的展开时机（`$(call ...)` / `$(shell ...)` 在各自赋值风格下的展开时刻）
+- Make 的函数调用语法：`$(function arguments...)`——函数名和第一个参数之间是空格，不是逗号
 
-## 最小可运行例子
-
-在空目录中创建 `Makefile`，复制下面内容，然后运行后面的命令。示例默认兼容 GNU Make 4.3。
+## 替换与变换函数
 
 ```makefile
-# 源文件词表：Make 把空格分隔的文本当作 word list 处理
-SRCS := src/main.c src/alu.c test/alu_tb.c doc/readme.txt # 混合放入多类路径
+# 1. $(subst FROM,TO,TEXT) — 字面量替换（literal substitution）
+SRCS := main.c util.c test.c
+OBJS := $(subst .c,.o,$(SRCS))        # main.o util.o test.o
+#       替换所有出现的 ".c" → ".o"，大小写敏感——不管位置，全部替换
 
-# 过滤 C 源文件：多个模式用空格分隔
-C_SRCS := $(filter %.c,$(SRCS))           # 只保留 .c 文件
+# 2. $(patsubst PATTERN,REPLACEMENT,TEXT) — 模式替换（pattern substitution）
+#    % 匹配任意非空字符串——是 pattern 中最强大的一个字符
+OBJS := $(patsubst %.c,%.o,$(SRCS))   # main.o util.o test.o
+#       简写形式（只替换后缀时推荐）：
+OBJS := $(SRCS:.c=.o)                 # 等价于上面的 patsubst
+# 带路径的替换：
+SRCS := src/main.c lib/util.c
+OBJS := $(patsubst %.c,build/%.o,$(SRCS))
+#       → build/src/main.o build/lib/util.o（一次完成后缀+路径迁移）
 
-# 排除测试文件：filter-out 删除匹配 test/% 的路径
-PROD_SRCS := $(filter-out test/%,$(C_SRCS)) # 得到生产代码源文件
+# 3. $(strip STRING) — 去除首尾空白 + 内部多余空格归一化
+TEXT := $(strip   hello   world   )   # "hello world"
+#       主要用于清理 $(shell ...) 返回值中的换行和多余空格
+GIT_HASH := $(strip $(shell git rev-parse HEAD))
+#            strip 去掉 git 输出末尾的换行符
 
-# 模式替换：把 src/xxx.c 转成 build/xxx.o
-OBJS := $(patsubst src/%.c,build/%.o,$(PROD_SRCS)) # 生成对象文件词表
-
-# 排序去重：sort 会排序并去掉重复词
-UNIQUE_DIRS := $(sort $(dir $(SRCS)))     # 提取目录并去重
-
-# 默认目标：打印每个中间词表
-all:                                     # all 是观察入口
-	@printf 'all sources: %s\n' '$(SRCS)'       # 输出原始词表
-	@printf 'c sources: %s\n' '$(C_SRCS)'       # 输出 .c 文件
-	@printf 'prod sources: %s\n' '$(PROD_SRCS)' # 输出排除 test 后的源文件
-	@printf 'objects: %s\n' '$(OBJS)'           # 输出对象文件列表
-	@printf 'dirs: %s\n' '$(UNIQUE_DIRS)'       # 输出去重目录列表
+# 4. $(findstring FIND,IN) — 查找子串
+ifeq ($(findstring debug,$(MODE)),debug)
+CFLAGS += -g                           # MODE 包含 "debug" → 添加调试选项
+endif
+#     findstring 返回找到的子串（"debug"）或空——配合 ifeq 最常用
 ```
 
-执行命令：
+## 过滤与排序函数
 
-```shell
-# 打开未定义变量警告，尽早发现拼写错误
-make --warn-undefined-variables
-# 预演将要执行的配方，观察 Make 展开后的命令
-make -n
-# 显示目标触发原因，并执行默认目标
-make --trace
+```makefile
+# 5/6. $(filter PATTERN...,TEXT) — 保留匹配 / $(filter-out ...) — 移除匹配
+FILES := main.c util.c readme.txt Makefile
+SRCS  := $(filter %.c,$(FILES))        # main.c util.c ——仅保留 .c
+OTHER := $(filter-out %.c,$(FILES))    # readme.txt Makefile ——移除 .c
+
+# filter 支持多模式同时过滤：
+ALL_SRC := $(filter %.c %.cpp %.s,$(FILES))   # C + C++ + 汇编
+
+# 7. $(sort LIST) — 排序 + 去重（词级别）
+DUPS := a b a c b
+UNIQ := $(sort $(DUPS))               # a b c
+#       sort 自动去重——工程中常用于去重文件列表、库列表、选项列表
+CFLAGS := -Wall -O2 -Wall -g          # -Wall 重复了
+CFLAGS := $(sort $(CFLAGS))           # -O2 -Wall -g（排序+去重）
+
+# 8-12. 词索引函数族
+LIST  := one two three four five
+FIRST := $(firstword $(LIST))          # one
+LAST  := $(lastword $(LIST))           # five
+COUNT := $(words $(LIST))              # 5（词的数量）
+THIRD := $(word 3,$(LIST))             # three（从 1 开始——不是从 0！）
+# $(wordlist S,E,TEXT) — 取子范围（从第 S 个到第 E 个，含两端）
+MID   := $(wordlist 2,4,$(LIST))       # two three four
+
+# 13. $(join LIST1,LIST2) — 交错拼接
+A := a b c
+B := 1 2 3
+J := $(join $(A),$(B))                # a1 b2 c3
+#   LIST2 比 LIST1 长 → 多余部分直接追加到结果末尾
 ```
 
-## 语法拆解
+## 工程场景示例
 
-- `$(filter %.c,$(SRCS))` 保留匹配模式的词。
-- `$(filter-out test/%,$(C_SRCS))` 删除匹配模式的词。
-- `$(patsubst src/%.c,build/%.o,...)` 对每个匹配词做模式替换。
-- `$(sort ...)` 不只是排序，也会去重。
-- Make 函数参数用逗号分隔，但词表内部用空格分隔。
+```makefile
+# 场景 1：从混合目录提取特定类型文件
+ALL_FILES := $(wildcard src/*)         # 目录下所有文件（含非源码）
+C_SRCS     := $(filter %.c,$(ALL_FILES))
+HEADERS    := $(filter %.h,$(ALL_FILES))
+SCRIPTS    := $(filter-out %.c %.h %.o,$(ALL_FILES))
 
-## 执行轨迹
+# 场景 2：生成构建目录下的对象文件路径
+SRCS := main.c util.c io/file.c
+OBJS := $(patsubst %.c,build/obj/%.o,$(SRCS))
+#       → build/obj/main.o build/obj/util.o build/obj/io/file.o
 
-```mermaid
-%%{init: {'theme': 'default'}}%%
-flowchart TD
-    Read[读阶段: 解析变量、函数、条件和规则] --> DB[规则与变量数据库]
-    DB --> Update[目标更新阶段: 展开配方并执行 shell]
-    Update --> Output[观察 make --trace 输出]
+# 场景 3：从目录列表生成编译器 -I 选项
+SRC_DIRS := $(sort $(dir $(wildcard src/*/)))  # 去重后的源码目录
+INCLUDES := $(addprefix -I,$(SRC_DIRS))        # -Isrc/lib/ -Isrc/app/
+
+# 场景 4：条件编译特性检测
+ifeq ($(findstring coverage,$(MAKECMDGOALS)),coverage)
+CFLAGS += --coverage
+endif
+
+# 场景 5：IC 仿真文件列表处理
+RTL_FILES := $(filter %.sv %.v %.vhd,$(ALL_FILES))
+TB_FILES  := $(filter %_tb.sv,$(RTL_FILES))
+DUT_FILES := $(filter-out %_tb.sv,$(RTL_FILES))
 ```
-
-观察这类例子时，不要只看最终文件内容。更重要的是比较 `make -n`、`make --trace` 和诊断函数的输出：它们分别暴露“将执行什么”“为什么执行”“读阶段已经展开了什么”。
-
-## 工程化写法
-
-工程 Makefile 中，源文件列表往往来自手写变量、`wildcard` 或 include 文件。文本函数负责把这些列表变成对象列表、测试列表、排除列表和工具选项列表。数字IC项目中的 filelist、testlist、IP 列表也常用同样的词表模型处理。
-
-## 常见错误
-
-| 错误现象 | 根因 | 修复 |
-|:---|:---|:---|
-| `filter` 没匹配到文件 | 模式写成 shell glob 思维 | 使用 Make 的 `%` 模式而不是随意混用 `*` |
-| 文件顺序意外改变 | 使用 `sort` 去重时也排序 | 只有需要去重时才用 `sort` |
-| 路径含空格后被拆开 | Make 词表以空格分隔 | 工程路径避免空格，或改用外部脚本处理 |
 
 ## 关键要点
 
-- Make 文本函数主要处理空格分隔词表。
-- `filter` 和 `filter-out` 支持多个模式。
-- `patsubst` 是源文件到目标文件转换的常用函数。
-- `sort` 会排序并去重。
-- 路径含空格会破坏 Make 词表模型。
+1. **所有函数都是纯文本变换——输入文本、输出文本。无副作用，无状态。**
+2. **`$(patsubst ...)` 是模式替换标准工具——`$(VAR:.c=.o)` 是其简写（仅后缀替换场景）。**
+3. **`$(filter ...)` / `$(filter-out ...)` 是管理混合文件列表的核心工具。**
+4. **`$(sort ...)` 自动去重——处理重复的编译选项、库路径、文件列表。**
+5. **空格分隔的词表模型是所有函数的基础——理解"词"的概念。**
+6. **`$(findstring ...)` 最常用于 `ifeq` 条件中做子串检测。**
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile高级变量|前一篇]]：提供本篇需要的前置知识。
-- [[tools/concepts/Makefile路径与文件函数|后一篇]]：把本篇能力推进到下一类 Makefile 机制。
-- [[tools/concepts/Makefile调试与性能|Makefile 调试与性能]]：提供更系统的诊断方法。
+- [[tools/concepts/08-Makefile路径与文件函数|08 — 路径与文件函数]]：目录/文件名操作——文本变换的下游
+- [[tools/concepts/09-Makefile控制函数与诊断函数|09 — 控制与诊断函数]]：`$(foreach)` 和 `$(eval)` 与文本函数组合
+- [[tools/concepts/14-Makefile依赖与自动生成|14 — 依赖与自动生成]]：`$(patsubst ...)` 在 .d 路径换算中的应用
 
 ## 小练习
 
-1. 给 `SRCS` 添加重复文件，观察 `UNIQUE_DIRS`。
-2. 把 `test/%` 改成 `%_tb.c`，观察过滤结果。
-3. 添加 `$(words $(SRCS))` 打印词数。
+1. **文件分类：** `$(wildcard ...)` + `$(filter ...)` 分离 `.c`、`.h` 和 `Makefile`。
+2. **路径迁移：** 用 `$(patsubst ...)` 将 `src/*.c` 映射到 `build/obj/*.o`。
+3. **去重+排序：** 含重复词的列表用 `$(sort ...)` 处理后输出。
+4. **findstring 条件：** `make debug` 时用 `$(findstring ...)` 检测并添加 `-g`。
