@@ -2,12 +2,12 @@
 type: concept
 aliases:
   - Makefile 递归与大型项目
-  - Makefile 递归 and 大型项目
+  - Recursive Make
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual: Recursive Use of make, Variables/Recursion"
+source_spec: "GNU Make Manual: Recursive Use of make, Communicating Variables to a Sub-make"
 queries: 1
 ---
 
@@ -15,111 +15,109 @@ queries: 1
 
 ## 学习目标
 
-本篇属于 Part 8，目标是：设计递归 Make 和 include 式 Make 架构，控制变量传播与构建产物隔离。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+读完后，读者应该能设计 `$(MAKE) -C` 子目录调用，理解变量 export/unexport、`MAKEFLAGS`、`MAKELEVEL`、out-of-source build，以及递归式和 include 式架构的取舍。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+本篇进入工程化 Makefile 的操作层：如何控制 Make 的特殊行为、命令行行为、递归行为和诊断行为。默认环境是 GNU Make 4.3；更新版本能力会明确标注。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile内置变量与命令行|前一篇]]，再读 [[tools/concepts/Makefile调试与性能|后一篇]]。
+- 建议先读 [[tools/concepts/Makefile内置变量与命令行|前一篇]]。
+- 需要理解规则、变量、自动依赖和配方执行。
+- 后续可继续读 [[tools/concepts/Makefile调试与性能|后一篇]]。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `large.out`，它足够小，便于观察每一步行为。
-
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: large.out          # all 是目标；冒号右边的文件是前置条件
+# 子目录列表：真实项目中可对应 ip/sim/syn 等目录
+SUBDIRS := ip sim                         # 两个子模块目录
 
-# 真实文件目标：当 large.out 不存在或依赖更新时执行配方
-large.out: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 默认目标：只打印计划，避免 make -n 直接触发递归 Make
+all:                                      # all 是安全观察入口
+	@printf 'run make subdirs to enter: %s\n' '$(SUBDIRS)' # 提示显式递归目标
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
+# 导出变量：传给子 Make 使用
+export PROJECT_ROOT := $(CURDIR)          # 子 Make 可读取项目根目录
 
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf large.out input.txt  # 删除示例产物，方便重新实验
+# 显式递归入口：需要进入子目录时手动请求
+.PHONY: subdirs                           # subdirs 是动作目标
+subdirs: $(SUBDIRS)                       # subdirs 依赖两个子目录动作目标
+
+# 子目录目标：用 $(MAKE) -C 调用子 Make
+$(SUBDIRS):                               # ip 和 sim 都匹配这条规则
+	@mkdir -p '$@'                          # 确保子目录存在
+	@printf 'all:\n\t@printf "subdir=%%s root=%%s level=%%s\\n" "$$(CURDIR)" "$$(PROJECT_ROOT)" "$$(MAKELEVEL)"\n' > '$@/Makefile' # 生成子 Makefile
+	@$(MAKE) --no-print-directory -C '$@' all # 进入子目录执行 all
+
+# include 式示例：大型项目也可 include 子模块片段
+-include local.config.mk                  # 缺失时忽略，存在时读取本地配置
+
+# 清理目标：递归清理子目录
+.PHONY: clean $(SUBDIRS)                  # 子目录名作为动作目标
+clean:                                    # 清理动作
+	@rm -rf $(SUBDIRS)                      # 删除示例子目录
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
-make clean
-# 只打印将要执行的命令，不真正执行配方
+# 预演默认目标，确认将要执行的配方
 make -n
-# 打印规则触发原因，并真正执行构建
+# 执行并打印目标触发原因
 make --trace
-# 第二次运行，用来观察目标已经最新时的行为
-make --trace
+# 打印 Make 版本，确认默认验证基线
+make --version | sed -n '1p'
 ```
-
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
 
 ## 语法拆解
 
-- `all: large.out` 表示 `all` 依赖 `large.out`；`all` 放在最前面，因此成为默认目标。
-- `large.out: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `large.out`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `$(MAKE) -C dir target` 是递归 Make 的标准写法；含 `$(MAKE)` 的配方行在 `make -n` 下也可能执行。用 shell `printf` 生成 Makefile 片段时，内层格式串的 `%` 需要写成 `%%`，避免被外层 `printf` 消耗。
+- `export VAR := value` 会把变量传给子 Make 环境。
+- `MAKELEVEL` 在子 Make 中自动递增。
+- `MAKEFLAGS` 会传递许多命令行参数，包括并行相关状态。
+- include 式架构把多个 `.mk` 片段合并到同一个 Make 进程中。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+    CLI[命令行选项和环境] --> Read[读阶段]
+    Read --> Vars[内置变量和特殊目标生效]
+    Vars --> Update[目标更新阶段]
+    Update --> Report[trace/debug/output-sync 观察]
 ```
 
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
-
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
+对工程 Makefile 来说，语法正确只是最低要求。更重要的是：用户如何调用、子 Make 如何继承参数、失败是否能被 CI 捕获、并行输出是否可读、调试信息是否足以定位问题。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
-
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+递归式 Make 边界清楚，适合团队或 IP 独立维护；缺点是跨目录依赖不透明，容易串行化。include 式 Make 能看到全局依赖图，更利于并行和最小重建；缺点是全局文件变大，需要更强规范。IC 项目常混用：顶层递归进入 IP，IP 内部用 include 组织规则。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| `make -n` 仍进入子 Make | `$(MAKE)` 递归行具有特殊执行语义 | 把递归入口放到显式目标，或确保 dry-run 前置步骤也安全 |
+| 子目录并行失效 | 子 Make 没用 `$(MAKE)` | 使用 `$(MAKE) -C` |
+| 子目录找不到根路径 | 没有导出项目变量 | `export PROJECT_ROOT := $(CURDIR)` |
+| 递归层级无限增长 | 目标递归调用自身 | 用 `MAKELEVEL` 防护或修正目标依赖 |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- 递归 Make 是工程边界工具，不是默认最佳答案。
+- `$(MAKE)` 会启用递归 Make 的特殊处理。
+- `export/unexport` 控制变量传播。
+- out-of-source build 能隔离源文件和产物。
+- include 式架构更容易表达全局依赖。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile内置变量与命令行|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/Makefile调试与性能|后一篇]]：把本篇概念推进到下一层工程用法。
+- [[tools/concepts/Makefile内置变量与命令行|前一篇]]：提供依赖和规则基础。
+- [[tools/concepts/Makefile调试与性能|后一篇]]：继续推进大型项目或实战应用。
 - [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
 
 ## 小练习
 
-1. 把 `large.out` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 运行 `make -j2 subdirs`，观察两个子目录是否可并行。
+2. 删除 `export` 行，观察子 Make 输出。
+3. 把 `SUBDIRS` 增加 `syn`，观察新增子目录行为。

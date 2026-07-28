@@ -2,12 +2,12 @@
 type: concept
 aliases:
   - Makefile 内置变量与命令行
-  - Makefile 内置变量 and 命令行
+  - Makefile MAKEFLAGS MAKELEVEL
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual: Variables Used by Implicit Rules, Options Summary"
+source_spec: "GNU Make Manual: Options Summary, Recursive Use of make, Special Variables"
 queries: 1
 ---
 
@@ -15,111 +15,112 @@ queries: 1
 
 ## 学习目标
 
-本篇属于 Part 7，目标是：理解 MAKEFLAGS、MAKELEVEL、MAKECMDGOALS 等内置变量和常用命令行选项。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+读完后，读者应该能使用 `$(MAKE)`、`$(MAKECMDGOALS)`、`$(MAKEFLAGS)`、`$(MAKELEVEL)`、`$(MAKEFILE_LIST)`、`$(CURDIR)`、`$(.FEATURES)` 等内置变量，并能正确区分常用命令行选项。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+本篇进入工程化 Makefile 的操作层：如何控制 Make 的特殊行为、命令行行为、递归行为和诊断行为。默认环境是 GNU Make 4.3；更新版本能力会明确标注。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile特殊目标手册|前一篇]]，再读 [[tools/concepts/Makefile递归与大型项目|后一篇]]。
+- 建议先读 [[tools/concepts/Makefile特殊目标手册|前一篇]]。
+- 需要理解规则、变量、自动依赖和配方执行。
+- 后续可继续读 [[tools/concepts/Makefile递归与大型项目|后一篇]]。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `cli.out`，它足够小，便于观察每一步行为。
-
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: cli.out          # all 是目标；冒号右边的文件是前置条件
+# 默认目标：打印常用内置变量
+all:                                     # all 是观察入口
+	@printf 'MAKE=%s\n' '$(MAKE)'          # 递归 Make 应使用 $(MAKE)
+	@printf 'MAKECMDGOALS=%s\n' '$(MAKECMDGOALS)' # 用户请求的目标列表
+	@printf 'MAKEFLAGS=%s\n' '$(MAKEFLAGS)'       # 传递给子 Make 的标志
+	@printf 'MAKELEVEL=%s\n' '$(MAKELEVEL)'       # 递归 Make 层级
+	@printf 'MAKEFILE_LIST=%s\n' '$(MAKEFILE_LIST)' # 已读取 Makefile 列表
+	@printf 'CURDIR=%s\n' '$(CURDIR)'      # Make 记录的当前目录
+	@printf 'FEATURES=%s\n' '$(.FEATURES)' # GNU Make 编译特性列表
 
-# 真实文件目标：当 cli.out 不存在或依赖更新时执行配方
-cli.out: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 根据命令行目标做条件判断
+ifneq ($(filter clean,$(MAKECMDGOALS)),) # 如果用户请求 clean
+$(info clean was requested)              # 读阶段打印提示
+endif                                    # 结束 Make 条件
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
+# 递归示例：调用子 Make 时必须使用 $(MAKE)
+.PHONY: sub                              # sub 是动作目标
+sub:                                     # 递归调用当前 Makefile
+	@$(MAKE) --no-print-directory show-level # $(MAKE) 会正确传递 jobserver 等状态
 
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf cli.out input.txt  # 删除示例产物，方便重新实验
+# 子目标：显示递归层级
+.PHONY: show-level                       # show-level 是动作目标
+show-level:                              # 被 sub 调用
+	@printf 'sub MAKELEVEL=%s\n' '$(MAKELEVEL)' # 子 Make 层级会加一
+
+# 清理目标：这里仅打印，不删除文件
+.PHONY: clean                            # clean 是动作目标
+clean:                                   # 演示 MAKECMDGOALS
+	@printf 'clean target\n'               # 打印清理提示
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
-make clean
-# 只打印将要执行的命令，不真正执行配方
+# 预演默认目标，确认将要执行的配方
 make -n
-# 打印规则触发原因，并真正执行构建
+# 执行并打印目标触发原因
 make --trace
-# 第二次运行，用来观察目标已经最新时的行为
-make --trace
+# 打印 Make 版本，确认默认验证基线
+make --version | sed -n '1p'
 ```
-
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
 
 ## 语法拆解
 
-- `all: cli.out` 表示 `all` 依赖 `cli.out`；`all` 放在最前面，因此成为默认目标。
-- `cli.out: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `cli.out`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `$(MAKE)` 比硬编码 `make` 更可靠，递归调用时能传递关键状态。
+- `$(MAKECMDGOALS)` 保存用户请求的目标名。
+- `$(MAKEFLAGS)` 保存并传递命令行标志。
+- `$(MAKELEVEL)` 表示递归深度。
+- `$(MAKEFILE_LIST)` 可用于定位当前 Makefile。
+- `-e`/`--environment-overrides` 表示环境变量覆盖 Makefile 变量。
+- `-E STRING` 是 `--eval=STRING`，不是环境覆盖。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+    CLI[命令行选项和环境] --> Read[读阶段]
+    Read --> Vars[内置变量和特殊目标生效]
+    Vars --> Update[目标更新阶段]
+    Update --> Report[trace/debug/output-sync 观察]
 ```
 
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
-
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
+对工程 Makefile 来说，语法正确只是最低要求。更重要的是：用户如何调用、子 Make 如何继承参数、失败是否能被 CI 捕获、并行输出是否可读、调试信息是否足以定位问题。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
-
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+大型工程应把用户接口集中到少量目标和变量上，例如 `make sim TEST=smoke`、`make syn CORNER=typ`、`make regress -j8`。递归 Make 必须用 `$(MAKE)`，否则并行 jobserver、`MAKEFLAGS` 和特殊递归行为可能丢失。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| 子 Make 没继承 `-j` | 配方里硬编码 `make` | 使用 `$(MAKE)` |
+| 把 `-E` 当环境覆盖 | 混淆短选项 | 环境覆盖是 `-e`，`-E STRING` 是 eval |
+| 多目标场景判断错误 | 只比较完整 `MAKECMDGOALS` | 用 `$(filter target,$(MAKECMDGOALS))` |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- `$(MAKE)` 是递归 Make 的标准入口。
+- `MAKEFLAGS` 会把许多命令行标志传给子 Make。
+- `MAKELEVEL` 能检测递归深度。
+- `MAKEFILE_LIST` 可定位当前 Makefile 路径。
+- `-e` 和 `-E STRING` 语义完全不同。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile特殊目标手册|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/Makefile递归与大型项目|后一篇]]：把本篇概念推进到下一层工程用法。
+- [[tools/concepts/Makefile特殊目标手册|前一篇]]：提供依赖和规则基础。
+- [[tools/concepts/Makefile递归与大型项目|后一篇]]：继续推进大型项目或实战应用。
 - [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
 
 ## 小练习
 
-1. 把 `cli.out` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 运行 `make sub`，观察 `MAKELEVEL`。
+2. 运行 `make clean`，观察读阶段提示。
+3. 运行 `make --eval="X:=1"`，思考它和 `-e` 的差异。

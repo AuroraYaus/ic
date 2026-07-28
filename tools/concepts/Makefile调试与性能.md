@@ -2,12 +2,12 @@
 type: concept
 aliases:
   - Makefile 调试与性能
-  - Makefile 调试 and 性能
+  - Makefile trace debug performance
 tags:
   - tools
   - makefile
   - asic
-source_spec: "GNU Make Manual: Options Summary, Functions That Control Make"
+source_spec: "GNU Make Manual: Options Summary, Debugging Make Rules, Shell Function"
 queries: 1
 ---
 
@@ -15,111 +15,114 @@ queries: 1
 
 ## 学习目标
 
-本篇属于 Part 8，目标是：使用 trace、debug、warning 和缓存策略诊断 Makefile 行为与性能问题。 读完后，读者应该能把一个最小例子复制到临时目录中运行，观察 GNU Make 4.3 如何解析规则、比较时间戳并执行配方。
+读完后，读者应该能使用 `--trace`、`--debug`、`--warn-undefined-variables`、`$(info)`、`$(warning)`、`--output-sync` 和变量缓存策略定位 Makefile 问题，并能识别常见性能反模式。
 
-这个主题不是孤立语法点。它会反复回到三个问题：Make 在读阶段做了什么、目标更新阶段做了什么、这些行为如何迁移到数字IC工程中的仿真、综合、回归和报告生成流程。
+本篇进入工程化 Makefile 的操作层：如何控制 Make 的特殊行为、命令行行为、递归行为和诊断行为。默认环境是 GNU Make 4.3；更新版本能力会明确标注。
 
 ## 前置知识
 
-- 需要知道命令行中 `make` 会读取当前目录的 `Makefile`。
-- 需要知道文件修改时间会影响增量构建判断。
-- 如果正在顺序学习，建议先读 [[tools/concepts/Makefile递归与大型项目|前一篇]]，再读 [[tools/concepts/Makefile小型工程实战|后一篇]]。
+- 建议先读 [[tools/concepts/Makefile递归与大型项目|前一篇]]。
+- 需要理解规则、变量、自动依赖和配方执行。
+- 后续可继续读 [[tools/concepts/Makefile小型工程实战|后一篇]]。
 
 ## 最小可运行例子
 
-在空目录中创建 `Makefile`，复制下面的内容，然后运行 `make --trace`。示例目标是 `debug.out`，它足够小，便于观察每一步行为。
-
 ```makefile
-# 默认目标：用户只输入 make 时，Make 会选择第一个普通目标
-all: debug.out          # all 是目标；冒号右边的文件是前置条件
+# 缓存 shell 结果：读阶段执行一次
+HOST := $(shell uname -s)                 # 用 := 缓存 shell 输出
 
-# 真实文件目标：当 debug.out 不存在或依赖更新时执行配方
-debug.out: input.txt    # input.txt 比目标新时，目标需要重建
-	@mkdir -p $(dir $@)  # $@ 是目标名；$(dir ...) 取目标所在目录
-	@printf 'built from %s\n' "$<" > $@  # $< 是第一个前置条件
-	@printf 'target: %s\n' "$@" >> $@    # 追加目标名，便于观察结果
+# 调试开关：用户可运行 make DEBUG=1
+DEBUG ?= 0                                # 默认关闭调试信息
 
-# 准备输入文件：用普通文件保存构建输入
-input.txt:             # 无前置条件；文件不存在时执行
-	@printf 'source\n' > $@  # 创建 input.txt，$@ 展开为目标名
+# 条件诊断：只在 DEBUG=1 时打印
+ifeq ($(DEBUG),1)                         # Make 条件在读阶段判断
+$(info debug: HOST=$(HOST))               # info 打印普通诊断信息
+$(warning debug mode is enabled)          # warning 打印警告但不中止
+endif                                     # 结束条件
 
-# 伪目标：clean 不代表同名文件，只代表一个动作
-.PHONY: clean          # 声明 clean 永远按动作处理，避免同名文件冲突
-clean:                 # 清理构建产物
-	@rm -rf debug.out input.txt  # 删除示例产物，方便重新实验
+# 默认目标：生成一个可观察目标
+all: debug.out                            # all 依赖 debug.out
+
+# 文件目标：写入平台信息
+debug.out:                                # 没有前置条件，文件缺失时生成
+	@printf 'host=%s\n' '$(HOST)' > '$@'    # 写入缓存后的平台名
+	@printf 'makeflags=%s\n' '$(MAKEFLAGS)' >> '$@' # 记录命令行标志
+
+# 并行输出示例：两个目标都打印文本
+.PHONY: noisy                             # noisy 是动作目标
+noisy: a.out b.out                        # 可配合 -j 和 --output-sync 观察输出
+
+# 第一个输出目标
+a.out:                                    # 生成 a.out
+	@printf 'A line 1\nA line 2\n' > '$@'   # 写入两行文本
+
+# 第二个输出目标
+b.out:                                    # 生成 b.out
+	@printf 'B line 1\nB line 2\n' > '$@'   # 写入两行文本
 ```
 
 执行命令：
 
 ```shell
-# 删除上一次实验留下的文件，保证从干净状态开始
-make clean
-# 只打印将要执行的命令，不真正执行配方
+# 预演默认目标，确认将要执行的配方
 make -n
-# 打印规则触发原因，并真正执行构建
+# 执行并打印目标触发原因
 make --trace
-# 第二次运行，用来观察目标已经最新时的行为
-make --trace
+# 打印 Make 版本，确认默认验证基线
+make --version | sed -n '1p'
 ```
-
-预期现象：第一次 `make --trace` 会创建输入和目标文件；第二次 `make --trace` 不应重复构建已经最新的目标。这个差异就是 Makefile 比普通脚本更适合工程构建的核心原因。
 
 ## 语法拆解
 
-- `all: debug.out` 表示 `all` 依赖 `debug.out`；`all` 放在最前面，因此成为默认目标。
-- `debug.out: input.txt` 表示真实文件目标依赖输入文件；当输入比目标新时，目标需要重建。
-- 配方行前面的 TAB 是 Make 语法要求，不是排版习惯；用空格替代会导致解析错误。
-- `$@` 是自动变量，代表当前目标名；在这个例子中会展开为 `debug.out`。
-- `$<` 是自动变量，代表第一个前置条件；在这个例子中会展开为 `input.txt`。
-- `$(dir $@)` 是 Make 函数调用，先由 Make 展开，再交给 Shell 执行。
-- `@` 前缀让 Make 不回显该配方行本身，只显示命令产生的输出。
-- `.PHONY: clean` 告诉 Make `clean` 是动作，不是同名文件。
+- `--trace` 显示目标为什么重建，适合日常调试。
+- `--debug[=FLAGS]` 输出更详细，`i` 可观察隐含规则，`j` 可观察 job。
+- `--warn-undefined-variables` 能发现拼写错误。
+- `$(info)` 和 `$(warning)` 在读阶段输出诊断。
+- `$(shell ...)` 有进程启动成本，应常用 `:=` 缓存。
+- `--output-sync` 是 GNU Make 4.3 可用的并行输出同步选项。
+- `--shuffle` 是 GNU Make 4.4+ 特性，不属于本机 4.3 默认验证路径。
 
 ## 执行轨迹
 
 ```mermaid
 %%{init: {'theme': 'default'}}%%
 flowchart TD
-    Input[input.txt] --> Target[目标文件]
-    Target --> All[all]
-    Read[读阶段: 展开变量和规则] --> Update[目标更新阶段: 比较时间戳并执行配方]
+    CLI[命令行选项和环境] --> Read[读阶段]
+    Read --> Vars[内置变量和特殊目标生效]
+    Vars --> Update[目标更新阶段]
+    Update --> Report[trace/debug/output-sync 观察]
 ```
 
-`make -n` 适合确认将要执行什么；`make --trace` 适合确认为什么执行；`make -p` 适合查看 Make 内部数据库。初学者调试 Makefile 时，优先使用 `make --trace`，因为它能把目标、依赖和触发原因连起来。
-
-当输出与预期不同，先检查三个层次：Make 是否读到了正确文件，目标和依赖是否形成了正确图，配方中的 Shell 命令是否能独立运行。
+对工程 Makefile 来说，语法正确只是最低要求。更重要的是：用户如何调用、子 Make 如何继承参数、失败是否能被 CI 捕获、并行输出是否可读、调试信息是否足以定位问题。
 
 ## 工程化写法
 
-工程项目中，不建议把所有命令写在一个巨大目标里。更稳妥的方式是把“生成输入”“编译对象”“链接产物”“运行测试”“清理产物”拆成多个目标，让 Make 用依赖图决定最小重建范围。
-
-数字IC项目中也一样：仿真日志、覆盖率数据库、综合报告、QoR 摘要都可以建模为目标文件。Makefile 的价值不是把命令塞进快捷方式，而是让产物关系、失败边界和重跑范围变得明确。
+调试 Makefile 时先用低噪声工具：`make -n` 看命令，`make --trace` 看触发原因，`make --warn-undefined-variables` 看拼写。只有规则选择复杂时再用 `make --debug=i` 或 `make -p`。性能优化优先减少重复 `$(shell)`、递归 Make 层级和不必要的全目录扫描。
 
 ## 常见错误
 
 | 错误现象 | 根因 | 修复 |
 |:---|:---|:---|
-| `missing separator` | 配方行用了空格而不是 TAB | 把配方行缩进改成真实 TAB，或显式使用 `.RECIPEPREFIX` |
-| 修改 `input.txt` 后没有重建 | 目标没有把 `input.txt` 写进前置条件 | 把真实输入文件列入目标右侧依赖 |
-| `make clean` 没有效果 | 存在同名文件或目标没有声明伪目标 | 添加 `.PHONY: clean` |
+| 每次 make 都很慢 | 读阶段大量 `$(shell find ...)` | 用 `:=` 缓存或生成 `.mk` 文件 |
+| 并行输出混乱 | 多目标同时写 stdout | 使用 `--output-sync` 或写日志文件 |
+| 变量拼写错但无报错 | 未定义变量默认展开为空 | 加 `--warn-undefined-variables` |
 
 ## 关键要点
 
-- Makefile 描述的是目标和依赖，不是简单的命令清单。
-- 第一个普通目标是默认目标，文件顺序会影响用户直接输入 `make` 的行为。
-- 真实文件目标由时间戳决定是否重建。
-- 自动变量只在规则上下文中有意义，不能脱离目标随意使用。
-- `make -n` 和 `make --trace` 是初学者最重要的两个观察工具。
-- 数字IC流程中的日志、报告、数据库和 checkpoint 都可以被建模为目标。
+- `make -n`、`--trace`、`--debug` 适合不同深度的观察。
+- 诊断函数在读阶段运行。
+- `$(shell)` 应避免重复展开。
+- 并行构建要关注输出同步和共享文件竞争。
+- GNU Make 4.4+ 的 `--shuffle` 可用于竞态检测，但 GNU Make 4.3 不支持。
 
 ## 与其他概念的关系
 
-- [[tools/concepts/Makefile递归与大型项目|前一篇]]：提供本篇需要的前置背景或相邻概念。
-- [[tools/concepts/Makefile小型工程实战|后一篇]]：把本篇概念推进到下一层工程用法。
+- [[tools/concepts/Makefile递归与大型项目|前一篇]]：提供依赖和规则基础。
+- [[tools/concepts/Makefile小型工程实战|后一篇]]：继续推进大型项目或实战应用。
 - [[tools/工具与脚本|工具与脚本]]：本系列所在的工具领域内容地图。
 
 ## 小练习
 
-1. 把 `debug.out` 改成另一个文件名，观察 `$@` 的输出如何变化。
-2. 运行 `touch input.txt && make --trace`，解释为什么目标会重建。
-3. 删除 `.PHONY: clean`，再创建一个名为 `clean` 的文件，观察 `make clean` 的行为。
+1. 运行 `make DEBUG=1`，观察读阶段输出。
+2. 运行 `make -j2 --output-sync=target noisy`，观察输出同步。
+3. 把 `HOST :=` 改成 `HOST =`，思考重复展开成本。
