@@ -1,7 +1,10 @@
 {
-  "theme": "system",
+  "theme": "moonstone",
   "enabledCssSnippets": [
     "wide-page"
   ],
-  "nativeMenus": false
+  "nativeMenus": false,
+  "baseFontSizeAction": true,
+  "accentColor": "#3a13c9",
+  "baseFontSize": 16
 }
