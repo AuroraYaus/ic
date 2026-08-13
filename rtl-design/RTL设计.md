@@ -27,6 +27,7 @@ queries: 1
 
 - [[rtl-design/concepts/组合逻辑|组合逻辑（Combinational Logic）]] — 真值表→门级映射，MUX 实现，锁存器推断，冒险与毛刺
 - [[rtl-design/concepts/时序逻辑|时序逻辑（Sequential Logic）]] — D 触发器，建立/保持时间，同步/异步复位，门控时钟
+- [[rtl-design/concepts/时钟信号使用规范|时钟信号使用规范（Clock Usage Rules）]] — 时钟为何不能做逻辑操作，敏感列表/ICG/分频/时钟切换的合法用法，毛刺时钟反例
 - [[rtl-design/concepts/有限状态机|有限状态机设计（FSM Design）]] — Moore vs Mealy，三段式编码，状态编码权衡，FSM+Datapath 架构
 
 ### 设计方法论
@@ -56,12 +57,13 @@ queries: 1
 
 | 排名 | 概念 | 查询次数 | 最后查询 |
 |:---|:---|:---|:---|
-| 1 | [[rtl-design/concepts/组合逻辑|组合逻辑（毛刺、异或门、竞争冒险、扇入扇出）]] | 7 | 2026-07-23 |
-| 2 | [[rtl-design/concepts/时序逻辑|时序逻辑（锁存器与触发器、同步异步电路、分频器）]] | 5 | 2026-07-23 |
-| 3 | [[rtl-design/concepts/SystemVerilog|SystemVerilog（阻塞/非阻塞/task-function/interface/casex/调度队列/综合子集）]] | 3 | 2026-07-23 |
-| 4 | [[rtl-design/concepts/有限状态机|有限状态机（FSM / 一段式两段式三段式 / 状态编码 / 安全状态机）]] | 3 | 2026-07-23 |
-| 5 | [[rtl-design/concepts/跨时钟域设计|CDC 异步FIFO / 多比特 / 格雷码 / 握手协议]] | 3 | 2026-07-23 |
-| 6 | [[rtl-design/concepts/Verilog-HDL|Verilog HDL（阻塞非阻塞赋值/scheduling队列/NBA区域/同步FIFO）]] | 2 | 2026-07-23 |
-| 7 | [[rtl-design/concepts/流水线设计|流水线设计（加速比 / 效率 / 超标量 / 乱序执行）]] | 2 | 2026-07-23 |
-| 8 | [[rtl-design/concepts/算术电路|算术电路（半加器/全加器/RCA/CLA/计数器/移位寄存器）]] | 1 | 2026-07-23 |
-| 9 | [[rtl-design/concepts/FIFO设计|FIFO 设计（同步FIFO/异步FIFO/Gray码/FWFT/Almost Full/Empty）]] | 1 | 2026-07-23 |
+| 1 | [[rtl-design/concepts/组合逻辑\|组合逻辑（毛刺、异或门、竞争冒险、扇入扇出）]] | 7 | 2026-07-23 |
+| 2 | [[rtl-design/concepts/时序逻辑\|时序逻辑（锁存器与触发器、同步异步电路、分频器）]] | 5 | 2026-07-23 |
+| 3 | [[rtl-design/concepts/SystemVerilog\|SystemVerilog（阻塞/非阻塞/task-function/interface/casex/调度队列/综合子集）]] | 3 | 2026-07-23 |
+| 4 | [[rtl-design/concepts/有限状态机\|有限状态机（FSM / 一段式两段式三段式 / 状态编码 / 安全状态机）]] | 3 | 2026-07-23 |
+| 5 | [[rtl-design/concepts/跨时钟域设计\|CDC 异步FIFO / 多比特 / 格雷码 / 握手协议]] | 3 | 2026-07-23 |
+| 6 | [[rtl-design/concepts/Verilog-HDL\|Verilog HDL（阻塞非阻塞赋值/scheduling队列/NBA区域/同步FIFO）]] | 2 | 2026-07-23 |
+| 7 | [[rtl-design/concepts/流水线设计\|流水线设计（加速比 / 效率 / 超标量 / 乱序执行）]] | 2 | 2026-07-23 |
+| 8 | [[rtl-design/concepts/算术电路\|算术电路（半加器/全加器/RCA/CLA/计数器/移位寄存器）]] | 1 | 2026-07-23 |
+| 9 | [[rtl-design/concepts/FIFO设计\|FIFO 设计（同步FIFO/异步FIFO/Gray码/FWFT/Almost Full/Empty）]] | 1 | 2026-07-23 |
+| 10 | [[rtl-design/concepts/时钟信号使用规范\|时钟信号使用规范（时钟为何不能做逻辑操作 / 敏感列表 / ICG 门控 / 分频与切换）]] | 1 | 2026-08-12 |

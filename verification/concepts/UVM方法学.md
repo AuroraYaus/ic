@@ -11,7 +11,7 @@ tags:
   - methodology
   - testbench
 source_spec: "IEEE 1800.2-2020 Universal Verification Methodology Language Reference Manual; Accellera UVM 1.2 User's Guide"
-queries: 11
+queries: 15
 ---
 # UVM 方法学
 
