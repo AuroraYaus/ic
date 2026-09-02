@@ -629,7 +629,7 @@ task 可综合的**充分必要条件**：1) 无时序控制（无 `#`/`@`/`wait
 | 参数化 | 支持 parameter 和 generate | 支持 parameterized interface |
 | 典型用途 | 功能单元（加法器、FIFO、控制器） | 总线协议封装（AXI、AHB、APB 信号组） |
 
-interface 的核心价值在于**信号聚合（Signal Aggregation）**和**方向复用（Direction Multiplexing via modport）**：
+interface 的核心价值在于**信号聚合**（Signal Aggregation）和**方向复用（Direction Multiplexing via modport）**：
 
 ```systemverilog
 // ===== interface：将 AXI-Lite 总线信号打包为一个可复用的逻辑组 =====
@@ -771,7 +771,7 @@ endmodule
 
 ## SystemVerilog 中 program 与 module 的区别
 
-`program` 块是 SystemVerilog 引入的**测试平台专用容器**，旨在解决 Verilog 测试平台中经典的**竞争条件（Race Condition）**问题。
+`program` 块是 SystemVerilog 引入的**测试平台专用容器**，旨在解决 Verilog 测试平台中经典的**竞争条件**（Race Condition）问题。
 
 | 维度 | module | program |
 |:---|:---|:---|

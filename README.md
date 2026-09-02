@@ -41,7 +41,7 @@ ic/                                          ← Obsidian Vault 根目录
 │       ├── 跨时钟域设计.md                  RTL CDC：2-FF 同步器、异步 FIFO、格雷码、握手协议
 │       ├── 算术电路.md                      算术电路：半加器/全加器、RCA/CLA、计数器、移位寄存器
 │       ├── 编码风格.md                      RTL 编码风格：命名规范、可综合清单、Lint 规则
-│       └── FIFO设计.md                      同步/异步 FIFO：空满判断、格雷码指针、FWFT
+│       └── FIFO设计.md                      同步/异步 FIFO：空满判断、格雷码指针、FWFT、反压水线
 │
 ├── verification/                            ← 功能验证领域
 │   ├── 功能验证.md                          领域入口：验证方法论、学习路径、高频查询排名
@@ -51,7 +51,8 @@ ic/                                          ← Obsidian Vault 根目录
 │       ├── 覆盖率模型.md                    覆盖率：代码覆盖 vs 功能覆盖、covergroup、CDV
 │       ├── 约束随机验证.md                  约束随机：rand/randc、constraint、dist、soft constraint
 │       ├── 形式验证.md                      形式验证：属性检查、等价性检查、BMC、k-归纳
-│       └── 验证平台架构.md                  验证平台：分层 testbench、Agent、Scoreboard、Reference Model
+│       ├── 验证平台架构.md                  验证平台：分层 testbench、Agent、Scoreboard、Reference Model
+│       └── 仿真加速与CRDB.md                仿真加速：Siloti C 模型、Replay Simulation、CRDB 数据库
 │
 ├── architecture/                            ← 计算机体系结构领域
 │   ├── 体系结构.md                          领域入口：处理器架构概念索引、高频查询排名
@@ -71,11 +72,14 @@ ic/                                          ← Obsidian Vault 根目录
 │   ├── ASIC流程.md                          领域入口：RTL→GDSII 全流程、高频查询排名
 │   └── concepts/
 │       ├── 逻辑综合.md                      综合：三阶段、SDC 约束、技术映射、面积速度权衡
+│       ├── RTL与网表.md                     RTL vs 网表：作用联系区别、网表五维分类、生命周期
+│       ├── 后端支持BES.md                   BES：中端岗位、综合/DFT/LEC/STA/功耗/网表交付
 │       ├── 静态时序分析.md                  STA：setup/hold、时钟定义、MCMM、OCV、false path
 │       ├── 可测试性设计.md                  DFT：Scan Chain、ATPG、MBIST/LBIST、JTAG
 │       ├── 时钟树综合.md                    CTS：H-tree、Useful Skew、Skew vs Latency
+│       ├── 2D与3D网表.md                    网表：2D 单 Die vs 3D-IC 堆叠、TSV、跨 Die 分析
 │       ├── 布局布线.md                      物理设计：Floorplan、Place、CTS insert、Route、ECO
-│       ├── 功耗分析.md                      功耗：动态/静态、Clock/Power Gating、DVFS
+│       ├── 功耗分析.md                      功耗：动态/静态、Clock/Power Gating、DVFS、SPEF 反标
 │       ├── 签核.md                          Signoff：时序签核、IR Drop、EM、LEC
 │       └── 物理验证.md                      物理验证：DRC、LVS、ERC、Antenna、DFM
 │
@@ -85,7 +89,9 @@ ic/                                          ← Obsidian Vault 根目录
 │       ├── 时序收敛.md                      时序收敛：RTL→Signoff 迭代闭环、OCV→LVF
 │       ├── 低功耗设计.md                    低功耗：UPF、Power Domain、Multi-Vth、ICG、AVS
 │       ├── 跨时钟域设计.md                  CDC 全貌：MTBF、同步器策略、CDC 验证、SDC 约束
-│       └── 复位策略.md                      复位：同步 vs 异步、Reset Tree、复位域
+│       ├── 复位策略.md                      复位：同步 vs 异步、Reset Tree、复位域
+│       ├── 反标.md                          反标：SPEF/SDF/活动数据回填、名称匹配、理想→真实切换
+│       └── 信号完整性.md                    信号完整性：过冲/振铃、反射机理、端接匹配
 │
 ├── projects/                                ← 外部参考项目（.gitignore，不跟踪）
 │   ├── uvm-memory/                          Memory Design UVM — 分4阶段教学项目
@@ -104,12 +110,12 @@ ic/                                          ← Obsidian Vault 根目录
 | 入口与规则 | 3 | 数字IC入口.md、CLAUDE.md、README.md |
 | 基础概念 | 4 | CMOS、半导体、亚稳态、数制 |
 | RTL 设计 | 1 MOC + 10 概念 | 新增 FIFO设计 |
-| 功能验证 | 1 MOC + 6 概念 | UVM、SVA、覆盖率、CRV、形式验证、平台 |
+| 功能验证 | 1 MOC + 7 概念 | UVM、SVA、覆盖率、CRV、形式验证、平台、仿真加速 |
 | 体系结构 | 1 MOC + 10 概念 | 新增 DMA与中断、指令集架构基础、外设总线协议 |
-| ASIC 流程 | 1 MOC + 8 概念 | 综合、STA、DFT、CTS、P&R、功耗、签核、PV |
-| 跨领域 | 1 MOC + 4 概念 | 时序收敛、低功耗、CDC、复位 |
+| ASIC 流程 | 1 MOC + 11 概念 | 综合、RTL与网表、BES、STA、DFT、CTS、2D/3D网表、P&R、功耗、签核、PV |
+| 跨领域 | 1 MOC + 6 概念 | 时序收敛、低功耗、CDC、复位、反标、信号完整性 |
 | 外部项目 | 2 | uvm-memory、uvm-axi |
-| **合计** | **52 文件** | |
+| **合计** | **58 文件** | |
 
 ## 文件元数据
 

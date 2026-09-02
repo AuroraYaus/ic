@@ -1786,27 +1786,27 @@ endtask
 // Driver 侧 — 拉取事务 + 驱动 + 确认
 task run_phase(uvm_phase phase);
     forever begin
-        seq_item_port.get_next_item(req);    // ① 阻塞等待 Sequencer 给事务
-        drive_tx(req);                       // ② 转为 DUT 引脚波形
-        seq_item_port.item_done();           // ③ 告诉 Sequencer：完成，发下一个
+        seq_item_port.get_next_item(req);    // 1) 阻塞等待 Sequencer 给事务
+        drive_tx(req);                       // 2) 转为 DUT 引脚波形
+        seq_item_port.item_done();           // 3) 告诉 Sequencer：完成，发下一个
     end
 endtask
 
 // Sequence 侧 — 产生事务 + 发送（由 start_item/finish_item 宏自动处理）
 // `uvm_do_with(req, {...}) 宏等价于：
-start_item(req);          // ① 向 Sequencer 请求发送权（可能排队等待）
-req.randomize() with {};  // ② 随机化事务内容
-finish_item(req);         // ③ 放入 Sequencer 队列 → Driver 可取走
+start_item(req);          // 1) 向 Sequencer 请求发送权（可能排队等待）
+req.randomize() with {};  // 2) 随机化事务内容
+finish_item(req);         // 3) 放入 Sequencer 队列 → Driver 可取走
 ```
 
 ##### Objection 控制仿真生命周期
 
 ```systemverilog
 task run_phase(uvm_phase phase);
-    phase.raise_objection(this);                 // ① 举起：仿真不会在此时结束
-    phase.phase_done.set_drain_time(this, 100);   // ② 留 100ns 排空最后的事务
-    seq_h.start(env_h.agent_h.sqr_h);            // ③ 启动 Sequence（阻塞到 body() 完成）
-    phase.drop_objection(this);                  // ④ 放下：Sequence 完成后允许仿真结束
+    phase.raise_objection(this);                 // 1) 举起：仿真不会在此时结束
+    phase.phase_done.set_drain_time(this, 100);   // 2) 留 100ns 排空最后的事务
+    seq_h.start(env_h.agent_h.sqr_h);            // 3) 启动 Sequence（阻塞到 body() 完成）
+    phase.drop_objection(this);                  // 4) 放下：Sequence 完成后允许仿真结束
 endtask
 ```
 
@@ -2002,16 +2002,16 @@ endclass
 task body();
     mem_tx tx;
     repeat (10) begin
-        tx = mem_tx::type_id::create("tx");    // ① 手动创建
-        start_item(tx);                         // ② 手动请求发送权
-        tx.randomize();                         // ③ 手动随机化
-        finish_item(tx);                        // ④ 手动完成发送
+        tx = mem_tx::type_id::create("tx");    // 1) 手动创建
+        start_item(tx);                         // 2) 手动请求发送权
+        tx.randomize();                         // 3) 手动随机化
+        finish_item(tx);                        // 4) 手动完成发送
     end
 endtask
 
 // ===== 方式 B：`uvm_do 宏（简洁等价）=====
 task body();
-    `uvm_do(req)                                // ①~④ 一步完成
+    `uvm_do(req)                                // 1)~4) 一步完成
 endtask
 ```
 
@@ -2039,11 +2039,11 @@ endtask
 
 ```systemverilog
 // `uvm_do_with(req, {req.wr_rd == 1;}) 的宏展开等价代码：
-req = mem_tx::type_id::create("req");         // ① 创建
+req = mem_tx::type_id::create("req");         // 1) 创建
 
-start_item(req);                              // ② 请求发送权
+start_item(req);                              // 2) 请求发送权
 
-// ③ 随机化 + 内联约束
+// 3) 随机化 + 内联约束
 // randomize() with { constraints } 的语义：
 //   - 类内 constraint 块（如 c_default）照常生效
 //   - with {} 中的内联约束作为**附加条件**叠加
@@ -2053,7 +2053,7 @@ if (!req.randomize() with { req.wr_rd == 1; }) begin
     `uvm_warning("RAND", "Randomization failed")
 end
 
-finish_item(req);                             // ④ 发送并等待完成
+finish_item(req);                             // 4) 发送并等待完成
 
 **内联约束的语义：**
 
@@ -2206,9 +2206,9 @@ Driver 的 `run_phase` 是一个 `forever` 循环，Driver 的整个生命周期
 ```systemverilog
 task run_phase(uvm_phase phase);
     forever begin
-        seq_item_port.get_next_item(req);   // ① 伸手: "给我一个事务"
-        drive_tx(req);                      // ② 干活: 事务→引脚波形
-        seq_item_port.item_done();          // ③ 交回：事务完成，通知 Sequencer 发送下一个
+        seq_item_port.get_next_item(req);   // 1) 伸手: "给我一个事务"
+        drive_tx(req);                      // 2) 干活: 事务→引脚波形
+        seq_item_port.item_done();          // 3) 交回：事务完成，通知 Sequencer 发送下一个
     end
 endtask
 ```
@@ -2235,11 +2235,11 @@ class mem_drv extends uvm_driver#(mem_tx);
 
     task run_phase(uvm_phase phase);
         forever begin
-            seq_item_port.get_next_item(req);  // ① 阻塞拉取
+            seq_item_port.get_next_item(req);  // 1) 阻塞拉取
 
-            drive_tx(req);                     // ② 驱动到 DUT 接口
+            drive_tx(req);                     // 2) 驱动到 DUT 接口
 
-            seq_item_port.item_done();         // ③ 通知完成
+            seq_item_port.item_done();         // 3) 通知完成
         end
     endtask
 
@@ -2294,12 +2294,12 @@ task run_phase(uvm_phase phase);
     vif.b_ready <= 1;                          // B 通道常 ready——随时接收写响应
     vif.r_ready <= 1;                          // R 通道常 ready——随时接收读数据
     forever begin
-        seq_item_port.get_next_item(tr);       // ① 拉取一个 AXI 事务
+        seq_item_port.get_next_item(tr);       // 1) 拉取一个 AXI 事务
         if (tr.is_read)
-            drive_read(tr);                    // ②a 读事务：AR 握手 + 等待 R beat
+            drive_read(tr);                    // 2a) 读事务：AR 握手 + 等待 R beat
         else
-            drive_write(tr);                   // ②b 写事务：AW + W + B 三通道握手
-        seq_item_port.item_done();             // ③ 通知完成——不管读写都是一笔事务
+            drive_write(tr);                   // 2b) 写事务：AW + W + B 三通道握手
+        seq_item_port.item_done();             // 3) 通知完成——不管读写都是一笔事务
     end
 endtask
 
@@ -2417,18 +2417,18 @@ task run_phase(uvm_phase phase);
     mem_wr_rd_seq mem_wr_rd_seq_h;
     mem_wr_rd_seq_h = mem_wr_rd_seq::type_id::create("mem_wr_rd_seq_h", this);
 
-    // ① raise_objection：告诉 UVM "我的测试刚开始，别结束"
+    // 1) raise_objection：告诉 UVM "我的测试刚开始，别结束"
     phase.raise_objection(this);               // this = 当前 test 实例
 
-    // ② phase_done.set_drain_time(this, 100)：
+    // 2) phase_done.set_drain_time(this, 100)：
     //    在所有 objection 都被 drop 后，额外保留 100 个时间单位
     //    用于排空（Drain）流水线中最后的事务——确保末级事务的响应也被处理
     phase.phase_done.set_drain_time(this, 100);
 
-    // ③ seq.start()：启动 Sequence（阻塞——等 body() 执行完才返回）
+    // 3) seq.start()：启动 Sequence（阻塞——等 body() 执行完才返回）
     mem_wr_rd_seq_h.start(mem_env_h.mem_agent_h.mem_sqr_h);
 
-    // ④ drop_objection：Sequence 已完成，允许仿真结束
+    // 4) drop_objection：Sequence 已完成，允许仿真结束
     phase.drop_objection(this);
 endtask
 
@@ -2765,14 +2765,14 @@ uvm_config_db #(int)::set(this, "*.sqr", "max_retry", 3);
 // 来自 /home/yys/AGENT/ic/projects/uvm-axi/tb/axi_uvm_pkg.sv
 class axi_agent extends uvm_component;
     virtual function void build_phase(uvm_phase phase);
-        // ① Agent 从父级（env）获取自己的 vif 和 midx
+        // 1) Agent 从父级（env）获取自己的 vif 和 midx
         if (!uvm_config_db#(axi_vif_m_t)::get(this, "", "vif", vif))
             `uvm_fatal("NOVIF", "no vif");
         void'(uvm_config_db#(int)::get(this, "", "midx", midx));
 
         mon = axi_monitor::type_id::create("mon", this);
 
-        // ② Agent 向下级（monitor）传递 vif——使用精确路径
+        // 2) Agent 向下级（monitor）传递 vif——使用精确路径
         //   cntxt=this → 从当前 agent 的路径开始
         //   inst_name="mon" → 精确指定 mon 子组件
         uvm_config_db#(axi_vif_m_t)::set(this, "mon", "vif", vif);
@@ -2784,7 +2784,7 @@ class axi_agent extends uvm_component;
             sqr = axi_sequencer::type_id::create("sqr", this);
             drv = axi_driver::type_id::create("drv", this);
 
-            // ③ 同样用精确路径给 driver 传递 vif
+            // 3) 同样用精确路径给 driver 传递 vif
             uvm_config_db#(axi_vif_m_t)::set(this, "drv", "vif", vif);
             //                                   ^^^^  ^^^^
             //   含义：在 "this.drv" 路径下 set ——只有 drv 组件能 get 到

@@ -32,6 +32,8 @@ queries: 1
 - [[cross-domain/concepts/低功耗设计|低功耗设计（Low Power Design）]] — 从架构到物理实现的功耗优化
 - [[cross-domain/concepts/跨时钟域设计|跨时钟域（Clock Domain Crossing）]] — 多时钟 SoC 的同步策略
 - [[cross-domain/concepts/复位策略|复位策略（Reset Methodology）]] — 复位方案的选择与实现
+- [[cross-domain/concepts/反标|反标（Back-Annotation）]] — SPEF/SDF/活动数据的跨阶段回填机制
+- [[cross-domain/concepts/信号完整性|信号完整性（Signal Integrity）]] — 过冲/振铃/反射机理与端接匹配
 
 ## 基础概念
 
@@ -39,6 +41,11 @@ queries: 1
 - [[concepts/数制|数字的数制表示]] — 二进制、补码、定点数、浮点数
 - [[concepts/亚稳态|亚稳态（Metastability）]] — 跨时钟域问题的物理根源
 - [[concepts/半导体基础|半导体基础]] — PN 结、MOSFET、PVT 变异
+- [[concepts/斯密特触发器|斯密特触发器（Schmitt Trigger）]] — 迟滞阈值去噪、波形整形
+
+## 复习自测
+
+- [[review/复习自测入口|复习自测题库]] — 全栈自测题：分领域题目 + 要点提纲 + 出处链接，选题热度依据各领域高频查询排名表
 
 ## 关联知识库
 
@@ -54,7 +61,7 @@ queries: 1
 
 | 总排名 | 领域 | 概念 | 查询次数 | 最后查询 |
 |:---|:---|:---|:---|:---|
-| 1 | ASIC 流程 | [[asic-flow/concepts/静态时序分析\|STA / Critical Path / Skew & Jitter / Multi-Cycle / False Path / Fmax / OCV]] | 12 | 2026-07-23 |
+| 1 | ASIC 流程 | [[asic-flow/concepts/静态时序分析\|STA / Critical Path / Skew & Jitter / Multi-Cycle / False Path / Fmax / OCV]] | 14 | 2026-08-31 |
 | 2 | 体系结构 | [[architecture/concepts/片上总线\|片上总线协议（AHB / APB / AXI / QoS / Interconnect）]] | 8 | 2026-07-23 |
 | 3 | RTL 设计 | [[rtl-design/concepts/组合逻辑\|毛刺 / 异或门 / 竞争冒险 / 扇入扇出]] | 7 | 2026-07-23 |
 | 4 | 跨领域 | [[cross-domain/concepts/低功耗设计\|时钟门控ICG / 操作数隔离 / 门控使能时序 / ICG强制使用策略 / ICG毛刺消除机制 / 功耗公式杠杆分类]] | 7 | 2026-08-12 |
@@ -77,10 +84,10 @@ queries: 1
 | 21 | 体系结构 | [[architecture/concepts/DMA与中断\|DMA / 中断]] | 2 | 2026-07-23 |
 | 22 | 验证 | [[verification/concepts/UVM方法学\|Monitor vs Scoreboard 职责与实现（被动观测 vs 主动判断）]] | 2 | 2026-08-11 |
 | 23 | RTL 设计 | [[rtl-design/concepts/算术电路\|半加器/全加器/RCA/CLA/计数器/移位寄存器]] | 1 | 2026-07-23 |
-| 24 | RTL 设计 | [[rtl-design/concepts/FIFO设计\|同步FIFO/异步FIFO/Gray码/FWFT/Almost Full/Empty]] | 1 | 2026-07-23 |
+| 24 | RTL 设计 | [[rtl-design/concepts/FIFO设计\|同步FIFO/异步FIFO/Gray码/FWFT/Almost Full/Empty/反压水线]] | 3 | 2026-09-02 |
 | 25 | RTL 设计 | [[rtl-design/concepts/时钟信号使用规范\|时钟为何不能做逻辑操作 / 敏感列表 / ICG门控 / 分频与切换]] | 1 | 2026-08-12 |
 | 26 | ASIC 流程 | [[asic-flow/concepts/时钟树综合\|CTS / Skew vs Latency / CTS前后时序差异]] | 1 | 2026-07-23 |
-| 27 | ASIC 流程 | [[asic-flow/concepts/功耗分析\|功耗分析]] | 1 | 2026-07-23 |
+| 27 | ASIC 流程 | [[asic-flow/concepts/功耗分析\|功耗分析（功耗仿真 / VCD / SAIF / PTPX / What-If / FSDB转VCD / VDDC-VDDP分域 / SPEF与网表关系）]] | 10 | 2026-09-02 |
 | 28 | 跨领域 | [[cross-domain/concepts/时序收敛\|时序收敛]] | 1 | 2026-07-23 |
 | 29 | 跨领域 | [[cross-domain/concepts/复位策略\|复位策略]] | 1 | 2026-07-23 |
 | 30 | 验证 | [[verification/concepts/覆盖率模型\|代码覆盖率 vs 功能覆盖率]] | 1 | 2026-07-23 |
@@ -104,5 +111,13 @@ queries: 1
 | 48 | 体系结构 | [[architecture/concepts/指令流水线\|流水线冒险]] | 1 | 2026-07-23 |
 | 49 | 体系结构 | [[architecture/concepts/分支预测\|分支预测]] | 1 | 2026-07-23 |
 | 50 | 体系结构 | [[architecture/concepts/缓存一致性\|缓存一致性（MESI）]] | 1 | 2026-07-23 |
+| 51 | ASIC 流程 | [[asic-flow/concepts/后端支持BES\|后端支持（BES）]] | 1 | 2026-08-26 |
+| 52 | 验证 | [[verification/concepts/仿真加速与CRDB\|仿真加速与 CRDB（Siloti）]] | 1 | 2026-08-26 |
+| 53 | ASIC 流程 | [[asic-flow/concepts/2D与3D网表\|2D 网表与 3D 网表]] | 1 | 2026-08-26 |
+| 54 | ASIC 流程 | [[asic-flow/concepts/RTL与网表\|RTL 与网表（作用 / 联系 / 区别 / 分类）]] | 2 | 2026-08-26 |
+| 55 | ASIC 流程 | [[asic-flow/concepts/可测试性设计\|可测试性设计（DFT：扫描链 / ATPG / MBIST）]] | 3 | 2026-08-26 |
+| 56 | 跨领域 | [[cross-domain/concepts/反标\|反标（Back-Annotation / SPEF / SDF / VCD 反标）]] | 1 | 2026-08-27 |
+| 57 | 基础概念 | [[concepts/半导体基础\|半导体基础（迁移率与 Vth 温度竞争 / 温度反转 / 超频低温提速物理）]] | 2 | 2026-08-31 |
+| 58 | 跨领域 | [[cross-domain/concepts/信号完整性\|信号完整性（过冲/振铃/反射机理/端接匹配）]] | 1 | 2026-09-02 |
 
-> 以上为全部 50 条高频查询的全量排名。计数仅含通过 Q&A Pipeline 统计的查询。
+> 以上为全部 58 条高频查询的全量排名。计数仅含通过 Q&A Pipeline 统计的查询。

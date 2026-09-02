@@ -23,12 +23,16 @@ ASIC 实现流程（Application-Specific Integrated Circuit Flow）是将 RTL �
 ### 前端实现
 
 - [[asic-flow/concepts/逻辑综合|逻辑综合（Synthesis）]] — RTL 精化、技术映射、SDC 约束、Design Compiler / Genus 流程
+- [[asic-flow/concepts/RTL与网表|RTL 与网表]] — 作用/联系/区别、网表五维分类（GTECH/扁平层次/扫描/2D3D/格式）、生命周期
+- [[asic-flow/concepts/后端支持BES|后端支持（BES）]] — 中端岗位：综合/DFT/LEC/STA/功耗分析/网表交付，面向后端的一站式支持
 - [[asic-flow/concepts/静态时序分析|静态时序分析（STA）]] — 建立/保持检查、时序路径分类、多角多模分析、PrimeTime / Tempus
-- [[asic-flow/concepts/可测试性设计|可测试性设计（DFT）]] — 扫描链、ATPG、压缩架构、MBIST/LBIST、JTAG/IEEE 1149.1
+- [[asic-flow/concepts/可测试性设计|可测试性设计（DFT）]] — 扫描链、ATPG、压缩架构、MBIST/LBIST、JTAG/IEEE 1149.1、端到端八步流程
+- [[asic-flow/concepts/逻辑等价性检查|逻辑等价性检查（LEC）]] — RTL 与网表的等价性证明：综合/DFT/ECO 每步网表变换的守门员
 
 ### 物理实现
 
 - [[asic-flow/concepts/时钟树综合|时钟树综合（CTS）]] — 时钟树拓扑、偏斜最小化、有用偏斜、时钟网格、时钟功耗
+- [[asic-flow/concepts/2D与3D网表|2D 网表与 3D 网表]] — 单 Die vs 3D-IC 网表：Die 归属、TSV 垂直互连、跨 Die 时序/热分析
 - [[asic-flow/concepts/布局布线|布局布线（P&R）]] — 布图规划、全局/详细布局、全局/详细布线、ECO、Innovus/ICC2
 - [[asic-flow/concepts/功耗分析|功耗分析（Power Analysis）]] — 动态/静态功耗、时钟门控、电源门控、Multi-Vth、DVFS、IR Drop
 
@@ -59,8 +63,12 @@ ASIC 实现流程（Application-Specific Integrated Circuit Flow）是将 RTL �
 
 | 排名 | 概念 | 查询次数 | 最后查询 |
 |:---|:---|:---|:---|
-| 1 | [[asic-flow/concepts/静态时序分析\|静态时序分析（STA / Critical Path / Skew & Jitter / Multi-Cycle / False Path / Fmax / Clock Uncertainty / OCV / Max Transition / Setup & Hold Check）]] | 12 | 2026-07-23 |
-| 2 | [[asic-flow/concepts/逻辑综合\|逻辑综合（面积速度权衡 / 资源共享 / Retiming / 综合流程）]] | 3 | 2026-07-23 |
-| 3 | [[asic-flow/concepts/布局布线\|布局布线（Floorplan / Placement / CTS / Routing / 时序影响）]] | 2 | 2026-07-23 |
-| 4 | [[asic-flow/concepts/时钟树综合\|时钟树综合（CTS / Skew vs Latency / CTS前后时序差异）]] | 1 | 2026-07-23 |
-| 5 | [[asic-flow/concepts/功耗分析\|功耗分析（Power Analysis）]] | 1 | 2026-07-23 |
+| 1 | [[asic-flow/concepts/静态时序分析\|静态时序分析（STA / Critical Path / Skew & Jitter / Multi-Cycle / False Path / Fmax / Clock Uncertainty / OCV / Max Transition / Setup & Hold Check / 前后端违例修复 / 动态时序分析辨析）]] | 14 | 2026-08-31 |
+| 2 | [[asic-flow/concepts/功耗分析\|功耗分析（Power Analysis / VCD / SAIF / PTPX / What-If / FSDB转VCD / VDDC-VDDP分域 / UPF低功耗仿真 / 三分量来源与静态动态 / 组合与时序功耗 / SPEF与网表关系）]] | 10 | 2026-09-02 |
+| 3 | [[asic-flow/concepts/逻辑综合\|逻辑综合（面积速度权衡 / 资源共享 / Retiming / 综合流程）]] | 3 | 2026-07-23 |
+| 4 | [[asic-flow/concepts/可测试性设计\|可测试性设计（DFT：端到端八步流程 / 扫描替换 / ATPG / MBIST March C-）]] | 3 | 2026-08-26 |
+| 5 | [[asic-flow/concepts/布局布线\|布局布线（Floorplan / Placement / CTS / Routing / 时序影响）]] | 2 | 2026-07-23 |
+| 6 | [[asic-flow/concepts/RTL与网表\|RTL 与网表（作用联系区别 / 网表五维分类 / 开关级 / EDIF）]] | 2 | 2026-08-26 |
+| 7 | [[asic-flow/concepts/时钟树综合\|时钟树综合（CTS / Skew vs Latency / CTS前后时序差异）]] | 1 | 2026-07-23 |
+| 8 | [[asic-flow/concepts/后端支持BES\|后端支持（BES：综合/DFT/LEC/STA/网表交付/ECO）]] | 1 | 2026-08-26 |
+| 9 | [[asic-flow/concepts/2D与3D网表\|2D 网表与 3D 网表（Die归属 / TSV / 跨Die时序热分析）]] | 1 | 2026-08-26 |

@@ -363,7 +363,7 @@ bind fifo_32x16 fifo_checker chk (.*);
 
 **4.2 精化时机（最关键的概念）**
 
-`bind` 在**精化阶段（Elaboration Phase）**完成，在仿真时间 0 之前。这意味着：
+`bind` 在**精化阶段**（Elaboration Phase）完成，在仿真时间 0 之前。这意味着：
 
 - 目标路径必须在精化时**静态存在**——`generate`/`ifdef` 已展开，参数已求值
 - `bind` 不能依赖运行时条件（仿真 0 时刻之后的动态层次变更）

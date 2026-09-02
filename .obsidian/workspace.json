@@ -4,21 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "656ee46aee50c81a",
+        "id": "7d51600a7d1519ac",
         "type": "tabs",
         "children": [
           {
-            "id": "b6d2ce010978137a",
+            "id": "468207cb8f9ea163",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "数字IC入口.md",
+                "file": "review/ASIC流程自测题.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "数字IC入口"
+              "title": "ASIC流程自测题"
             }
           }
         ]
@@ -41,7 +41,9 @@
               "type": "file-explorer",
               "state": {
                 "sortOrder": "alphabetical",
-                "autoReveal": false
+                "autoReveal": false,
+                "showSearch": false,
+                "searchQuery": ""
               },
               "icon": "lucide-folder-closed",
               "title": "文件列表"
@@ -74,8 +76,7 @@
               "title": "书签"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "horizontal",
@@ -181,53 +182,53 @@
       "bases:新建数据库": false
     }
   },
-  "active": "aa977badf59538da",
+  "active": "468207cb8f9ea163",
   "lastOpenFiles": [
-    "verification/concepts/验证平台架构.md.tmp.661658.5a52ba587477",
-    "verification/concepts/UVM方法学.md.tmp.661658.9cdfbfdb341e",
-    "cross-domain/concepts/低功耗设计.md.tmp.661658.effeaa757496",
-    "未命名.canvas",
-    "rtl-design/concepts/时钟信号使用规范.md",
-    "tools/concepts/21-Makefile仿真回归实战.md",
-    "cross-domain/concepts/低功耗设计.md",
-    "cross-domain/跨领域.md.tmp.661658.429782262f92",
-    "cross-domain/concepts/低功耗设计.md.tmp.661658.99d0746219fc",
-    "cross-domain/跨领域.md.tmp.661658.940feb7713ed",
-    "rtl-design/concepts/时钟信号使用规范.md.tmp.661658.bcdff512ec11",
-    "cross-domain/concepts/低功耗设计.md.tmp.661658.f3b79242676b",
-    "tools/concepts/19-Makefile调试与性能.md",
-    "tools/concepts/13-Makefile隐含规则.md",
-    "tools/工具与脚本.md",
-    "tools/concepts/17-Makefile内置变量与命令行.md",
-    "rtl-design/concepts/跨时钟域设计.md",
-    "cross-domain/concepts/跨时钟域设计.md",
-    "rtl-design/concepts/FIFO设计.md",
+    "asic-flow/concepts/签核.md",
+    "review/ASIC流程自测题.md",
+    "concepts/半导体基础.md",
+    "architecture/concepts/DDR接口与PHY训练.md",
+    "architecture/concepts/DDR接口与PHY训练.md.tmp.10008.fd92f2b304c1",
+    "architecture/concepts/PCIe协议.md",
+    "rtl-design/concepts/DSP算法IP.md",
     "verification/concepts/UVM方法学.md",
-    "architecture/concepts/指令集架构基础.md",
-    "projects/uvm-memory/phase4/code/mem_mon.sv.tmp.1266727.eeceae310424",
-    "projects/uvm-memory/phase4/code/mem_sbd.sv.tmp.1266727.32e8d70d588a",
-    "projects/uvm-memory/TLM_broadcast_mod_AXI_tx/code/my_sub.sv.tmp.1266727.b6dd4e1d41f7",
-    "concepts/CMOS基础.md",
-    "CLAUDE.md",
+    "asic-flow/concepts/逻辑等价性检查.md",
+    "asic-flow/concepts/逻辑等价性检查.md.tmp.10008.86fa7536ab0c",
+    "tools/concepts/Perl脚本实战.md",
+    "tools/concepts/Perl脚本实战.md.tmp.10008.015e140ed2a9",
+    "tools/concepts/Shell脚本实战.md",
+    "tools/concepts/Shell脚本实战.md.tmp.10008.fe15013b900f",
+    "tools/concepts/Python脚本实战.md",
+    "tools/concepts/Python脚本实战.md.tmp.10008.1e4e67fcad37",
+    "tools/concepts/TCL脚本实战.md",
+    "tools/concepts/TCL脚本实战.md.tmp.10008.97a35982835e",
+    "rtl-design/concepts/经典设计题例.md",
+    "rtl-design/concepts/经典设计题例.md.tmp.10008.f3465195d5cf",
+    "review/工具脚本自测题.md.tmp.10008.97e6ae83528c",
+    "review/复习自测入口.md.tmp.10008.cb83e56eee4d",
+    "review/复习自测入口.md.tmp.10008.1dc7b4699598",
+    "verification/concepts/DPI-C接口.md",
+    "tools/concepts/C语言在数字IC中的应用.md",
+    "review/编程自测题.md",
+    "review/工具脚本自测题.md",
+    "review/基础概念自测题.md",
+    "review/跨领域自测题.md",
+    "review/复习自测入口.md",
+    "review/功能验证自测题.md",
+    "review/体系结构自测题.md",
+    "review/RTL设计自测题.md",
+    "interview/跨领域面试题.md",
+    "interview/ASIC流程面试题.md",
+    "interview/体系结构面试题.md",
+    "未命名.canvas",
     "verification/concepts/assets/reference-model-architecture.svg",
-    "verification/concepts/形式验证.md",
     "verification/concepts/assets/tlm-port-connection.svg",
     "verification/concepts/assets/uvm-class-diagram.svg",
     "verification/concepts/assets/build-connect-phase.svg",
     "verification/concepts/assets/uvm-seq-driver-handshake.svg",
-    "verification/concepts/SVA断言.md",
-    "projects/uvm-axi/README_CN.md",
-    "projects/uvm-memory/README.md",
-    "projects/uvm-memory/README_CN.md",
-    "projects/uvm-axi/README.md",
     "projects/uvm-memory/phase4/code/waveform.png",
     "projects/uvm-memory/phase4/code/coverage.png",
     "projects/uvm-memory/phase4/code/assertions.png",
-    "rtl-design/concepts/SystemVerilog.md",
-    "asic-flow/concepts/静态时序分析.md",
-    "数字IC入口.md",
-    "cross-domain/concepts/复位策略.md",
-    "docs/superpowers/plans/2026-07-22-audit-fixes.md",
     "rtl-design/concepts/assets/cdc-synchronizer.svg",
     "rtl-design/concepts/assets/fsm-moore-mealy.svg"
   ]

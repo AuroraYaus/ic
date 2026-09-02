@@ -29,12 +29,14 @@ queries: 1
 - [[rtl-design/concepts/时序逻辑|时序逻辑（Sequential Logic）]] — D 触发器，建立/保持时间，同步/异步复位，门控时钟
 - [[rtl-design/concepts/时钟信号使用规范|时钟信号使用规范（Clock Usage Rules）]] — 时钟为何不能做逻辑操作，敏感列表/ICG/分频/时钟切换的合法用法，毛刺时钟反例
 - [[rtl-design/concepts/有限状态机|有限状态机设计（FSM Design）]] — Moore vs Mealy，三段式编码，状态编码权衡，FSM+Datapath 架构
+- [[rtl-design/concepts/经典设计题例|经典设计题例]] — 序列检测器（1011）/ 边沿检测器 / 售货机状态机：完整可综合实现与易错点
 
 ### 设计方法论
 
 - [[rtl-design/concepts/流水线设计|流水线设计（Pipeline Design）]] — 吞吐率 vs 延迟，停顿/冲刷协议，Valid-Ready 握手机制
 - [[rtl-design/concepts/跨时钟域设计|跨时钟域（Clock Domain Crossing, CDC）]] — 亚稳态，2-FF 同步器，格雷码 FIFO，握手同步
 - [[rtl-design/concepts/算术电路|算术电路（Arithmetic Circuits）]] — 加法器（RCA/CLA/CSA），Booth 乘法，Wallace 树，移位器
+- [[rtl-design/concepts/DSP算法IP|DSP 算法 IP]] — FIR 滤波器 / CORDIC / 除法器：算法公式到可综合结构的三种范式
 - [[rtl-design/concepts/编码风格|RTL 编码风格（RTL Coding Style）]] — 命名规范，参数化设计，可综合约束，CDC 最佳实践
 - [[rtl-design/concepts/FIFO设计|FIFO 设计（FIFO Design）]] — 同步/异步 FIFO，空满判断，格雷码指针，FWFT 模式，Almost Full/Empty
 
@@ -62,8 +64,8 @@ queries: 1
 | 3 | [[rtl-design/concepts/SystemVerilog\|SystemVerilog（阻塞/非阻塞/task-function/interface/casex/调度队列/综合子集）]] | 3 | 2026-07-23 |
 | 4 | [[rtl-design/concepts/有限状态机\|有限状态机（FSM / 一段式两段式三段式 / 状态编码 / 安全状态机）]] | 3 | 2026-07-23 |
 | 5 | [[rtl-design/concepts/跨时钟域设计\|CDC 异步FIFO / 多比特 / 格雷码 / 握手协议]] | 3 | 2026-07-23 |
-| 6 | [[rtl-design/concepts/Verilog-HDL\|Verilog HDL（阻塞非阻塞赋值/scheduling队列/NBA区域/同步FIFO）]] | 2 | 2026-07-23 |
-| 7 | [[rtl-design/concepts/流水线设计\|流水线设计（加速比 / 效率 / 超标量 / 乱序执行）]] | 2 | 2026-07-23 |
-| 8 | [[rtl-design/concepts/算术电路\|算术电路（半加器/全加器/RCA/CLA/计数器/移位寄存器）]] | 1 | 2026-07-23 |
-| 9 | [[rtl-design/concepts/FIFO设计\|FIFO 设计（同步FIFO/异步FIFO/Gray码/FWFT/Almost Full/Empty）]] | 1 | 2026-07-23 |
+| 6 | [[rtl-design/concepts/FIFO设计\|FIFO 设计（同步FIFO/异步FIFO格雷码指针/空满判断/FWFT/Almost Full/Empty/反压水线与在途数据）]] | 3 | 2026-09-02 |
+| 7 | [[rtl-design/concepts/Verilog-HDL\|Verilog HDL（阻塞非阻塞赋值/scheduling队列/NBA区域/同步FIFO）]] | 2 | 2026-07-23 |
+| 8 | [[rtl-design/concepts/流水线设计\|流水线设计（加速比 / 效率 / 超标量 / 乱序执行）]] | 2 | 2026-07-23 |
+| 9 | [[rtl-design/concepts/算术电路\|算术电路（半加器/全加器/RCA/CLA/计数器/移位寄存器）]] | 1 | 2026-07-23 |
 | 10 | [[rtl-design/concepts/时钟信号使用规范\|时钟信号使用规范（时钟为何不能做逻辑操作 / 敏感列表 / ICG 门控 / 分频与切换）]] | 1 | 2026-08-12 |

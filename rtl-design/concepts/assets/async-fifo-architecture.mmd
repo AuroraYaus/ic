@@ -1,0 +1,25 @@
+%%{init: {'theme': 'default', 'themeVariables': { 'fontSize': '13px'}}}%%
+flowchart LR
+    subgraph WD["写时钟域（wclk）"]
+        WDIN["写接口<br/>wdata / winc"]
+        WPTR["写指针<br/>wptr_bin → wptr_gray"]
+        WFULL["wfull 判断<br/>wptr_gray vs wq2_rptr"]
+        WSYNC["2-FF 同步器<br/>wq1_rptr → wq2_rptr"]
+    end
+    MEM["双端口存储器<br/>mem[0 : 2^ASIZE-1]"]
+    subgraph RD["读时钟域（rclk）"]
+        RDATA["读接口<br/>rdata"]
+        RPTR["读指针<br/>rptr_bin → rptr_gray"]
+        REMPTY["rempty 判断<br/>rptr_gray vs rq2_wptr"]
+        RSYNC["2-FF 同步器<br/>rq1_wptr → rq2_wptr"]
+    end
+    WDIN -- "写入（winc 且未满）" --> MEM
+    MEM -- "读出（寄存输出）" --> RDATA
+    WPTR -- "写地址 wptr_bin[ASIZE-1:0]" --> MEM
+    RPTR -- "读地址 rptr_bin[ASIZE-1:0]" --> MEM
+    WPTR -- "wptr_gray 格雷码跨域" --> RSYNC
+    RPTR -- "rptr_gray 格雷码跨域" --> WSYNC
+    WPTR -- "本域指针" --> WFULL
+    WSYNC -- "同步后的读指针" --> WFULL
+    RPTR -- "本域指针" --> REMPTY
+    RSYNC -- "同步后的写指针" --> REMPTY

@@ -1,0 +1,14 @@
+{
+  "signal": [
+    {"name": "wclk", "wave": "p..........."},
+    {"name": "winc", "wave": "0..10......."},
+    {"name": "wptr_gray", "wave": "=..==.......", "data": ["0000", "0001"]},
+    {"name": "rclk", "wave": "p..........."},
+    {"name": "rq2_wptr", "wave": "=....=......", "data": ["0000", "0001"]},
+    {"name": "rptr_gray", "wave": "=...........", "data": ["0000"]},
+    {"name": "rempty", "wave": "1....=......", "data": ["保守撤销：滞后 2 拍"]}
+  ],
+  "head": {"text": "异步 FIFO 空标志的保守同步延迟（读时钟域视角）"},
+  "foot": {"text": "t=3 写域写入一拍，wptr_gray 由 0000 变 0001 | t=4~5 格雷码经 2-FF 同步器逐级传递 | t=5 读域才看到 0001，rempty 滞后撤销：宁可误判空，绝不读空 FIFO"},
+  "config": {"hscale": 2}
+}
