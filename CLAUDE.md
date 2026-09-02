@@ -26,6 +26,12 @@ source_spec: "Local project instructions — inherited from obsidian vault rules
 ### 2. 图表规范
 
 - 波形图/时序图 → Wavedrom（`.json` → `.html` → `.svg`）
+  - **Wavedrom 绘制规则（2026-09-02 波形尖刻与电平错误教训）**：
+    - 连续同电平段必须用 `.` 重复——显式重复同电平字符（`0000`/`1111`）会在每个周期边界渲染出尖刻（0m0/1m1 图元），只有电平变化才写新字符
+    - `data` 标签只能挂在 `2`（低电平带标签）/`3`（高电平带标签）字符上；`x` 与 `=` 不渲染标签
+    - `=` 是总线值字符，单比特标志信号禁止使用（标志撤销要用 `2`）
+    - data 字符后的 `.` 会连同数据框一起重复——数据框后必须写显式电平字符终止数据框（如 `...20...`）再继续用 `.`
+    - `.json` 是唯一事实源：改完必须重跑 `tools/render_wavedrom.sh` 重渲染 `.html` 与 `.svg`；生成后解析 SVG 验证各 lane 电平序列与字符数一致（渲染链路：chrome headless + 本地 wavedrom 2.6.8）
 - 电路图/架构图/模块框图 → ≤50 节点 Mermaid，>50 节点 PlantUML
 - Mermaid 必须配置深色/浅色自适应主题：`%%{init: {'theme': 'default'}}%%`
 - 所有图表必须输出 SVG 作为主格式，PNG 为可选

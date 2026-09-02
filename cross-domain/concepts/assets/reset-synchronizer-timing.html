@@ -7,13 +7,13 @@
 <script type="WaveDrom">
 {
   "signal": [
-    {"name": "clk", "wave": "p............"},
-    {"name": "ext_rst_n", "wave": "1030...1....", "data": ["异步断言（立即生效）"]},
-    {"name": "q1", "wave": "100000003111", "data": ["恢复/移除窗口 → 可能亚稳态"]},
-    {"name": "sync_rst_n", "wave": "100000000311", "data": ["同步释放（干净边沿）"]}
+    {"name": "clk", "wave": "p..........."},
+    {"name": "ext_rst_n", "wave": "1020...1....", "data": ["异步断言（立即生效）"]},
+    {"name": "q1", "wave": "10.....x1..."},
+    {"name": "sync_rst_n", "wave": "10.......31.", "data": ["同步释放（干净边沿）"]}
   ],
   "head": {"text": "复位同步器——异步断言、同步释放（Asynchronous Assert, Synchronous Deassert）"},
-  "foot": {"text": "t=1 异步断言 | t=7 释放沿与 clk 沿重合 | t=8-9 q1 亚稳态窗口 | t=9-10 同步释放"},
+  "foot": {"text": "t=1 异步断言 | t=7 释放沿与 clk 沿重合 → 恢复/移除违例 | t=7 段 q1 亚稳态窗口（x）| t=9 sync_rst_n 同步释放"},
   "config": {"hscale": 2}
 }
 </script>

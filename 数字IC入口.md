@@ -23,7 +23,7 @@ queries: 1
 | 验证 | [[verification/功能验证\|验证 MOC]] | UVM, SVA, 覆盖率, 形式验证 |
 | 体系结构 | [[architecture/体系结构\|体系结构 MOC]] | 流水线, 乱序执行, 缓存, 总线, SoC |
 | ASIC 流程 | [[asic-flow/ASIC流程\|ASIC 流程 MOC]] | 综合, STA, DFT, 布局布线, Signoff |
-| 工具与脚本 | [[tools/工具与脚本\|工具与脚本 MOC]] | Makefile 25 篇系统讲义, TCL, Perl/Python, Shell, Git |
+| 工具与脚本 | [[tools/工具与脚本\|工具与脚本 MOC]] | Makefile 25 篇系统讲义, TCL, Perl/Python, Shell, Git, Wavedrom 波形绘制 |
 
 ## 跨领域概念
 
@@ -119,5 +119,6 @@ queries: 1
 | 56 | 跨领域 | [[cross-domain/concepts/反标\|反标（Back-Annotation / SPEF / SDF / VCD 反标）]] | 1 | 2026-08-27 |
 | 57 | 基础概念 | [[concepts/半导体基础\|半导体基础（迁移率与 Vth 温度竞争 / 温度反转 / 超频低温提速物理）]] | 2 | 2026-08-31 |
 | 58 | 跨领域 | [[cross-domain/concepts/信号完整性\|信号完整性（过冲/振铃/反射机理/端接匹配）]] | 1 | 2026-09-02 |
+| 59 | 工具与脚本 | [[tools/concepts/Wavedrom绘制规则\|Wavedrom 绘制规则（. 重复 / 标签挂 2 3 / = 禁用 / 数据框终止 / 三件套重渲染）]] | 1 | 2026-09-02 |
 
-> 以上为全部 58 条高频查询的全量排名。计数仅含通过 Q&A Pipeline 统计的查询。
+> 以上为全部 59 条高频查询的全量排名。计数仅含通过 Q&A Pipeline 统计的查询。

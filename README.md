@@ -93,6 +93,29 @@ ic/                                          ← Obsidian Vault 根目录
 │       ├── 反标.md                          反标：SPEF/SDF/活动数据回填、名称匹配、理想→真实切换
 │       └── 信号完整性.md                    信号完整性：过冲/振铃、反射机理、端接匹配
 │
+├── tools/                                   ← 工具与脚本
+│   ├── 工具与脚本.md                        领域入口：Makefile 讲义、脚本实战、高频查询排名
+│   ├── render_wavedrom.sh                   Wavedrom 渲染脚本：.json → .html + .svg
+│   └── concepts/
+│       ├── 01-25-Makefile讲义（25 篇）.md    Makefile 系统讲义：规则/变量/函数/实战/错误50例
+│       ├── C语言在数字IC中的应用.md         C 语言：位运算、指针与链表、宏、volatile
+│       ├── TCL脚本实战.md                   TCL：变量/命令替换、proc、集合遍历、综合脚本
+│       ├── Python脚本实战.md                Python：报告解析、批量改写、数据聚合
+│       ├── Shell脚本实战.md                 Shell：退出码/set -e、回归驱动、流程胶水
+│       ├── Perl脚本实战.md                  Perl：单行处理 -n/-p/-e、正则、存量脚本
+│       └── Wavedrom绘制规则.md              Wavedrom：WaveJSON 字符语义、五条绘制规则
+│
+├── review/                                  ← 复习自测题库
+│   ├── 复习自测入口.md                      自测入口：章节索引、待补考点清单
+│   ├── RTL设计自测题.md                     RTL 自测：亚稳态/CDC、FIFO、FSM、流水线
+│   ├── 功能验证自测题.md                    验证自测：UVM、SVA、覆盖率、形式验证
+│   ├── 体系结构自测题.md                    架构自测：流水线、乱序、Cache、总线
+│   ├── ASIC流程自测题.md                    ASIC 自测：综合、STA、DFT、功耗、签核
+│   ├── 跨领域自测题.md                      跨领域自测：时序收敛、低功耗、复位、反标
+│   ├── 基础概念自测题.md                    基础自测：CMOS、功耗公式、亚稳态、数制
+│   ├── 工具脚本自测题.md                    工具自测：Makefile、C、TCL/Python/Shell/Perl、Wavedrom
+│   └── 编程自测题.md                        编程自测：FIFO、分频、格雷码、握手
+│
 ├── projects/                                ← 外部参考项目（.gitignore，不跟踪）
 │   ├── uvm-memory/                          Memory Design UVM — 分4阶段教学项目
 │   └── uvm-axi/                             AXI4 Interconnect UVM — 生产级验证项目
@@ -107,15 +130,21 @@ ic/                                          ← Obsidian Vault 根目录
 
 | 类别 | 数量 | 说明 |
 |:---|:---|:---|
-| 入口与规则 | 3 | 数字IC入口.md、CLAUDE.md、README.md |
-| 基础概念 | 4 | CMOS、半导体、亚稳态、数制 |
-| RTL 设计 | 1 MOC + 10 概念 | 新增 FIFO设计 |
-| 功能验证 | 1 MOC + 7 概念 | UVM、SVA、覆盖率、CRV、形式验证、平台、仿真加速 |
-| 体系结构 | 1 MOC + 10 概念 | 新增 DMA与中断、指令集架构基础、外设总线协议 |
-| ASIC 流程 | 1 MOC + 11 概念 | 综合、RTL与网表、BES、STA、DFT、CTS、2D/3D网表、P&R、功耗、签核、PV |
+| 入口与规则 | 4 | 数字IC入口.md、CLAUDE.md、README.md、PLAN.md |
+| 基础概念 | 5 | CMOS、半导体、亚稳态、数制、斯密特触发器 |
+| RTL 设计 | 1 MOC + 13 概念 | Verilog/SV、组合/时序逻辑、FSM、流水线、CDC、算术、编码、FIFO、时钟规范、DSP、经典题例 |
+| 功能验证 | 1 MOC + 8 概念 | UVM、SVA、覆盖率、CRV、形式验证、平台、仿真加速、DPI-C |
+| 体系结构 | 1 MOC + 12 概念 | 流水线、乱序、分支预测、Cache、总线、DMA/中断、SoC、ISA、外设、PCIe、DDR PHY、存储层次 |
+| ASIC 流程 | 1 MOC + 12 概念 | 综合、RTL与网表、BES、STA、DFT、CTS、2D/3D网表、P&R、功耗、签核、PV、LEC |
 | 跨领域 | 1 MOC + 6 概念 | 时序收敛、低功耗、CDC、复位、反标、信号完整性 |
-| 外部项目 | 2 | uvm-memory、uvm-axi |
-| **合计** | **58 文件** | |
+| 工具与脚本 | 1 MOC + 31 概念 | Makefile 25 篇、C 语言、TCL/Python/Shell/Perl 实战、Wavedrom 绘制规则 |
+| 复习自测 | 9 | 入口 + 8 个分领域题集 |
+| 外部项目 | 2 | uvm-memory、uvm-axi（参考项目目录，不计入合计） |
+| **合计** | **106 文件** | |
+
+> docs/（9 篇内部过程文档）与 .obsidian/、assets/ 图片资产不计入本统计。
+
+> docs/（9 篇内部过程文档）与 .obsidian/、assets/ 图片资产不计入本统计。
 
 ## 文件元数据
 

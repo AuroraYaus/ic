@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "review/ASIC流程自测题.md",
+                "file": "tools/concepts/Wavedrom绘制规则.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "ASIC流程自测题"
+              "title": "Wavedrom绘制规则"
             }
           }
         ]
@@ -80,7 +80,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 260.5
+    "width": 287.5
   },
   "right": {
     "id": "24cfe474c4244d9c",
@@ -184,29 +184,35 @@
   },
   "active": "468207cb8f9ea163",
   "lastOpenFiles": [
-    "asic-flow/concepts/签核.md",
+    "README.md.tmp.95005.8fe54f04badf",
+    "README.md.tmp.95005.5ba9f0f3e9d8",
+    "review/工具脚本自测题.md.tmp.95005.5c8f9ea18d67",
+    "tools/concepts/Wavedrom绘制规则.md.tmp.95005.285adc6a6a68",
+    "tools/concepts/Wavedrom绘制规则.md.tmp.95005.5470abcd0fce",
+    "review/复习自测入口.md.tmp.95005.66a830134d4c",
+    "review/工具脚本自测题.md.tmp.95005.69b692f085bf",
+    "README.md.tmp.95005.69abf06321b4",
+    "README.md.tmp.95005.60c9028dee19",
+    "数字IC入口.md.tmp.95005.6475a0b996b6",
+    "数字IC入口.md.tmp.95005.b9e26334c0d1",
+    "cross-domain/concepts/复位策略.md",
+    "tools/concepts/Wavedrom绘制规则.md",
+    "cross-domain/concepts/时序收敛.md",
+    "cross-domain/concepts/反标.md",
+    "concepts/斯密特触发器.md",
     "review/ASIC流程自测题.md",
+    "asic-flow/concepts/签核.md",
     "concepts/半导体基础.md",
     "architecture/concepts/DDR接口与PHY训练.md",
-    "architecture/concepts/DDR接口与PHY训练.md.tmp.10008.fd92f2b304c1",
     "architecture/concepts/PCIe协议.md",
     "rtl-design/concepts/DSP算法IP.md",
     "verification/concepts/UVM方法学.md",
     "asic-flow/concepts/逻辑等价性检查.md",
-    "asic-flow/concepts/逻辑等价性检查.md.tmp.10008.86fa7536ab0c",
     "tools/concepts/Perl脚本实战.md",
-    "tools/concepts/Perl脚本实战.md.tmp.10008.015e140ed2a9",
     "tools/concepts/Shell脚本实战.md",
-    "tools/concepts/Shell脚本实战.md.tmp.10008.fe15013b900f",
     "tools/concepts/Python脚本实战.md",
-    "tools/concepts/Python脚本实战.md.tmp.10008.1e4e67fcad37",
     "tools/concepts/TCL脚本实战.md",
-    "tools/concepts/TCL脚本实战.md.tmp.10008.97a35982835e",
     "rtl-design/concepts/经典设计题例.md",
-    "rtl-design/concepts/经典设计题例.md.tmp.10008.f3465195d5cf",
-    "review/工具脚本自测题.md.tmp.10008.97e6ae83528c",
-    "review/复习自测入口.md.tmp.10008.cb83e56eee4d",
-    "review/复习自测入口.md.tmp.10008.1dc7b4699598",
     "verification/concepts/DPI-C接口.md",
     "tools/concepts/C语言在数字IC中的应用.md",
     "review/编程自测题.md",
@@ -214,12 +220,6 @@
     "review/基础概念自测题.md",
     "review/跨领域自测题.md",
     "review/复习自测入口.md",
-    "review/功能验证自测题.md",
-    "review/体系结构自测题.md",
-    "review/RTL设计自测题.md",
-    "interview/跨领域面试题.md",
-    "interview/ASIC流程面试题.md",
-    "interview/体系结构面试题.md",
     "未命名.canvas",
     "verification/concepts/assets/reference-model-architecture.svg",
     "verification/concepts/assets/tlm-port-connection.svg",
