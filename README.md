@@ -36,12 +36,16 @@ ic/                                          ← Obsidian Vault 根目录
 │       ├── SystemVerilog.md                 SystemVerilog：always_ff/comb/latch、可综合边界、logic
 │       ├── 组合逻辑.md                      组合逻辑：assign vs always_comb、毛刺、冒险、扇入扇出
 │       ├── 时序逻辑.md                      时序逻辑：D-FF、setup/hold、同步/异步复位、锁存器、分频器
+│       ├── 时钟信号使用规范.md              时钟使用规范：门控/分频/切换、ICG、毛刺时钟反例
 │       ├── 有限状态机.md                    有限状态机：Moore/Mealy、三段式编码、序列检测器
+│       ├── 经典设计题例.md                  经典设计题：序列检测器、边沿检测、售货机
 │       ├── 流水线设计.md                    RTL 流水线：Skid Buffer、吞吐率/延迟权衡、Valid-Ready
 │       ├── 跨时钟域设计.md                  RTL CDC：2-FF 同步器、异步 FIFO、格雷码、握手协议
 │       ├── 算术电路.md                      算术电路：半加器/全加器、RCA/CLA、计数器、移位寄存器
+│       ├── DSP算法IP.md                     DSP 算法 IP：FIR、CORDIC、除法器
 │       ├── 编码风格.md                      RTL 编码风格：命名规范、可综合清单、Lint 规则
-│       └── FIFO设计.md                      同步/异步 FIFO：空满判断、格雷码指针、FWFT、反压水线
+│       ├── FIFO设计.md                      同步/异步 FIFO：空满判断、格雷码指针、FWFT、反压水线
+│       └── 仲裁器设计.md                    仲裁器设计：固定优先级/RR/加权/矩阵仲裁、PPA 权衡
 │
 ├── verification/                            ← 功能验证领域
 │   ├── 功能验证.md                          领域入口：验证方法论、学习路径、高频查询排名
@@ -132,7 +136,7 @@ ic/                                          ← Obsidian Vault 根目录
 |:---|:---|:---|
 | 入口与规则 | 4 | 数字IC入口.md、CLAUDE.md、README.md、PLAN.md |
 | 基础概念 | 5 | CMOS、半导体、亚稳态、数制、斯密特触发器 |
-| RTL 设计 | 1 MOC + 13 概念 | Verilog/SV、组合/时序逻辑、FSM、流水线、CDC、算术、编码、FIFO、时钟规范、DSP、经典题例 |
+| RTL 设计 | 1 MOC + 14 概念 | Verilog/SV、组合/时序逻辑、FSM、流水线、CDC、算术、编码、FIFO、时钟规范、DSP、经典题例、仲裁器设计 |
 | 功能验证 | 1 MOC + 8 概念 | UVM、SVA、覆盖率、CRV、形式验证、平台、仿真加速、DPI-C |
 | 体系结构 | 1 MOC + 12 概念 | 流水线、乱序、分支预测、Cache、总线、DMA/中断、SoC、ISA、外设、PCIe、DDR PHY、存储层次 |
 | ASIC 流程 | 1 MOC + 12 概念 | 综合、RTL与网表、BES、STA、DFT、CTS、2D/3D网表、P&R、功耗、签核、PV、LEC |
@@ -140,7 +144,7 @@ ic/                                          ← Obsidian Vault 根目录
 | 工具与脚本 | 1 MOC + 31 概念 | Makefile 25 篇、C 语言、TCL/Python/Shell/Perl 实战、Wavedrom 绘制规则 |
 | 复习自测 | 9 | 入口 + 8 个分领域题集 |
 | 外部项目 | 2 | uvm-memory、uvm-axi（参考项目目录，不计入合计） |
-| **合计** | **106 文件** | |
+| **合计** | **107 文件** | |
 
 > docs/（9 篇内部过程文档）与 .obsidian/、assets/ 图片资产不计入本统计。
 

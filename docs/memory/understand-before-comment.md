@@ -1,0 +1,30 @@
+---
+name: understand-before-comment
+description: 代码注释须逐行理解后编写，禁止批量脚本和子Agent处理
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: 79863066-e95e-4bb3-8432-fdbc9a85cfcd
+---
+
+# 代码注释须逐行理解后编写
+
+给任何代码添加注释前，必须先完整阅读该文件，理解每一段代码的实际行为，再基于理解编写注释。
+
+## 禁止行为
+
+- 使用批量正则脚本生成注释——正则匹配不懂代码语义，产生重复块和错误描述
+- 用子 Agent 批量处理——Agent 不读源码直接套模板，注释质量不可控
+
+## 正确做法
+
+1. 逐文件阅读源码，理解每个模块/类/方法的实际功能
+2. 参照原项目已有注释的风格和深度
+3. 基于理解编写准确、不重复的 DOXYGEN 注释
+4. 注释质量优先于覆盖速度
+
+**Why:** 批量脚本和子 Agent 在大规模注释任务中产生了重复注释块、错误描述和叠加污染。68 处重复 DOXYGEN 被删除，多次撤回重做。
+
+**How to apply:** 接到注释任务时，逐个文件 Read → 理解 → 手写注释。参见 CLAUDE.md Rule 7 最后一条。
+
+**Related:** [[code-documentation-standards]]

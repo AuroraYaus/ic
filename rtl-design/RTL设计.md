@@ -34,6 +34,7 @@ queries: 1
 ### 设计方法论
 
 - [[rtl-design/concepts/流水线设计|流水线设计（Pipeline Design）]] — 吞吐率 vs 延迟，停顿/冲刷协议，Valid-Ready 握手机制
+- [[rtl-design/concepts/仲裁器设计|仲裁器设计（Arbiter）]] — 固定优先级 / 轮询两段掩码 / 加权 / 矩阵仲裁的类型全景与 PPA，参数化 RR 实现
 - [[rtl-design/concepts/跨时钟域设计|跨时钟域（Clock Domain Crossing, CDC）]] — 亚稳态，2-FF 同步器，格雷码 FIFO，握手同步
 - [[rtl-design/concepts/算术电路|算术电路（Arithmetic Circuits）]] — 加法器（RCA/CLA/CSA），Booth 乘法，Wallace 树，移位器
 - [[rtl-design/concepts/DSP算法IP|DSP 算法 IP]] — FIR 滤波器 / CORDIC / 除法器：算法公式到可综合结构的三种范式
@@ -62,10 +63,11 @@ queries: 1
 | 1 | [[rtl-design/concepts/组合逻辑\|组合逻辑（毛刺、异或门、竞争冒险、扇入扇出）]] | 7 | 2026-07-23 |
 | 2 | [[rtl-design/concepts/时序逻辑\|时序逻辑（锁存器与触发器、同步异步电路、分频器）]] | 5 | 2026-07-23 |
 | 3 | [[rtl-design/concepts/SystemVerilog\|SystemVerilog（阻塞/非阻塞/task-function/interface/casex/调度队列/综合子集）]] | 3 | 2026-07-23 |
-| 4 | [[rtl-design/concepts/有限状态机\|有限状态机（FSM / 一段式两段式三段式 / 状态编码 / 安全状态机）]] | 3 | 2026-07-23 |
+| 4 | [[rtl-design/concepts/有限状态机\|有限状态机（FSM / 一段式两段式三段式 / 状态编码 / 安全状态机 / 适用性判断）]] | 4 | 2026-09-03 |
 | 5 | [[rtl-design/concepts/跨时钟域设计\|CDC 异步FIFO / 多比特 / 格雷码 / 握手协议]] | 3 | 2026-07-23 |
 | 6 | [[rtl-design/concepts/FIFO设计\|FIFO 设计（同步FIFO/异步FIFO格雷码指针/空满判断/FWFT/Almost Full/Empty/反压水线与在途数据）]] | 3 | 2026-09-02 |
-| 7 | [[rtl-design/concepts/Verilog-HDL\|Verilog HDL（阻塞非阻塞赋值/scheduling队列/NBA区域/同步FIFO）]] | 2 | 2026-07-23 |
+| 7 | [[rtl-design/concepts/Verilog-HDL\|Verilog HDL（阻塞非阻塞赋值/scheduling队列/NBA区域/同步FIFO/signed与unsigned运算规则与混用策略）]] | 4 | 2026-09-03 |
 | 8 | [[rtl-design/concepts/流水线设计\|流水线设计（加速比 / 效率 / 超标量 / 乱序执行）]] | 2 | 2026-07-23 |
 | 9 | [[rtl-design/concepts/算术电路\|算术电路（半加器/全加器/RCA/CLA/计数器/移位寄存器）]] | 1 | 2026-07-23 |
 | 10 | [[rtl-design/concepts/时钟信号使用规范\|时钟信号使用规范（时钟为何不能做逻辑操作 / 敏感列表 / ICG 门控 / 分频与切换）]] | 1 | 2026-08-12 |
+| 11 | [[rtl-design/concepts/仲裁器设计\|仲裁器设计（固定优先级 / RR两段掩码法 / WRR / 矩阵仲裁 / 类型全景与PPA）]] | 2 | 2026-09-03 |

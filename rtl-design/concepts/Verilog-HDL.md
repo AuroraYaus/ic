@@ -13,7 +13,7 @@ tags:
   - hdl
   - ieee
 source_spec: "IEEE 1364-2001 / 1364-2005, Verilog HDL Language Reference Manual; Palnitkar, Verilog HDL: A Guide to Digital Design and Synthesis"
-queries: 2
+queries: 4
 ---
 # Verilog HDL
 
@@ -163,6 +163,66 @@ module sync_fifo #(
 endmodule
 ```
 
+### 有符号与无符号运算规则
+
+signed/unsigned 语义是 RTL 设计高频 bug 源——四组规则覆盖全部常见陷阱：
+
+**规则一：类型判定（signedness）**——`wire`/`reg`（及 SV 的 `logic`）默认**无符号**；`signed` 修饰符显式声明有符号；`integer` 是 32 位有符号；字面量分两类：**无基数字面量**（`-8'sd2`、`17`）是有符号整数，**有基数字面量**（`8'hFF`）是无符号。`$signed(expr)`/`$unsigned(expr)` 位模式不变、仅重新解释符号性——且作用于**整个表达式**，不能只转换其中一部分操作数。
+
+**规则二：表达式位宽由表达式自身决定，与赋值目标无关**——表达式位宽等于操作数最大位宽；溢出先发生，之后才扩展/截断到目标位宽：
+
+```verilog
+reg [7:0] sum;
+reg [3:0] a, b;
+assign sum = a + b;                   // ❌ a+b 只有 4 位：溢出先截断，再零扩展到 8 位
+assign sum = {1'b0, a} + {1'b0, b};   // ✅ 先扩展操作数，加法按 5 位计算
+```
+
+乘法同理：两个 8 位相乘结果是 8 位，正确做法是把操作数先扩展（或声明结果 `logic [15:0] product = a * b;` 时仍须扩展操作数——乘法位宽规则只看操作数）。
+
+**规则三：混合运算整体按无符号处理（unsigned 污染）**——表达式只要有一个无符号操作数，全部操作数按无符号解释，加/减/乘/比较一律如此：
+
+```verilog
+logic signed [7:0] s = -8'sd1;        // 1111_1111（-1）
+logic        [7:0] u = 8'hFF;         // 1111_1111（255）
+s + u                                 // ❌ 无符号加法，结果 254
+$signed(u) + s                        // ✅ 有符号加法，结果 -2
+```
+
+**规则四：符号扩展、比较与移位**——
+
+```verilog
+// 符号扩展 vs 零扩展：窄赋宽时 signed 符号扩展、unsigned 零扩展
+logic [15:0] x1 = s;   // s 为 signed 8'hFF → x1 = 16'hFFFF（仍是 -1）
+logic [15:0] x2 = u;   // u 为 unsigned 8'hFF → x2 = 16'h00FF（变成 255）
+
+// 比较：signed 操作数 → 有符号比较；混合 → 无符号比较
+s > 8'sd0        // ✅ 有符号比较：-1 > 0 为假
+s > 8'd0         // ❌ 无符号比较：255 > 0 为真
+
+// 移位：<< / >> 逻辑移位（>> 补 0）；<<< / >>> 算术移位（>>> 补符号位）
+// 移位结果位宽 = 左操作数位宽——移位不会扩展位宽
+```
+
+**signed 与 unsigned 可以混用——但必须显式控制**。语法上 Verilog 不禁止混用，默认语义是"整体按无符号解释"（规则三）。混用的正确姿势是两步：**先位宽统一（signed 符号扩展、unsigned 零扩展），再符号性统一（整个表达式按一种解释计算）**。关键认识：**加/减的二进制电路与符号性无关**（补码同构）——只要扩展正确，按无符号算出的位模式就是正确答案；signed/unsigned 的真正分歧只有三处：扩展方式（符号 vs 零）、比较解释（有符号 vs 无符号）、溢出/回绕语义。
+
+```verilog
+logic        [31:0] base_addr;              // 无符号基地址（接口寄存器）
+logic signed [15:0] offset;                 // 有符号偏移（可为负）
+logic        [31:0] result_addr;
+
+// ❌ 直接混用：offset 被零扩展成 0x0000FFFC（65532），地址飞了
+assign result_addr = base_addr + offset;
+
+// ✅ 正确混用：先符号扩展到公共位宽，再统一按无符号加
+//    offset=-4 → 扩展为 32'hFFFFFFFC → base + 0xFFFFFFFC = base - 4
+assign result_addr = base_addr + {{16{offset[15]}}, offset};
+```
+
+混用的工程准则：（1）**算术混用** → 扩展到位宽统一即可（补码加法同构，无需 $signed() 包装）；（2）**比较混用** → 必须显式 `$signed()` 统一解释，否则真值翻转；（3）**接口边界转换** → 无符号寄存器读入后先 `$signed()` 转有符号再进数据通路；（4）能统一声明就统一声明，混用只发生在边界处。
+
+**下溢陷阱**：计数器递减判断是 unsigned 回绕的经典受害者——`count - 1 > 0` 在 count=0 时回绕成全 1、条件反而为真；改写为 `count > 1` 或使用 signed 计数器。工程建议：（1）需要符号语义的模块统一 `logic signed` 声明；（2）混合表达式显式 `$signed()`/`$unsigned()`；（3）加法/乘法结果位宽显式留足；（4）递减判断改写为纯比较形式。补码与符号扩展的数学基础见 [[concepts/数制|数制]]。
+
 ## 关键要点
 
 - **wire/reg 命名具有误导性**：reg 可能综合为组合逻辑输出，关键在于 always 块的敏感性列表和赋值方式，而非类型名称
@@ -174,7 +234,7 @@ endmodule
 - **仿真与综合语义本质不同**：仿真语义是事件驱动的，所有 always 块在仿真引擎的调度下"伪并行"执行，综合语义则是真实的物理并行
 - **复位信号优先判断规则**：复位信号在 Verilog 中通常编写在 always 块的 if 语句中优先判断，异步复位写在灵敏度列表中，同步复位写在 posedge clk 之后的第一个 if 中
 - **ANSI C 风格端口声明更简洁**：Verilog-2001 引入了 ANSI C 风格的端口声明，比旧版的端口列表 + 方向声明两步式风格更为简洁
-- **signed 关键字需谨慎使用**：wire/reg 默认无符号，算术运算在有/无符号混合时规则复杂，建议始终显式声明 `$signed()` 或使用 `signed` 类型
+- **signed/unsigned 四组规则是 RTL 高频 bug 源**：表达式位宽与赋值目标无关（溢出先截断后扩展）、混合运算整体无符号（unsigned 污染）、signed 窄赋宽符号扩展而 unsigned 零扩展、下溢回绕让 `count-1>0` 在 count=0 时为真——细节见"有符号与无符号运算规则"章节
 - **if-else 优先级链 vs case 并行树**：`if-else` 综合为优先级 MUX 链（延迟 $\mathcal{O}(N)$），`case` 综合为并行 MUX 树（延迟 $\mathcal{O}(\log N)$），互斥条件应使用 `case` 显式消除虚假优先级
 - **二维数组推断 SRAM 宏单元**：在 always_ff 中被推断为同步 SRAM 宏单元或触发器阵列，取决于 DEPTH 和 WIDTH 的阈值，`syn_ramstyle` 属性可显式控制映射选择
 - **defparam 已弃用应使用命名参数**：模块实例化应使用命名参数关联（`#(.PARAM(value))`），可读性更好且支持参数重载检查
@@ -186,3 +246,4 @@ endmodule
 - [[rtl-design/concepts/组合逻辑|组合逻辑]] — Verilog 描述组合逻辑的两种方式（continuous assign 与 always @(*)）及其陷阱（锁存器推断）。assign 语句对应连续驱动的线网，always_comb 支持更复杂的条件描述——两者综合结果等价但仿真行为有细微差异（always_comb 对初始化和零延迟事件的处理更符合硬件预期）
 - [[rtl-design/concepts/时序逻辑|时序逻辑]] — 非阻塞赋值（`<=`）与 always @(posedge clk) 如何精确描述 D 触发器行为。Verilog 的 reg 类型在时序 always 块中映射到实际的 D-FF，而在组合 always 块中映射到线网输出——这个"类型名称与实际硬件的解耦"是 Verilog 区别于 VHDL 的核心认知难点
 - [[rtl-design/concepts/编码风格|RTL 编码风格]] — 基于 Verilog/SV 的可综合编码规范、命名约定（`_i`/`_o`/`_n`）和 lint 规则。编码风格规则的存在理由根植于 Verilog 的语义缺陷——不完整的 if/case 导致锁存器、混合阻塞/非阻塞赋值导致仿真-综合不匹配
+- [[concepts/数制|数制]] — 补码是 signed 语义的数学基础：符号扩展保持数值不变、回绕是模 $2^n$ 运算的自然结果，Verilog 的 signed/unsigned 规则正是补码运算在 HDL 层的体现

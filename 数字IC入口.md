@@ -70,12 +70,12 @@ queries: 1
 | 7 | 验证 | [[verification/concepts/验证平台架构\|数据比对策略：实时比对 vs 离线比对]] | 4 | 2026-08-11 |
 | 8 | 基础概念 | [[concepts/亚稳态\|亚稳态 / MTBF / 准稳态]] | 3 | 2026-07-23 |
 | 9 | RTL 设计 | [[rtl-design/concepts/SystemVerilog\|阻塞/非阻塞 / task-function / interface / 综合子集]] | 3 | 2026-07-23 |
-| 10 | RTL 设计 | [[rtl-design/concepts/有限状态机\|一段/两段/三段式 / 状态编码 / 安全状态机]] | 3 | 2026-07-23 |
+| 10 | RTL 设计 | [[rtl-design/concepts/有限状态机\|一段/两段/三段式 / 状态编码 / 安全状态机 / 适用性判断]] | 4 | 2026-09-03 |
 | 11 | RTL 设计 | [[rtl-design/concepts/跨时钟域设计\|异步FIFO / 多比特CDC / 格雷码 / 握手协议]] | 3 | 2026-07-23 |
 | 12 | ASIC 流程 | [[asic-flow/concepts/逻辑综合\|面积速度权衡 / 资源共享 / Retiming]] | 3 | 2026-07-23 |
 | 13 | 体系结构 | [[architecture/concepts/外设总线协议\|DDR / SPI / I2C / PCIe]] | 3 | 2026-07-23 |
 | 14 | 跨领域 | [[cross-domain/concepts/跨时钟域设计\|时钟域分类 / CDC验证 / 同步器策略]] | 2 | 2026-07-23 |
-| 15 | RTL 设计 | [[rtl-design/concepts/Verilog-HDL\|阻塞非阻塞赋值 / Scheduling队列 / 同步FIFO]] | 2 | 2026-07-23 |
+| 15 | RTL 设计 | [[rtl-design/concepts/Verilog-HDL\|阻塞非阻塞赋值 / Scheduling队列 / 同步FIFO / signed与unsigned运算规则与混用策略]] | 4 | 2026-09-03 |
 | 16 | RTL 设计 | [[rtl-design/concepts/流水线设计\|加速比 / 效率 / 超标量 / 乱序执行]] | 2 | 2026-07-23 |
 | 17 | ASIC 流程 | [[asic-flow/concepts/布局布线\|Floorplan / Placement / CTS / Routing]] | 2 | 2026-07-23 |
 | 18 | 验证 | [[verification/concepts/SVA断言\|cover/assume/assert/property/sequence 区别]] | 2 | 2026-07-23 |
@@ -120,5 +120,6 @@ queries: 1
 | 57 | 基础概念 | [[concepts/半导体基础\|半导体基础（迁移率与 Vth 温度竞争 / 温度反转 / 超频低温提速物理）]] | 2 | 2026-08-31 |
 | 58 | 跨领域 | [[cross-domain/concepts/信号完整性\|信号完整性（过冲/振铃/反射机理/端接匹配）]] | 1 | 2026-09-02 |
 | 59 | 工具与脚本 | [[tools/concepts/Wavedrom绘制规则\|Wavedrom 绘制规则（. 重复 / 标签挂 2 3 / = 禁用 / 数据框终止 / 三件套重渲染）]] | 1 | 2026-09-02 |
+| 60 | RTL 设计 | [[rtl-design/concepts/仲裁器设计\|仲裁器设计（固定优先级 / RR两段掩码法 / WRR / 矩阵仲裁 / 类型全景与PPA）]] | 2 | 2026-09-03 |
 
-> 以上为全部 59 条高频查询的全量排名。计数仅含通过 Q&A Pipeline 统计的查询。
+> 以上为全部 60 条高频查询的全量排名。计数仅含通过 Q&A Pipeline 统计的查询。
