@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "rtl-design/concepts/位图分配器与空闲链表.md",
+                "file": "architecture/concepts/乱序执行.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "位图分配器与空闲链表"
+              "title": "乱序执行"
             }
           }
         ]
@@ -184,6 +184,8 @@
   },
   "active": "468207cb8f9ea163",
   "lastOpenFiles": [
+    "rtl-design/concepts/位图分配器与空闲链表.md",
+    "rtl-design/concepts/有限状态机.md",
     "tools/render_mermaid.sh",
     "asic-flow/concepts/静态时序分析.md",
     "rtl-design/concepts/assets/bitmap-select-gates.svg.tmp.4500.a942fdab7600",
@@ -191,7 +193,6 @@
     "rtl-design/concepts/assets/bitmap-select-gates.svg.tmp.4500.8b7d27e38877",
     "rtl-design/concepts/assets/bitmap-select-gates.svg.tmp.4500.76b82c2ba54f",
     "rtl-design/concepts/assets/bitmap-select-gates.svg",
-    "rtl-design/concepts/位图分配器与空闲链表.md",
     "rtl-design/concepts/仲裁器设计.md",
     "CLAUDE.md.tmp.95005.7f0affbd3e17",
     "docs/memory/MEMORY.md.tmp.95005.1f5313b44365",
@@ -214,7 +215,6 @@
     "rtl-design/RTL设计.md",
     "cross-domain/跨领域.md",
     "tools/concepts/Wavedrom绘制规则.md",
-    "architecture/concepts/片上总线.md.tmp.95005.ab3a67451f64",
     "rtl-design/concepts/轮询仲裁.md",
     "cross-domain/concepts/复位策略.md",
     "cross-domain/concepts/时序收敛.md",

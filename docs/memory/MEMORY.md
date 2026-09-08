@@ -16,3 +16,4 @@
 - [sync-before-edit](sync-before-edit.md) — 编辑前先同步远程：干净则 pull --rebase，脏则 fetch + 检查领先
 - [windows-bash-cjk](windows-bash-cjk.md) — Windows 下 Bash 命令含字面中文即解析破坏（exit 127），用 glob/字节转义/专用工具规避（CLAUDE.md 规则 12）
 - [mermaid-svg-xml-fix](mermaid-svg-xml-fix.md) — mermaid 经 dump-dom 产出的 SVG 含裸 <br> 须转 <br/> 才合法；渲染管线：v9 UMD + msedge headless + 提取后处理 + 解析验证
+- [cross-platform-dual-env](cross-platform-dual-env.md) — Windows/Ubuntu 双环境：行尾 LF/.gitattributes、大小写敏感、脚本 100755、渲染字体差异、python3 商店桩（CLAUDE §13）

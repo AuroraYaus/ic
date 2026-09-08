@@ -238,10 +238,21 @@ queries: 3
 2. **会话加载镜像在 ~/.claude**：`~/.claude/projects/-home-yys-AGENT-ic/memory/` 仅用于跨会话自动加载——每次修改项目内副本后同步过去，方向是"项目内 → 镜像"；
 3. **本项目规则文件已全部在项目文件夹内**（CLAUDE.md、docs/memory/）——拷贝 ic/ 文件夹到任何位置，规则与记忆完整随行。
 
-### 12. Windows 会话 Bash 命令禁止字面中文（2026-09-08 教训固化）
+### 12. Windows 会话 Bash 命令禁止字面中文（Windows-only，2026-09-08 教训固化）
 
 Windows（git-bash + Claude Code）下，命令行文本中的字面中文（含中文路径）会在传递层被按非 UTF-8 代码页破坏解析——引号/语法结构错乱，表现为 exit 127、整行命令被当作命令名报告 `No such file or directory` 的怪异报错（确诊铁证：命令中的 `$?` 被中间解析层提前展开；同一命令改用 `printf '\xe8\xae\xbe'` 字节构造后完全正常）。规则：
 
 1. **Bash 命令一律不写字面中文**：中文文件名用 glob（`tail rtl-design/RTL*.md`）或 `$(printf '\x..')` 字节序列构造；
 2. **中文内容读写走专用工具**：Read/Write/Edit/Grep/Glob 不受此缺陷影响，是访问中文文件的正道；
 3. **无法规避时**：把含中文的逻辑写入 `.sh` 临时脚本（Write 工具写入为 UTF-8 无损），再以 `bash <脚本>` 执行。
+
+### 13. 跨平台开发注意事项（Windows + Ubuntu 双环境，2026-09-08 确立）
+
+本仓库同时在 Windows（git-bash + Claude Code）与 Ubuntu 上开发迭代。规则 12 仅适用于 Windows 会话（Ubuntu 终端无字面中文缺陷，命令可正常使用 UTF-8 中文）。以下为双环境通用约束：
+
+1. **行尾统一 LF**：仓库根已配 `.gitattributes`，文本一律 `text eol=lf`，两端检出均为 LF。Windows 的 `core.autocrlf=true` 会在 status/diff 时刷 "LF will be replaced by CRLF" 警告并产生**统计性 M**（文件内容未变、仅行尾刷新，如 2026-09-08 静态时序分析.md 虚 M 两次）——以 `git diff` 内容判断真实改动，勿提交行尾空改动；编辑器保存勿引入 CRLF
+2. **大小写敏感**：Ubuntu 区分大小写而 Windows 不区分——wikilink、`assets/` 图片引用、代码内文件名必须与磁盘实际名称**逐字节一致**（Windows 下写错大小写不自知，Ubuntu 检出即断链/编译失败）
+3. **脚本可执行位**：`.sh` 以 LF 提交并保证 100755（Windows `core.filemode=false` 下 `chmod +x` 不生效，须 `git update-index --chmod=+x <file>` 显式入库）；脚本路径禁止硬编码盘符或 `/c/` 前缀（Ubuntu 无此形态），跨平台路径转换复用 `tools/render_mermaid.sh` 的 `winpath()`（cygpath，非 Windows 环境自动直传）模式
+4. **渲染管线双端可用**：`render_wavedrom.sh`（依赖 python3+curl+浏览器）与 `render_mermaid.sh`（依赖 node+curl+浏览器）均支持三级浏览器探测：`CHROME` 环境变量 → `~/.cache/puppeteer` chrome（Ubuntu）→ Windows 常见路径 msedge.exe/chrome.exe。注意 Windows 下 `python3` 可能是商店桩（表现 Permission denied / exit 126）——须安装真 Python 或改用 node 系脚本
+5. **渲染产物确定性**：SVG 文本布局依赖字体度量，Windows 与 Ubuntu 字体集不同——同一 `.mmd`/`.json` 跨机器重渲染可能产生布局 diff；改图后**固定在同一环境重渲染**并核对 `git diff`，避免两端交替重渲染产生噪音
+6. **.obsidian 平台噪音**：`workspace.json`/`app.json` 等随平台窗口布局与插件状态变化，属正常配置同步，按 obsidian 例行提交处理，不做内容级评审

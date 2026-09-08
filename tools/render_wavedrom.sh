@@ -7,8 +7,10 @@
 #          保证三者版本一致——.json 是唯一事实源，改完必须重跑本脚本
 # @usage   render_wavedrom.sh <xxx.json>
 # @args    <xxx.json>  Wavedrom 波形源文件（signal/head/foot/config）
-# @env     CHROME      可选：chrome 可执行文件路径（默认自动探测
-#                      ~/.cache/puppeteer 下的 chrome-linux64，取最新版）
+# @env     CHROME      可选：chrome/msedge 可执行文件路径（默认自动探测
+#                      ~/.cache/puppeteer 下的 chrome-linux64（取最新版，
+#                      Ubuntu 常见）→ Windows 常见路径下的 msedge.exe /
+#                      chrome.exe；本脚本在 Windows + Ubuntu 双环境可用）
 # @exit_code 0 渲染成功 / 1 参数缺失、文件不存在、chrome 缺失或渲染失败
 #
 # 渲染链路：
@@ -34,13 +36,23 @@ BASE="$(basename "$JSON_FILE" .json)"
 HTML_FILE="$DIR/$BASE.html"
 SVG_FILE="$DIR/$BASE.svg"
 
-# ----- 1. 定位 chrome（puppeteer 缓存，取版本号最新的一个）-----
+# ----- 1. 定位浏览器（跨平台：CHROME env → puppeteer 缓存（Ubuntu）
+#            → Windows 常见路径 msedge/chrome），与 render_mermaid.sh 同构 -----
 CHROME="${CHROME:-}"
 if [[ -z "$CHROME" ]]; then
     CHROME=$(ls -1 "$HOME"/.cache/puppeteer/chrome/*/chrome-linux64/chrome 2>/dev/null \
              | sort -V | tail -1 || true)
 fi
-[[ -n "$CHROME" && -x "$CHROME" ]] || { echo "错误: 未找到 chrome（可用 CHROME 环境变量指定）" >&2; exit 1; }
+if [[ -z "$CHROME" ]]; then
+    for c in \
+        "/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" \
+        "/c/Program Files/Microsoft/Edge/Application/msedge.exe" \
+        "/c/Program Files/Google/Chrome/Application/chrome.exe" \
+        "/c/Program Files (x86)/Google/Chrome/Application/chrome.exe"; do
+        [[ -x "$c" ]] && { CHROME="$c"; break; }
+    done
+fi
+[[ -n "$CHROME" && -x "$CHROME" ]] || { echo "错误: 未找到 chrome/msedge（可用 CHROME 环境变量指定）" >&2; exit 1; }
 
 # ----- 2. 准备本地 wavedrom JS（首次下载，之后复用缓存）-----
 JS_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/wavedrom-2.6.8"
