@@ -40,6 +40,7 @@ queries: 1
 - [[rtl-design/concepts/DSP算法IP|DSP 算法 IP]] — FIR 滤波器 / CORDIC / 除法器：算法公式到可综合结构的三种范式
 - [[rtl-design/concepts/编码风格|RTL 编码风格（RTL Coding Style）]] — 命名规范，参数化设计，可综合约束，CDC 最佳实践
 - [[rtl-design/concepts/FIFO设计|FIFO 设计（FIFO Design）]] — 同步/异步 FIFO，空满判断，格雷码指针，FWFT 模式，Almost Full/Empty
+- [[rtl-design/concepts/位图分配器与空闲链表|位图分配器与空闲链表（Bitmap Allocator vs Free List）]] — 资源池分配/释放/满空判断，两级 FFZ 查找结构，位图 vs 链表逐维对比与乱序重命名互补用法
 
 ## 相关领域
 
@@ -71,3 +72,4 @@ queries: 1
 | 9 | [[rtl-design/concepts/算术电路\|算术电路（半加器/全加器/RCA/CLA/计数器/移位寄存器）]] | 1 | 2026-07-23 |
 | 10 | [[rtl-design/concepts/时钟信号使用规范\|时钟信号使用规范（时钟为何不能做逻辑操作 / 敏感列表 / ICG 门控 / 分频与切换）]] | 1 | 2026-08-12 |
 | 11 | [[rtl-design/concepts/仲裁器设计\|仲裁器设计（固定优先级 / RR两段掩码法 / WRR / 矩阵仲裁 / 类型全景与PPA）]] | 2 | 2026-09-03 |
+| 12 | [[rtl-design/concepts/位图分配器与空闲链表\|位图分配器与空闲链表（两级FFZ硬件结构 / 位图 vs 空闲链表优缺点 / 重命名互补用法）]] | 1 | 2026-09-08 |

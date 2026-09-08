@@ -1,0 +1,55 @@
+%%{init: {'theme': 'default', 'themeVariables': {'fontSize': '12px'}}}%%
+flowchart TB
+    TL["链式选位电路：8 位 FFZ 块门级结构<br/>（~ = 非门，& = 与门；低位优先，选中第一个空闲位）"]
+    TL --> EN0["en0 = 1 起始使能"]
+    subgraph SG0["级 0"]
+        CG0(("链与门<br/>en1 = busy0 & en0"))
+        B0["busy[0]<br/>占用标志"]
+        SEL0["选位与门<br/>sel0 = ~busy0 & en0<br/>输出：sel0"]
+        EN0 --> CG0
+        B0 --> SEL0
+        CG0 --> SEL0
+    end
+    subgraph SG1["级 1"]
+        CG1(("链与门<br/>en2 = busy1 & en1"))
+        B1["busy[1]"]
+        SEL1["选位与门<br/>sel1 = ~busy1 & en1<br/>输出：sel1"]
+        CG0 -- "en1（同源扇出）" --> CG1
+        B1 --> SEL1
+        CG1 --> SEL1
+    end
+    subgraph SG2["级 2"]
+        CG2(("链与门<br/>en3 = busy2 & en2"))
+        B2["busy[2]"]
+        SEL2["选位与门<br/>sel2 = ~busy2 & en2<br/>输出：sel2"]
+        CG1 -- "en2" --> CG2
+        B2 --> SEL2
+        CG2 --> SEL2
+    end
+    subgraph SGM["级 3 ~ 级 6（同构，略）"]
+        CGM["链与门 ×4<br/>en7 = busy6 & en6"]
+    end
+    CG2 -- "en3" --> CGM
+    subgraph SG7["级 7（末级）"]
+        CG7(("链与门<br/>en8 = busy7 & en7"))
+        B7["busy[7]"]
+        SEL7["选位与门<br/>sel7 = ~busy7 & en7<br/>输出：sel7"]
+        CGM -- "en7" --> CG7
+        B7 --> SEL7
+        CG7 --> SEL7
+    end
+    CG7 -- "en8" --> GF["组状态判定<br/>grp_free = ~en8 = |sel[7:0]<br/>组满时链穿透全 1（等价于全 1 与归约）"]
+    SEL0 -- "sel0" --> SB["选择结果 sel[7:0]<br/>单热线（至多 1 位为 1）"]
+    SEL1 -- "sel1" --> SB
+    SEL2 -- "sel2" --> SB
+    SEL7 -- "sel7" --> SB
+    SB --> ENC["优先级编码器<br/>单热 → 二进制"]
+    ENC --> IDX["idx[2:0]<br/>组内偏移 b"]
+    style CG0 fill:#dbeafe
+    style CG1 fill:#dbeafe
+    style CG2 fill:#dbeafe
+    style CG7 fill:#dbeafe
+    style SEL0 fill:#dcfce7
+    style SEL1 fill:#dcfce7
+    style SEL2 fill:#dcfce7
+    style SEL7 fill:#dcfce7

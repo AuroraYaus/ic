@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100%" viewBox="0 0 1220 256" role="graphics-document" aria-roledescription="schematic">
+  <title>位图链式选择电路门级原理图（NAND 实现）</title>
+  <desc>8 位 FFZ 块的链式选位电路：级 0~级 2 与级 7（级 3~6 同构省略）。链与门用 NAND+INV 合成；选位逻辑用 INV 后 NAND+INV。en(i+1)=en(i)&amp;busy(i)，sel(i)=en(i)&amp;~busy(i)。</desc>
+  <defs>
+    <!-- NAND 符号：输入口 (±26 相对中心 ±6)，输出口 (cx+30, cy)；主体 36×24 -->
+    <g id="nand">
+      <rect x="-18" y="-12" width="36" height="24" rx="2" fill="#fff" stroke="#333" stroke-width="1.3"/>
+      <line x1="-26" y1="-6" x2="-18" y2="-6" stroke="#333" stroke-width="1.3"/>
+      <line x1="-26" y1="6" x2="-18" y2="6" stroke="#333" stroke-width="1.3"/>
+      <line x1="18" y1="0" x2="24" y2="0" stroke="#333" stroke-width="1.3"/>
+      <circle cx="27" cy="0" r="3" fill="#fff" stroke="#333" stroke-width="1.3"/>
+      <text x="0" y="4" font-size="12" text-anchor="middle" fill="#333" font-family="serif">&amp;</text>
+    </g>
+    <!-- INV 符号：输入口 (cx-8)，输出口 (cx+23) -->
+    <g id="inv">
+      <path d="M-8,0 H0 L12,-9 L12,9 Z" fill="#fff" stroke="#333" stroke-width="1.3"/>
+      <line x1="12" y1="0" x2="16" y2="0" stroke="#333" stroke-width="1.3"/>
+      <circle cx="19" cy="0" r="3" fill="#fff" stroke="#333" stroke-width="1.3"/>
+    </g>
+    <circle id="dot" r="2.4" fill="#333"/>
+  </defs>
+
+  <text x="20" y="14" font-size="14" fill="#333" font-family="sans-serif">链式选位电路（标准门符号）：级 0 / 1 / 2 / 7 完整，级 3 ~ 6 同构省略</text>
+
+  <!-- ========== busy 母线 ========== -->
+  <line x1="20" y1="36" x2="1200" y2="36" stroke="#333" stroke-width="1.3"/>
+  <text x="10" y="52" font-size="12" fill="#333" font-family="sans-serif">busy[7:0]</text>
+
+  <!-- 每级几何常量（sx：60 / 300 / 540 / 930；busy drop x=sx+28，en 干线 x=sx+34）
+       行1 y=70：NANDa(sx+84) INVa(sx+150)；口：NANDa 上(sx+58,64) 下(sx+58,76) 出(sx+114,70)
+               INVa 入(sx+142,70) 出(sx+173,70)
+       行2 y=120/126：INVb(sx+84,120) NANDb(sx+156,126) INV2(sx+212,126)
+               口：INVb 入(sx+76,120) 出(sx+107,120)；NANDb 上(sx+130,120) 下(sx+130,132) 出(sx+186,126)
+               INV2 入(sx+204,126) 出(sx+235,126) -->
+
+  <!-- 级 0（sx=60） -->
+  <line x1="88" y1="36" x2="88" y2="120" stroke="#333" stroke-width="1.3"/>
+  <text x="88" y="29" font-size="11" fill="#333" text-anchor="middle" font-family="sans-serif">busy0</text>
+  <line x1="88" y1="64" x2="118" y2="64" stroke="#333" stroke-width="1.3"/>
+  <use href="#dot" x="88" y="64"/>
+  <line x1="88" y1="120" x2="136" y2="120" stroke="#333" stroke-width="1.3"/>
+  <use href="#nand" x="144" y="70"/>
+  <use href="#inv" x="210" y="70"/>
+  <line x1="174" y1="70" x2="202" y2="70" stroke="#333" stroke-width="1.3"/>
+  <line x1="10" y1="70" x2="94" y2="70" stroke="#333" stroke-width="1.3"/>
+  <text x="10" y="88" font-size="12" fill="#333" font-family="sans-serif">en0=1</text>
+  <line x1="94" y1="70" x2="94" y2="132" stroke="#333" stroke-width="1.3"/>
+  <line x1="94" y1="76" x2="118" y2="76" stroke="#333" stroke-width="1.3"/>
+  <use href="#dot" x="94" y="76"/>
+  <line x1="94" y1="132" x2="190" y2="132" stroke="#333" stroke-width="1.3"/>
+  <use href="#inv" x="144" y="120"/>
+  <use href="#nand" x="216" y="126"/>
+  <use href="#inv" x="272" y="126"/>
+  <line x1="167" y1="120" x2="190" y2="120" stroke="#333" stroke-width="1.3"/>
+  <line x1="246" y1="126" x2="264" y2="126" stroke="#333" stroke-width="1.3"/>
+  <line x1="295" y1="126" x2="295" y2="176" stroke="#333" stroke-width="1.3"/>
+  <use href="#dot" x="295" y="176"/>
+  <text x="295" y="190" font-size="11" fill="#333" text-anchor="middle" font-family="sans-serif">sel0</text>
+  <!-- en1 去级 1：INVa 出(233,70) → 级1 干线(334,70) -->
+  <line x1="233" y1="70" x2="334" y2="70" stroke="#333" stroke-width="1.3"/>
+  <text x="283" y="62" font-size="10" fill="#555" text-anchor="middle" font-family="sans-serif">en1</text>
+
+  <!-- 级 1（sx=300） -->
+  <line x1="328" y1="36" x2="328" y2="120" stroke="#333" stroke-width="1.3"/>
+  <text x="328" y="29" font-size="11" fill="#333" text-anchor="middle" font-family="sans-serif">busy1</text>
+  <line x1="328" y1="64" x2="358" y2="64" stroke="#333" stroke-width="1.3"/>
+  <use href="#dot" x="328" y="64"/>
+  <line x1="328" y1="120" x2="376" y2="120" stroke="#333" stroke-width="1.3"/>
+  <use href="#nand" x="384" y="70"/>
+  <use href="#inv" x="450" y="70"/>
+  <line x1="414" y1="70" x2="442" y2="70" stroke="#333" stroke-width="1.3"/>
+  <line x1="334" y1="70" x2="334" y2="132" stroke="#333" stroke-width="1.3"/>
+  <line x1="334" y1="76" x2="358" y2="76" stroke="#333" stroke-width="1.3"/>
+  <use href="#dot" x="334" y="76"/>
+  <line x1="334" y1="132" x2="430" y2="132" stroke="#333" stroke-width="1.3"/>
+  <use href="#inv" x="384" y="120"/>
+  <use href="#nand" x="456" y="126"/>
+  <use href="#inv" x="512" y="126"/>
+  <line x1="407" y1="120" x2="430" y2="120" stroke="#333" stroke-width="1.3"/>
+  <line x1="486" y1="126" x2="504" y2="126" stroke="#333" stroke-width="1.3"/>
+  <line x1="535" y1="126" x2="535" y2="176" stroke="#333" stroke-width="1.3"/>
+  <use href="#dot" x="535" y="176"/>
+  <text x="535" y="190" font-size="11" fill="#333" text-anchor="middle" font-family="sans-serif">sel1</text>
+  <line x1="473" y1="70" x2="574" y2="70" stroke="#333" stroke-width="1.3"/>
+  <text x="523" y="62" font-size="10" fill="#555" text-anchor="middle" font-family="sans-serif">en2</text>
+
+  <!-- 级 2（sx=540） -->
+  <line x1="568" y1="36" x2="568" y2="120" stroke="#333" stroke-width="1.3"/>
+  <text x="568" y="29" font-size="11" fill="#333" text-anchor="middle" font-family="sans-serif">busy2</text>
+  <line x1="568" y1="64" x2="598" y2="64" stroke="#333" stroke-width="1.3"/>
+  <use href="#dot" x="568" y="64"/>
+  <line x1="568" y1="120" x2="616" y2="120" stroke="#333" stroke-width="1.3"/>
+  <use href="#nand" x="624" y="70"/>
+  <use href="#inv" x="690" y="70"/>
+  <line x1="654" y1="70" x2="682" y2="70" stroke="#333" stroke-width="1.3"/>
+  <line x1="574" y1="70" x2="574" y2="132" stroke="#333" stroke-width="1.3"/>
+  <line x1="574" y1="76" x2="598" y2="76" stroke="#333" stroke-width="1.3"/>
+  <use href="#dot" x="574" y="76"/>
+  <line x1="574" y1="132" x2="670" y2="132" stroke="#333" stroke-width="1.3"/>
+  <use href="#inv" x="624" y="120"/>
+  <use href="#nand" x="696" y="126"/>
+  <use href="#inv" x="752" y="126"/>
+  <line x1="647" y1="120" x2="670" y2="120" stroke="#333" stroke-width="1.3"/>
+  <line x1="726" y1="126" x2="744" y2="126" stroke="#333" stroke-width="1.3"/>
+  <line x1="775" y1="126" x2="775" y2="176" stroke="#333" stroke-width="1.3"/>
+  <use href="#dot" x="775" y="176"/>
+  <text x="775" y="190" font-size="11" fill="#333" text-anchor="middle" font-family="sans-serif">sel2</text>
+
+  <!-- 省略段：级 3 ~ 6（en 链虚线 + 断口记号） -->
+  <line x1="713" y1="70" x2="964" y2="70" stroke="#333" stroke-width="1.3" stroke-dasharray="7,6"/>
+  <text x="838" y="62" font-size="11" fill="#555" text-anchor="middle" font-family="sans-serif">级 3 ~ 6（同构省略）</text>
+  <path d="M800,58 L822,82 M822,58 L800,82" stroke="#555" stroke-width="1.5" fill="none"/>
+  <text x="740" y="96" font-size="10" fill="#555" text-anchor="middle" font-family="sans-serif">en3</text>
+  <text x="838" y="96" font-size="11" fill="#555" text-anchor="middle" font-family="sans-serif">级 3 ~ 6（同构省略）</text>
+  <text x="930" y="96" font-size="10" fill="#555" text-anchor="middle" font-family="sans-serif">en7</text>
+  <text x="810" y="52" font-size="10" fill="#555" font-family="sans-serif">busy[3:6]</text>
+
+  <!-- 级 7（sx=930） -->
+  <line x1="958" y1="36" x2="958" y2="120" stroke="#333" stroke-width="1.3"/>
+  <text x="958" y="29" font-size="11" fill="#333" text-anchor="middle" font-family="sans-serif">busy7</text>
+  <line x1="958" y1="64" x2="988" y2="64" stroke="#333" stroke-width="1.3"/>
+  <use href="#dot" x="958" y="64"/>
+  <line x1="958" y1="120" x2="1006" y2="120" stroke="#333" stroke-width="1.3"/>
+  <use href="#nand" x="1014" y="70"/>
+  <use href="#inv" x="1080" y="70"/>
+  <line x1="1044" y1="70" x2="1072" y2="70" stroke="#333" stroke-width="1.3"/>
+  <line x1="964" y1="70" x2="964" y2="132" stroke="#333" stroke-width="1.3"/>
+  <line x1="964" y1="76" x2="988" y2="76" stroke="#333" stroke-width="1.3"/>
+  <use href="#dot" x="964" y="76"/>
+  <line x1="964" y1="132" x2="1060" y2="132" stroke="#333" stroke-width="1.3"/>
+  <use href="#inv" x="1014" y="120"/>
+  <use href="#nand" x="1086" y="126"/>
+  <use href="#inv" x="1142" y="126"/>
+  <line x1="1037" y1="120" x2="1060" y2="120" stroke="#333" stroke-width="1.3"/>
+  <line x1="1116" y1="126" x2="1134" y2="126" stroke="#333" stroke-width="1.3"/>
+  <line x1="1165" y1="126" x2="1165" y2="176" stroke="#333" stroke-width="1.3"/>
+  <use href="#dot" x="1165" y="176"/>
+  <text x="1165" y="190" font-size="11" fill="#333" text-anchor="middle" font-family="sans-serif">sel7</text>
+  <!-- 链尾 en8 -->
+  <line x1="1103" y1="70" x2="1172" y2="70" stroke="#333" stroke-width="1.3"/>
+  <use href="#dot" x="1172" y="70"/>
+  <text x="1172" y="62" font-size="10" fill="#555" text-anchor="middle" font-family="sans-serif">en8</text>
+
+  <!-- 图例与逻辑说明（带标准门符号图例） -->
+  <use href="#nand" x="104" y="202"/>
+  <text x="146" y="207" font-size="11" fill="#555" font-family="sans-serif">= 与非门（NAND）：链门 en(i+1) = en(i) &amp; busy(i)（NAND+INV 合成与逻辑）</text>
+  <use href="#inv" x="104" y="218"/>
+  <text x="146" y="223" font-size="11" fill="#555" font-family="sans-serif">= 反相器（INV）：选位 sel(i) = en(i) &amp; ~busy(i)（busy 反相后与使能相与）</text>
+  <text x="146" y="240" font-size="11" fill="#555" font-family="sans-serif">组满判定：全占用时使能链穿透至链尾 en8 = 1，故 grp_free = ~en8（等价于全 1 与归约）</text>
+</svg>

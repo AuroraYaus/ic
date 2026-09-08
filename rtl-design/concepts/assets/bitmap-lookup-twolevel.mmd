@@ -1,0 +1,24 @@
+%%{init: {'theme': 'default', 'themeVariables': {'fontSize': '13px'}}}%%
+flowchart LR
+    A["状态向量 busy[63:0]<br/>1 = 占用 / 0 = 空闲"]
+    A -->|按 8 bit 切片| LVL0
+    subgraph LVL0["第 0 级：组内 FFZ（8 组并行）"]
+        direction TB
+        S0["busy[7:0] → FFZ8<br/>组 0"]
+        S1["busy[15:8] → FFZ8<br/>组 1"]
+        SX["⋯ 组 2 ~ 6 ⋯"]
+        S7["busy[63:56] → FFZ8<br/>组 7"]
+    end
+    LVL0 -->|"每组两个输出：组内单热掩码 + 组有效（组内有空）"| M
+    M["组内单热掩码 64 bit<br/>组有效向量 gv[7:0]"]
+    M --> LVL1
+    subgraph LVL1["第 1 级：组级 FFZ（8 输入）"]
+        direction TB
+        G["对 gv[7:0] 找第一个有效组<br/>→ 组号 g*"]
+    end
+    M --> FULL["满判断：64 输入与归约 &busy<br/>全 1 即池满"]
+    LVL1 -->|"g* 经多路选择器选中组内掩码"| L2
+    L2["选中组的单热掩码 → 译码<br/>→ 组内偏移 b"]
+    L2 --> ID
+    G --> ID
+    ID["条目号 = g* × 8 + b<br/>→ alloc_id（下一拍置位占用）"]
