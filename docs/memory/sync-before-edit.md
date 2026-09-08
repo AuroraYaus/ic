@@ -16,5 +16,6 @@ metadata:
 1. 工作区干净 → `git pull --rebase origin master`
 2. 工作区脏 → `git fetch origin` + `git log HEAD..origin/master --oneline` 检查领先：无新提交继续编辑；有新提交先提交/stash 再 pull
 3. 长时间会话距上次同步较久或推送前重新检查
+4. 双推细节（2026-09-08 实测）：git 全局配置 `url.https://github.com/.insteadof git@github.com:` 会把 ssh 形式改写为 https——https 对公开库匿名可读（ls-remote 能通）但推送必失败；github 推送 URL 须显式写成 `ssh://git@ssh.github.com:443/AuroraYaus/ic.git`（443 端口 ssh 通道，前缀不命中 insteadOf）；仓库路径注意大小写——github 属主为 AuroraYaus（大写），gitee 为 aurorayaus
 
 已登记 ic/CLAUDE.md §10（硬性规则）。关联 [[qa-pipeline]]。
