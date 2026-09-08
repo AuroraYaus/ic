@@ -14,3 +14,5 @@
 - [no-interview-branding](no-interview-branding.md) — 仓库公开，禁用"面试/求职"字样，题库一律"复习自测"定位
 - [wavedrom-drawing-rules](wavedrom-drawing-rules.md) — Wavedrom 五规则：. 重复/标签只挂 2 3/= 禁用/data 框后显式电平/改 json 必重渲染
 - [sync-before-edit](sync-before-edit.md) — 编辑前先同步远程：干净则 pull --rebase，脏则 fetch + 检查领先
+- [windows-bash-cjk](windows-bash-cjk.md) — Windows 下 Bash 命令含字面中文即解析破坏（exit 127），用 glob/字节转义/专用工具规避（CLAUDE.md 规则 12）
+- [mermaid-svg-xml-fix](mermaid-svg-xml-fix.md) — mermaid 经 dump-dom 产出的 SVG 含裸 <br> 须转 <br/> 才合法；渲染管线：v9 UMD + msedge headless + 提取后处理 + 解析验证

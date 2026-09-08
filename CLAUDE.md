@@ -33,6 +33,7 @@ source_spec: "Local project instructions — inherited from obsidian vault rules
     - data 字符后的 `.` 会连同数据框一起重复——数据框后必须写显式电平字符终止数据框（如 `...20...`）再继续用 `.`
     - `.json` 是唯一事实源：改完必须重跑 `tools/render_wavedrom.sh` 重渲染 `.html` 与 `.svg`；生成后解析 SVG 验证各 lane 电平序列与字符数一致（渲染链路：chrome headless + 本地 wavedrom 2.6.8）
 - 电路图/架构图/模块框图 → ≤50 节点 Mermaid，>50 节点 PlantUML
+  - **Mermaid 渲染规则（2026-09-08 固化）**：`.mmd` 是唯一事实源——改完必须重跑 `tools/render_mermaid.sh` 重渲染 `.svg`；生成后自动做裸 `<br>`→`<br/>` 修正与 XML 二次校验（渲染链路：mermaid 9.4.3 UMD + 浏览器 headless dump-dom；v10 起 ESM 在 `file://` 下无法执行，故锁定 v9 UMD）
 - Mermaid 必须配置深色/浅色自适应主题：`%%{init: {'theme': 'default'}}%%`
 - 所有图表必须输出 SVG 作为主格式，PNG 为可选
 - 图表文件放在对应概念的 `assets/` 子目录
@@ -236,3 +237,11 @@ queries: 3
 1. **权威副本在项目内**：`docs/memory/`（含 MEMORY.md 索引）随项目文件夹拷贝、在项目内演进——新增/修改记忆先改项目内副本；
 2. **会话加载镜像在 ~/.claude**：`~/.claude/projects/-home-yys-AGENT-ic/memory/` 仅用于跨会话自动加载——每次修改项目内副本后同步过去，方向是"项目内 → 镜像"；
 3. **本项目规则文件已全部在项目文件夹内**（CLAUDE.md、docs/memory/）——拷贝 ic/ 文件夹到任何位置，规则与记忆完整随行。
+
+### 12. Windows 会话 Bash 命令禁止字面中文（2026-09-08 教训固化）
+
+Windows（git-bash + Claude Code）下，命令行文本中的字面中文（含中文路径）会在传递层被按非 UTF-8 代码页破坏解析——引号/语法结构错乱，表现为 exit 127、整行命令被当作命令名报告 `No such file or directory` 的怪异报错（确诊铁证：命令中的 `$?` 被中间解析层提前展开；同一命令改用 `printf '\xe8\xae\xbe'` 字节构造后完全正常）。规则：
+
+1. **Bash 命令一律不写字面中文**：中文文件名用 glob（`tail rtl-design/RTL*.md`）或 `$(printf '\x..')` 字节序列构造；
+2. **中文内容读写走专用工具**：Read/Write/Edit/Grep/Glob 不受此缺陷影响，是访问中文文件的正道；
+3. **无法规避时**：把含中文的逻辑写入 `.sh` 临时脚本（Write 工具写入为 UTF-8 无损），再以 `bash <脚本>` 执行。
