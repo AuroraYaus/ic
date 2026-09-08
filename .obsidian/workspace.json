@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "rtl-design/concepts/仲裁器设计.md",
+                "file": "rtl-design/concepts/位图分配器与空闲链表.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "仲裁器设计"
+              "title": "位图分配器与空闲链表"
             }
           }
         ]
@@ -184,6 +184,15 @@
   },
   "active": "468207cb8f9ea163",
   "lastOpenFiles": [
+    "tools/render_mermaid.sh",
+    "asic-flow/concepts/静态时序分析.md",
+    "rtl-design/concepts/assets/bitmap-select-gates.svg.tmp.4500.a942fdab7600",
+    "rtl-design/concepts/assets/bitmap-select-gates.svg.tmp.4500.995a5e97057f",
+    "rtl-design/concepts/assets/bitmap-select-gates.svg.tmp.4500.8b7d27e38877",
+    "rtl-design/concepts/assets/bitmap-select-gates.svg.tmp.4500.76b82c2ba54f",
+    "rtl-design/concepts/assets/bitmap-select-gates.svg",
+    "rtl-design/concepts/位图分配器与空闲链表.md",
+    "rtl-design/concepts/仲裁器设计.md",
     "CLAUDE.md.tmp.95005.7f0affbd3e17",
     "docs/memory/MEMORY.md.tmp.95005.1f5313b44365",
     "docs/memory/wavedrom-drawing-rules.md",
@@ -206,20 +215,12 @@
     "cross-domain/跨领域.md",
     "tools/concepts/Wavedrom绘制规则.md",
     "architecture/concepts/片上总线.md.tmp.95005.ab3a67451f64",
-    "rtl-design/RTL设计.md.tmp.95005.6cecb6f59b9d",
-    "rtl-design/RTL设计.md.tmp.95005.4db20b6ccf65",
-    "review/编程自测题.md.tmp.95005.16e72d1fb7d8",
-    "数字IC入口.md.tmp.95005.800b146edf62",
-    "README.md.tmp.95005.7b34bb5a1aeb",
-    "rtl-design/concepts/仲裁器设计.md",
     "rtl-design/concepts/轮询仲裁.md",
     "cross-domain/concepts/复位策略.md",
     "cross-domain/concepts/时序收敛.md",
     "cross-domain/concepts/反标.md",
     "concepts/斯密特触发器.md",
     "review/ASIC流程自测题.md",
-    "asic-flow/concepts/签核.md",
-    "concepts/半导体基础.md",
     "未命名.canvas",
     "verification/concepts/assets/reference-model-architecture.svg",
     "verification/concepts/assets/tlm-port-connection.svg",
@@ -229,7 +230,6 @@
     "projects/uvm-memory/phase4/code/waveform.png",
     "projects/uvm-memory/phase4/code/coverage.png",
     "projects/uvm-memory/phase4/code/assertions.png",
-    "rtl-design/concepts/assets/cdc-synchronizer.svg",
-    "rtl-design/concepts/assets/fsm-moore-mealy.svg"
+    "rtl-design/concepts/assets/cdc-synchronizer.svg"
   ]
 }
