@@ -4,21 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "7d51600a7d1519ac",
+        "id": "5d8d8337b18fdf34",
         "type": "tabs",
         "children": [
           {
-            "id": "468207cb8f9ea163",
+            "id": "77e8f36f71f5fbd0",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "architecture/concepts/乱序执行.md",
-                "mode": "source",
+                "file": "asic-flow/concepts/静态时序分析.md",
+                "mode": "preview",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "乱序执行"
+              "title": "静态时序分析"
             }
           }
         ]
@@ -182,20 +182,29 @@
       "bases:新建数据库": false
     }
   },
-  "active": "468207cb8f9ea163",
+  "active": "77e8f36f71f5fbd0",
   "lastOpenFiles": [
+    "asic-flow/concepts/静态时序分析.md.tmp.36211.2b0a7136f073",
+    "docs/memory/image-copyright.md.tmp.36211.1dff1ff87280",
+    "asic-flow/concepts/静态时序分析.md.tmp.36211.3b4116e35357",
+    "asic-flow/concepts/静态时序分析.md.tmp.36211.6ff2a71a698b",
+    "asic-flow/concepts/静态时序分析.md.tmp.36211.516b8aa55dc4",
+    "asic-flow/concepts/静态时序分析.md.tmp.36211.ddad924234e3",
+    "asic-flow/concepts/assets/setup-hold-ref-zhihu-2.jpg",
+    "asic-flow/concepts/assets/setup-hold-ref-zhihu-1.jpg",
+    "docs/memory/image-copyright.md.tmp.36211.13d94f6b8960",
+    "docs/memory/sed3UC6Q4",
+    "docs/memory/image-copyright.md",
+    "docs/memory/image-copyright.md.tmp.36211.7b822f28ab89",
+    "docs/memory/wavedrom-drawing-rules.md.tmp.36211.f51744ff16fe",
+    "asic-flow/concepts/assets/sta-setup-hold.svg.tmp.36211.727142e1837c",
+    "asic-flow/concepts/assets/sta-setup-hold.svg",
+    "asic-flow/concepts/静态时序分析.md",
+    "architecture/concepts/乱序执行.md",
     "rtl-design/concepts/位图分配器与空闲链表.md",
     "rtl-design/concepts/有限状态机.md",
-    "tools/render_mermaid.sh",
-    "asic-flow/concepts/静态时序分析.md",
-    "rtl-design/concepts/assets/bitmap-select-gates.svg.tmp.4500.a942fdab7600",
-    "rtl-design/concepts/assets/bitmap-select-gates.svg.tmp.4500.995a5e97057f",
-    "rtl-design/concepts/assets/bitmap-select-gates.svg.tmp.4500.8b7d27e38877",
-    "rtl-design/concepts/assets/bitmap-select-gates.svg.tmp.4500.76b82c2ba54f",
     "rtl-design/concepts/assets/bitmap-select-gates.svg",
     "rtl-design/concepts/仲裁器设计.md",
-    "CLAUDE.md.tmp.95005.7f0affbd3e17",
-    "docs/memory/MEMORY.md.tmp.95005.1f5313b44365",
     "docs/memory/wavedrom-drawing-rules.md",
     "docs/memory/understand-before-comment.md",
     "docs/memory/synthesizable-only-rtl.md",
@@ -209,27 +218,18 @@
     "docs/memory/markdown-bold-flanking.md",
     "docs/memory/latex-unicode-math.md",
     "docs/memory/code-documentation-standards.md",
-    "docs/memory",
-    "CLAUDE.md.tmp.95005.97c922773672",
-    "rtl-design/concepts/仲裁器设计.md.tmp.95005.79a98fca977e",
     "rtl-design/RTL设计.md",
     "cross-domain/跨领域.md",
     "tools/concepts/Wavedrom绘制规则.md",
     "rtl-design/concepts/轮询仲裁.md",
     "cross-domain/concepts/复位策略.md",
     "cross-domain/concepts/时序收敛.md",
-    "cross-domain/concepts/反标.md",
-    "concepts/斯密特触发器.md",
-    "review/ASIC流程自测题.md",
     "未命名.canvas",
     "verification/concepts/assets/reference-model-architecture.svg",
     "verification/concepts/assets/tlm-port-connection.svg",
     "verification/concepts/assets/uvm-class-diagram.svg",
     "verification/concepts/assets/build-connect-phase.svg",
     "verification/concepts/assets/uvm-seq-driver-handshake.svg",
-    "projects/uvm-memory/phase4/code/waveform.png",
-    "projects/uvm-memory/phase4/code/coverage.png",
-    "projects/uvm-memory/phase4/code/assertions.png",
-    "rtl-design/concepts/assets/cdc-synchronizer.svg"
+    "projects/uvm-memory/phase4/code/waveform.png"
   ]
 }
