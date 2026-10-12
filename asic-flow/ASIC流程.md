@@ -63,9 +63,9 @@ ASIC 实现流程（Application-Specific Integrated Circuit Flow）是将 RTL �
 
 | 排名 | 概念 | 查询次数 | 最后查询 |
 |:---|:---|:---|:---|
-| 1 | [[asic-flow/concepts/静态时序分析\|静态时序分析（STA / Critical Path / Skew & Jitter / Multi-Cycle / False Path / Fmax / Clock Uncertainty / OCV / Max Transition / Setup & Hold Check / 前后端违例修复 / 动态时序分析辨析）]] | 14 | 2026-08-31 |
+| 1 | [[asic-flow/concepts/静态时序分析\|静态时序分析（STA / Critical Path / Skew & Jitter / Multi-Cycle / False Path / Fmax / Clock Uncertainty / OCV / Max Transition / Setup & Hold Check / 前后端违例修复 / 动态时序分析辨析）]] | 15 | 2026-10-12 |
 | 2 | [[asic-flow/concepts/功耗分析\|功耗分析（Power Analysis / VCD / SAIF / PTPX / What-If / FSDB转VCD / VDDC-VDDP分域 / UPF低功耗仿真 / 三分量来源与静态动态 / 组合与时序功耗 / SPEF与网表关系）]] | 10 | 2026-09-02 |
-| 3 | [[asic-flow/concepts/逻辑综合\|逻辑综合（面积速度权衡 / 资源共享 / Retiming / 综合流程）]] | 3 | 2026-07-23 |
+| 3 | [[asic-flow/concepts/逻辑综合\|逻辑综合（面积速度权衡 / 资源共享 / Retiming / 综合流程 / 紧时序与松时序 / QoR报告解读）]] | 5 | 2026-10-12 |
 | 4 | [[asic-flow/concepts/可测试性设计\|可测试性设计（DFT：端到端八步流程 / 扫描替换 / ATPG / MBIST March C-）]] | 3 | 2026-08-26 |
 | 5 | [[asic-flow/concepts/布局布线\|布局布线（Floorplan / Placement / CTS / Routing / 时序影响）]] | 2 | 2026-07-23 |
 | 6 | [[asic-flow/concepts/RTL与网表\|RTL 与网表（作用联系区别 / 网表五维分类 / 开关级 / EDIF）]] | 2 | 2026-08-26 |
