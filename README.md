@@ -95,6 +95,7 @@ ic/                                          ← Obsidian Vault 根目录
 │       ├── 低功耗设计.md                    低功耗：UPF、Power Domain、Multi-Vth、ICG、AVS
 │       ├── 跨时钟域设计.md                  CDC 全貌：MTBF、同步器策略、CDC 验证、SDC 约束
 │       ├── 复位策略.md                      复位：同步 vs 异步、Reset Tree、复位域
+│       ├── 复位域交叉RDC.md                 RDC：复位释放窗口、恢复/移除、复位排序、静态检查
 │       ├── 反标.md                          反标：SPEF/SDF/活动数据回填、名称匹配、理想→真实切换
 │       └── 信号完整性.md                    信号完整性：过冲/振铃、反射机理、端接匹配
 │
@@ -137,15 +138,15 @@ ic/                                          ← Obsidian Vault 根目录
 |:---|:---|:---|
 | 入口与规则 | 4 | 数字IC入口.md、CLAUDE.md、README.md、PLAN.md |
 | 基础概念 | 5 | CMOS、半导体、亚稳态、数制、斯密特触发器 |
-| RTL 设计 | 1 MOC + 14 概念 | Verilog/SV、组合/时序逻辑、FSM、流水线、CDC、算术、编码、FIFO、时钟规范、DSP、经典题例、仲裁器设计 |
+| RTL 设计 | 1 MOC + 15 概念 | Verilog/SV、组合/时序逻辑、FSM、流水线、CDC、算术、编码、FIFO、时钟规范、DSP、经典题例、仲裁器设计、位图分配器 |
 | 功能验证 | 1 MOC + 8 概念 | UVM、SVA、覆盖率、CRV、形式验证、平台、仿真加速、DPI-C |
 | 体系结构 | 1 MOC + 12 概念 | 流水线、乱序、分支预测、Cache、总线、DMA/中断、SoC、ISA、外设、PCIe、DDR PHY、存储层次 |
 | ASIC 流程 | 1 MOC + 12 概念 | 综合、RTL与网表、BES、STA、DFT、CTS、2D/3D网表、P&R、功耗、签核、PV、LEC |
-| 跨领域 | 1 MOC + 6 概念 | 时序收敛、低功耗、CDC、复位、反标、信号完整性 |
+| 跨领域 | 1 MOC + 7 概念 | 时序收敛、低功耗、CDC、复位、RDC、反标、信号完整性 |
 | 工具与脚本 | 1 MOC + 31 概念 | Makefile 25 篇、C 语言、TCL/Python/Shell/Perl 实战、Wavedrom 绘制规则 |
 | 复习自测 | 9 | 入口 + 8 个分领域题集 |
 | 外部项目 | 2 | uvm-memory、uvm-axi（参考项目目录，不计入合计） |
-| **合计** | **107 文件** | |
+| **合计** | **109 文件** | |
 
 > docs/（9 篇内部过程文档）与 .obsidian/、assets/ 图片资产不计入本统计。
 

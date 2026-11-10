@@ -11,14 +11,10 @@
             "id": "77e8f36f71f5fbd0",
             "type": "leaf",
             "state": {
-              "type": "markdown",
-              "state": {
-                "file": "asic-flow/concepts/静态时序分析.md",
-                "mode": "preview",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "静态时序分析"
+              "type": "graph",
+              "state": {},
+              "icon": "lucide-git-fork",
+              "title": "关系图谱"
             }
           }
         ]
@@ -184,6 +180,8 @@
   },
   "active": "77e8f36f71f5fbd0",
   "lastOpenFiles": [
+    "concepts/CMOS基础.md",
+    "asic-flow/concepts/静态时序分析.md",
     "asic-flow/concepts/静态时序分析.md.tmp.36211.2b0a7136f073",
     "docs/memory/image-copyright.md.tmp.36211.1dff1ff87280",
     "asic-flow/concepts/静态时序分析.md.tmp.36211.3b4116e35357",
@@ -197,9 +195,7 @@
     "docs/memory/image-copyright.md",
     "docs/memory/image-copyright.md.tmp.36211.7b822f28ab89",
     "docs/memory/wavedrom-drawing-rules.md.tmp.36211.f51744ff16fe",
-    "asic-flow/concepts/assets/sta-setup-hold.svg.tmp.36211.727142e1837c",
     "asic-flow/concepts/assets/sta-setup-hold.svg",
-    "asic-flow/concepts/静态时序分析.md",
     "architecture/concepts/乱序执行.md",
     "rtl-design/concepts/位图分配器与空闲链表.md",
     "rtl-design/concepts/有限状态机.md",
